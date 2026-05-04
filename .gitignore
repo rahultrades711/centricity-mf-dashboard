@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+*~
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Node (in case any tooling drops one)
+node_modules/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Build / temp
+dist/
+build/
+*.log
+*.tmp
