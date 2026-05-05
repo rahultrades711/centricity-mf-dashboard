@@ -480,6 +480,12 @@ def build_cycle_meta(wb, source_filename: str, summary: dict, contract: dict) ->
         raise SchemaError("Unable to determine cycle_date from Master A2 or filename.")
 
     return {
+        # Per CLAUDE.md §4.1 — every cycle JSON declares which Centricity
+        # product family it belongs to. This converter is family-specific
+        # to MF Equity & Hybrid; future converters (debt / PMS / AIF) emit
+        # their own family value. The dashboard never merges cycles across
+        # families.
+        "product_family": "MF_Equity_Hybrid",
         "cycle_date": cycle_date,
         "cycle_label": _cycle_label(cycle_date),
         "as_on_display": _display_date(cycle_date),
@@ -494,6 +500,9 @@ def build_cycle_meta(wb, source_filename: str, summary: dict, contract: dict) ->
             "analytics": None,  # v1.x
             "monitor": None,    # v1.x
         },
+        # flag_summary = null in v1 (no prior cycle). Populated by
+        # compute_cycle_flags.py post-processor (v1.x). See ISSUE-0009.
+        "flag_summary": None,
         "amc_scores": amc_scores,
         "scoring_weights": weights,
         "schema_version": "screener-v1",
@@ -1156,6 +1165,12 @@ def build_funds(wb, contract: dict, cycle_meta: dict, warnings: list[str]) -> li
         record["verdict"] = None
         record["verdict_reasons"] = None
         record["analyst_note"] = None
+        # cycle_flags = null in v1 (no prior cycle to diff). Populated by the
+        # post-processing step compute_cycle_flags.py (v1.x), which runs in
+        # the GitHub Action AFTER this converter and BEFORE commit. The Excel
+        # converter never computes flags. See ISSUE-0009 + contract
+        # derived_fields_documentation.cycle_flags.
+        record["cycle_flags"] = None
         record["analytics_pending"] = _empty_analytics_pending()
 
         # Hidden full-precision metric values for parameter_scores percentile compute.

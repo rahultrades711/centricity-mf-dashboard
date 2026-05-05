@@ -1,0 +1,79 @@
+/*
+ * Centricity MF Screener Dashboard — Compare page CSS
+ */
+.cmp-band {
+  background: #fff; border-bottom: 1px solid var(--rule);
+  padding: 28px 56px 22px;
+}
+.cmp-band-inner { max-width: 1740px; margin: 0 auto; }
+.cmp-band h1 {
+  margin: 0; font-size: 32px; font-weight: 700; letter-spacing: -.01em; line-height: 1.1;
+}
+.cmp-band h1 em { font-style: italic; font-weight: 400; color: var(--gold-deep); }
+.cmp-band .sub {
+  font-size: 13.5px; color: var(--text-mid); margin: 8px 0 18px; max-width: 80ch;
+}
+.cmp-band .controls {
+  display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
+}
+.cmp-band .controls .filter-cell {
+  display: flex; flex-direction: column; gap: 6px;
+}
+.cmp-band .controls .filter-label {
+  font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--text-mid); font-weight: 700;
+}
+
+.cmp-body {
+  max-width: 1740px; margin: 0 auto;
+  padding: 24px 56px 64px;
+}
+
+.cmp-tabs {
+  display: flex; gap: 0;
+  border-bottom: 1px solid var(--rule); margin-bottom: 18px;
+}
+.cmp-tab {
+  font-family: inherit;
+  background: transparent; border: 0;
+  padding: 12px 18px;
+  font-size: 12.5px; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--text-mid); font-weight: 700;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color .15s, border-color .15s;
+}
+.cmp-tab:hover { color: var(--gold); }
+.cmp-tab.active { color: var(--black); border-bottom-color: var(--gold); }
+
+.cmp-table-wrap {
+  background: #fff; border: 1px solid var(--rule); border-radius: 4px;
+  box-shadow: var(--shadow-sm); overflow-x: auto;
+}
+table.cmp-tbl {
+  width: 100%; border-collapse: collapse; font-size: 13.5px;
+}
+table.cmp-tbl thead th {
+  text-align: center; padding: 12px 14px;
+  font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--text-mid); font-weight: 700;
+  background: #fff; border-bottom: 1px solid var(--grey-light);
+  white-space: nowrap;
+}
+table.cmp-tbl thead th:first-child { text-align: left; }
+table.cmp-tbl tbody td {
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(217, 217, 217, .45);
+  text-align: center; vertical-align: middle;
+}
+table.cmp-tbl tbody td:first-child { text-align: left; font-weight: 700; }
+table.cmp-tbl tbody td.highlight { background: rgba(189, 149, 104, .14); font-weight: 700; }
+table.cmp-tbl tbody td.row-label { font-size: 11.5px; color: var(--text-mid); font-weight: 700; letter-spacing: .04em; }
+table.cmp-tbl tbody tr.metric-group td:first-child {
+  background: var(--tan-soft); font-size: 10.5px; letter-spacing: .18em;
+  text-transform: uppercase; color: var(--gold); font-weight: 700;
+}
+
+@media (max-width: 1380px) {
+  .cmp-band, .cmp-body { padding-left: 32px; padding-right: 32px; }
+}

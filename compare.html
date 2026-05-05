@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Centricity MF Screener — Compare</title>
+<meta name="viewport" content="width=1680">
+<link rel="icon" href="assets/logo.png">
+<link rel="stylesheet" href="css/centricity.css">
+<link rel="stylesheet" href="css/compare.css">
+<script defer src="js/data-loader.js"></script>
+<script defer src="js/state.js"></script>
+<script defer src="js/multi-select.js"></script>
+<script defer src="js/exports.js"></script>
+<script defer src="js/compare.js"></script>
+</head>
+<body>
+
+<header class="appbar" role="banner">
+  <div class="left"><div class="logo-cell"><img src="assets/logo.png" alt="Centricity WealthTech"></div></div>
+  <nav aria-label="primary">
+    <a href="index.html">Home</a>
+    <a href="screener.html">Screener</a>
+    <a href="fund-detail.html">Fund One Pagers</a>
+    <a href="portfolio-builder.html">Portfolio Builder</a>
+    <a class="active" href="compare.html">Compare</a>
+    <a href="archive.html">Archive</a>
+    <a href="alerts.html">Alerts</a>
+    <a href="watchlist.html">Watchlist</a>
+  </nav>
+  <div class="right">
+    <label class="search">
+      <span style="opacity:.6">⌕</span>
+      <input type="text" placeholder="Search…" aria-label="Search">
+    </label>
+  </div>
+</header>
+
+<main id="mainArea">
+
+<section class="cmp-band">
+  <div class="cmp-band-inner">
+    <h1>Compare <em>funds</em> · <span id="cmpCycle">—</span></h1>
+    <p class="sub">Up to 5 funds, side-by-side. Tabs cover returns, risk, holdings, sectors, m-cap, manager,
+       expense, and rank. Cycle axis collapses to one column in v1 (only one cycle in the archive); historical
+       comparisons activate from the next cycle (30 April 2026) onwards.</p>
+    <div class="controls">
+      <div class="filter-cell">
+        <span class="filter-label">Funds (up to 5)</span>
+        <span id="fundMS"></span>
+      </div>
+      <button class="btn ghost" id="exportBtn" data-export-pdf="#mainArea" data-export-name="Centricity-Compare">Export PDF</button>
+    </div>
+  </div>
+</section>
+
+<section class="cmp-body">
+
+  <div class="cmp-tabs" role="tablist">
+    <button class="cmp-tab active" data-tab="returns">Returns</button>
+    <button class="cmp-tab" data-tab="risk">Risk</button>
+    <button class="cmp-tab" data-tab="holdings">Holdings</button>
+    <button class="cmp-tab" data-tab="sectors">Sectors</button>
+    <button class="cmp-tab" data-tab="mcap">M-Cap</button>
+    <button class="cmp-tab" data-tab="manager">Manager</button>
+    <button class="cmp-tab" data-tab="expense">Expense</button>
+    <button class="cmp-tab" data-tab="rank">Rank &amp; Score</button>
+  </div>
+
+  <div class="cmp-table-wrap" id="cmpTableWrap"></div>
+  <div style="font-size:11.5px;color:var(--text-mid);margin-top:10px;">
+    Negative returns rendered in <span style="color:var(--red)">#931621</span> per Brand Standards §2.
+    Holdings / Sectors / M-Cap tabs surface <code>analytics_pending</code> placeholders until the
+    Analytics pipeline (v1.1) ships.
+  </div>
+
+</section>
+
+</main>
+
+<footer class="appfoot" role="contentinfo">
+  <div class="left">
+    <span class="gold">CENTRICITY WEALTHTECH</span>
+    <span>·</span>
+    <span>Products Team</span>
+    <span>·</span>
+    <span>Confidential</span>
+  </div>
+  <div class="right" id="footUpdated">Last updated · —</div>
+</footer>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+</body>
+</html>

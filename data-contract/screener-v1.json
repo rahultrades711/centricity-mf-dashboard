@@ -231,6 +231,13 @@
       "schema_validation_summary": "object — { sheets_validated: int, anchors_passed: int, weights_total_pct: float, fund_count: int }"
     },
     "cycle_meta_schema": {
+      "product_family": {
+        "type": "string",
+        "required": true,
+        "values_locked": ["MF_Equity_Hybrid", "MF_Debt", "PMS", "AIF"],
+        "v1_value": "MF_Equity_Hybrid",
+        "_note": "Identifies which Centricity product family this cycle JSON belongs to. Per CLAUDE.md §4.1 (4 product families × 3 source types grid), the dashboard MUST NOT merge cycles across families — each family has its own primary key (AMFI int for MF, SEBI PMS reg-no string for PMS, SEBI AIF code string for AIF) and its own scoring methodology. Hardcoded by each family's converter at emission time. v1 ships with MF_Equity_Hybrid only."
+      },
       "cycle_date": { "type": "string", "format": "YYYY-MM-DD", "example": "2026-04-15" },
       "cycle_label": { "type": "string", "example": "U2 Apr 2026", "derivation": "U1 if day <= 10 (1st-5th cycle window), else U2" },
       "as_on_display": { "type": "string", "example": "15 Apr 2026", "format": "DD MMM YYYY" },
@@ -254,6 +261,21 @@
         "screener": { "type": "string", "format": "YYYY-MM-DD", "example": "2026-04-15" },
         "analytics": { "type": "string|null", "v1_value": null, "future_value": "YYYY-MM-DD" },
         "monitor": { "type": "string|null", "v1_value": null, "future_value": "YYYY-MM-DD" }
+      },
+      "flag_summary": {
+        "type": "object|null",
+        "v1_default": null,
+        "_note": "Cycle-level flag rollup for the Home hero pulse strip and the Active Flags section. Computed by the post-processing step compute_cycle_flags.py (v1.x), which runs in the GitHub Action after the Excel converter and before commit. Null when no prior cycle exists in the archive (the very first cycle has nothing to diff against).",
+        "shape_when_populated": {
+          "total_flags": "int",
+          "high_severity_count": "int",
+          "rank_drop_count": "int",
+          "manager_change_count": "int",
+          "aum_swing_count": "int",
+          "fund_entered_count": "int",
+          "fund_exited_count": "int",
+          "fund_recategorised_count": "int"
+        }
       },
       "amc_scores": {
         "type": "array",
@@ -364,6 +386,17 @@
       "verdict": { "type": "string|null", "values_when_assigned": ["BUY", "HOLD", "REVIEW", "AVOID"], "v1_default": null, "future": "manual or rule-based assignment, not in v1" },
       "verdict_reasons": { "type": "array<string>|null", "v1_default": null },
       "analyst_note": { "type": "object|null", "v1_default": null, "future": "Phase 5 — pre-baked in GitHub Action via Claude API call per fund per cycle" },
+      "cycle_flags": {
+        "type": "array|null",
+        "v1_default": null,
+        "_note": "Per-fund flags computed by post-processing step compute_cycle_flags.py (v1.x). Each item: { kind, severity, delta, message }. Null when no prior cycle exists for cycle-to-cycle diff (i.e., the first cycle ever). Source A — auto cycle-to-cycle deltas — only for v1.x; Sources B (threshold breaches) and C (manual curated events) deferred to v1.x+.",
+        "item_shape_when_populated": {
+          "kind": "rank_drop | rank_gain | score_drop | score_gain | manager_change | aum_swing | fund_entered | fund_exited | fund_recategorised",
+          "severity": "high | medium | low",
+          "delta": "object — kind-specific delta payload (e.g., { from_rank, to_rank } for rank_drop)",
+          "message": "string — short Persona-A voice human-readable line"
+        }
+      },
       "analytics_pending": {
         "_note": "All values null in v1. Populated when scripts/excel_to_json_analytics.py ships (v1.1, contract bumps to screener-v2 + analytics-v1).",
         "top_10_holdings": { "type": "array|null", "v1_default": null },
@@ -512,6 +545,27 @@
         "TER (%)": "ter_pct    (direction Lower)",
         "AMC Score": "amc_score"
       }
+    },
+    "cycle_flags": {
+      "_overview": "Active Flags — auto-surfaced per fund and per cycle on every cycle update. Three sources mapped (locked 2026-05-05); v1.x ships Source A only. compute_cycle_flags.py is a separate post-processing step that runs in the GitHub Action AFTER scripts/excel_to_json_screener.py and BEFORE commit; it reads the current cycle JSON + the most recent prior cycle JSON, diffs them, writes cycle_flags onto each affected fund and flag_summary onto cycle_meta. The Excel converter itself NEVER computes flags — its job stays 'one Excel → one JSON, deterministic'. See ISSUE-0009.",
+      "sources": {
+        "A_auto_cycle_to_cycle_deltas": "v1.x scope. Diffs current vs prior cycle JSON. Produces the 9 flag kinds below.",
+        "B_auto_threshold_breaches": "v1.x+. Absolute-value rules — e.g., AUM crosses category cap, TER > 2.5%, manager tenure < 6 months on a Ranked fund. Rules to be authored in a Products Team workshop before v1.1 ships.",
+        "C_manual_curated_events": "v1.x+. SEBI category reclassifications, AMC corporate events, regulatory notices — entered into a manually-maintained data/manual_flags/<cycle>.json file by an analyst, merged into cycle_flags by compute_cycle_flags.py."
+      },
+      "v1.x_flag_kinds_source_A": {
+        "rank_drop": "Universe rank moved upward (worse) by N positions. Severity: high if N ≥ 10, medium if N ≥ 5, low otherwise. Delta: { from_rank, to_rank, positions: N }.",
+        "rank_gain": "Universe rank moved downward (better) by N positions. Severity: medium if N ≥ 10, else low. Delta: same shape.",
+        "score_drop": "centricity_score dropped by ≥ X percentage points. Severity: high if X ≥ 5pp, medium if X ≥ 2pp, low otherwise. Delta: { from_score, to_score, pp_drop: X }.",
+        "score_gain": "centricity_score rose by ≥ X percentage points. Severity: low informational only. Delta: same shape.",
+        "manager_change": "manager_name differs from prior cycle. Severity: high if departing manager_tenure_yrs ≥ 5; medium if 2–5; low if < 2. Delta: { from_manager, to_manager, departed_tenure_yrs }.",
+        "aum_swing": "AUM moved by ≥ X percent versus prior cycle. Severity: high if |X| ≥ 30%, medium if |X| ≥ 15%, low otherwise. Delta: { from_aum_cr, to_aum_cr, pct_change: X }.",
+        "fund_entered": "Scheme code present in current cycle but not in prior cycle. Severity: low. Delta: { entered_at_rank }.",
+        "fund_exited": "Scheme code present in prior cycle but not in current cycle. Severity: medium (assumes wind-up / merger / re-categorisation). Delta: { from_rank, last_seen_cycle }.",
+        "fund_recategorised": "category differs from prior cycle. Severity: high (SEBI reclassification, peer pool change). Delta: { from_category, to_category }."
+      },
+      "thresholds_locked_first_pass": "rank_drop ≥10=high, ≥5=medium, <5=low; score_drop ≥5pp=high, ≥2pp=medium, <2pp=low; aum_swing ≥30%=high, ≥15%=medium, <15%=low. The other six kinds use the severity rules listed above. Products Team workshop will refine these before v1.1 ships; thresholds are stored in a separate config file (data/flag-rules.json, v1.x) so refinement doesn't require a code change.",
+      "v1_default": "Both fund_record.cycle_flags and cycle_meta.flag_summary are null in v1 (no prior cycle exists; converter emits null; UI renders the empty state). Source A activates with the 30-Apr-2026 cycle when there's a prior cycle to diff against."
     }
   },
 
@@ -532,6 +586,8 @@
     "verdict",
     "verdict_reasons",
     "analyst_note",
+    "cycle_flags",
+    "cycle_meta.flag_summary",
     "analytics_pending.top_10_holdings",
     "analytics_pending.sector_allocation",
     "analytics_pending.full_holdings",

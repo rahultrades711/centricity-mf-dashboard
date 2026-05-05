@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Centricity MF Screener — Alerts</title>
+<meta name="viewport" content="width=1680">
+<link rel="icon" href="assets/logo.png">
+<link rel="stylesheet" href="css/centricity.css">
+<style>
+  .shell-band {
+    background: #fff; border-bottom: 1px solid var(--rule);
+    padding: 28px 56px 22px;
+  }
+  .shell-band .inner { max-width: 1740px; margin: 0 auto; }
+  .shell-band h1 { margin: 0; font-size: 32px; font-weight: 700; letter-spacing: -.01em; }
+  .shell-band h1 em { font-style: italic; font-weight: 400; color: var(--gold-deep); }
+  .shell-band .sub { font-size: 13.5px; color: var(--text-mid); margin: 8px 0 0; max-width: 80ch; }
+
+  .shell-body {
+    max-width: 1740px; margin: 64px auto 80px;
+    padding: 0 56px;
+  }
+  .shell-empty {
+    background: #fff; border: 1px solid var(--rule); border-radius: 4px;
+    padding: 96px 32px; text-align: center;
+    box-shadow: var(--shadow-sm);
+  }
+  .shell-empty .ring-motif {
+    width: 180px; height: 180px; margin: 0 auto 24px;
+  }
+  .shell-empty h2 {
+    margin: 0 0 12px;
+    font-size: 24px; font-weight: 700; letter-spacing: -.005em;
+  }
+  .shell-empty h2 em { font-style: italic; font-weight: 400; color: var(--gold-deep); }
+  .shell-empty p {
+    font-size: 14px; color: var(--text-mid);
+    margin: 0 auto 16px; max-width: 60ch; line-height: 1.6;
+  }
+  .shell-empty .scope-list {
+    display: inline-block; text-align: left;
+    background: var(--tan-soft); border-radius: 3px;
+    padding: 14px 22px; margin-top: 8px;
+    font-size: 12.5px; color: var(--black);
+  }
+  .shell-empty .scope-list b { color: var(--gold-deep); }
+</style>
+</head>
+<body>
+
+<header class="appbar" role="banner">
+  <div class="left"><div class="logo-cell"><img src="assets/logo.png" alt="Centricity WealthTech"></div></div>
+  <nav aria-label="primary">
+    <a href="index.html">Home</a>
+    <a href="screener.html">Screener</a>
+    <a href="fund-detail.html">Fund One Pagers</a>
+    <a href="portfolio-builder.html">Portfolio Builder</a>
+    <a href="compare.html">Compare</a>
+    <a href="archive.html">Archive</a>
+    <a class="active" href="alerts.html">Alerts</a>
+    <a href="watchlist.html">Watchlist</a>
+  </nav>
+  <div class="right">
+    <label class="search">
+      <span style="opacity:.6">⌕</span>
+      <input type="text" placeholder="Search…" aria-label="Search">
+    </label>
+  </div>
+</header>
+
+<main>
+
+<section class="shell-band">
+  <div class="inner">
+    <h1>Flags &amp; <em>Alerts</em></h1>
+    <p class="sub">Auto-surfaced surveillance feed across the universe — manager exits, AUM breaches,
+       expense-ratio jumps, style drift, SEBI category reclassifications, fund mergers, and stale-NAV
+       inheritance from the upstream Excel build.</p>
+  </div>
+</section>
+
+<section class="shell-body">
+  <div class="shell-empty">
+    <div class="ring-motif" aria-hidden="true"></div>
+    <h2>Alerts panel — design <em>pending</em>, coming in v1.1</h2>
+    <p>The data backing this panel is already in the cycle JSON (<code>fund.cycle_flags</code>,
+       <code>cycle_meta.flag_summary</code>) — see <code>data-contract/screener-v1.json</code>
+       § <code>derived_fields_documentation.cycle_flags</code>. The Source A post-processor
+       (<code>scripts/compute_cycle_flags.py</code>) and the panel UI itself ship in v1.x.</p>
+    <p>Three sources mapped, v1.x scope is Source A only:</p>
+    <div class="scope-list">
+      <b>A · Auto cycle-to-cycle deltas</b> — rank moves, manager changes, AUM swings,
+         fund-entered / exited / re-categorised. <i>v1.x</i><br>
+      <b>B · Auto threshold breaches</b> — TER caps, manager-tenure floors, AUM ceilings.
+         <i>v1.x+ pending Products Team workshop</i><br>
+      <b>C · Manual curated events</b> — SEBI notices, AMC corporate actions.
+         <i>v1.x+ pending workflow design</i>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="appfoot" role="contentinfo">
+  <div class="left">
+    <span class="gold">CENTRICITY WEALTHTECH</span>
+    <span>·</span>
+    <span>Products Team</span>
+    <span>·</span>
+    <span>Confidential</span>
+  </div>
+  <div class="right">Last updated · —</div>
+</footer>
+
+</body>
+</html>

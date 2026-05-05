@@ -1,0 +1,314 @@
+/*
+ * Centricity MF Screener Dashboard — Home page CSS
+ * Loaded after centricity.css. Holds layout pieces specific to index.html:
+ * hero band, meta-strip, quick-action tiles, top-10 fund table, "what
+ * changed" cards, and the home-only pulse strip.
+ */
+
+/* ============ HERO BAND ============ */
+/* Cycle Snapshot side panel removed per Cowork direction 2026-05-05 —
+   metadata now lives entirely in the hero band and the cycle dropdown
+   moved into the hero itself. */
+.hero {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 92% 50%, rgba(189, 149, 104, .08) 0%, transparent 55%),
+    linear-gradient(180deg, #fff 0%, #fff 70%, rgba(219, 200, 178, .18) 100%);
+  border-bottom: 1px solid var(--rule);
+  padding: 46px 56px 38px;
+}
+.hero-inner {
+  max-width: 1640px;
+  margin: 0 auto;
+}
+.hero-row {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 32px; margin-bottom: 22px;
+}
+.eyebrow-row {
+  display: flex; align-items: center; gap: 14px;
+  font-size: 11px; letter-spacing: .28em; text-transform: uppercase; color: var(--gold);
+  margin-bottom: 18px;
+}
+.eyebrow-row .bar { width: 36px; height: 1px; background: var(--gold); }
+.eyebrow-row b { font-weight: 700; color: var(--gold); }
+
+.hero h1 {
+  font-family: 'Cambria', Georgia, serif;
+  font-weight: 700;
+  font-size: 44px;
+  line-height: 1.1;
+  margin: 0 0 14px;
+  letter-spacing: -.012em;
+  color: var(--black);
+}
+.hero h1 .sep { color: var(--gold-deep); font-weight: 400; margin: 0 .35em; }
+.hero h1 .cycle-tag { color: var(--gold-deep); font-style: italic; font-weight: 400; }
+
+.hero .lede {
+  font-size: 17px;
+  color: var(--text-mid);
+  max-width: 80ch;
+  margin: 0 0 22px;
+  line-height: 1.55;
+}
+
+.hero-cycle {
+  display: flex; align-items: center; gap: 12px;
+  font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--text-mid);
+  flex: none; margin-top: 8px;
+}
+.hero-cycle select {
+  appearance: none; -webkit-appearance: none;
+  font-family: inherit; font-size: 13px; font-weight: 600;
+  background: #fff;
+  border: 1px solid var(--gold);
+  color: var(--black);
+  padding: 9px 30px 9px 12px;
+  border-radius: 3px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--gold) 50%),
+    linear-gradient(135deg, var(--gold) 50%, transparent 50%);
+  background-position: calc(100% - 14px) 17px, calc(100% - 9px) 17px;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  cursor: pointer;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.meta-strip {
+  display: flex; flex-wrap: wrap; gap: 0;
+  border-top: 1px solid var(--rule);
+  padding-top: 18px;
+}
+.meta-strip .cell {
+  padding: 4px 28px 4px 0;
+  margin-right: 28px;
+  border-right: 1px solid var(--rule);
+}
+.meta-strip .cell:last-child { border-right: 0; margin-right: 0; padding-right: 0; }
+.meta-strip .lbl {
+  font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--text-mid);
+  display: block; margin-bottom: 4px;
+}
+.meta-strip .v {
+  font-size: 20px; font-weight: 700; color: var(--black); letter-spacing: -.005em;
+}
+.meta-strip .v span { color: var(--gold); }
+
+/* ============ QUICK ACTIONS ============ */
+.quick { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; }
+
+.qicon { width: 42px; height: 42px; flex: none; color: var(--gold); }
+.qtile.gold .qicon { color: #fff; }
+.qicon svg {
+  width: 100%; height: 100%; display: block;
+  stroke: currentColor; fill: none;
+  stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round;
+}
+
+.qtile {
+  text-align: left;
+  border: 1px solid var(--rule);
+  background: #fff;
+  border-radius: 4px;
+  padding: 26px 24px 22px;
+  display: flex; flex-direction: column; gap: 14px;
+  min-height: 198px;
+  transition: background .2s, border-color .2s, box-shadow .2s, transform .2s;
+  cursor: pointer; position: relative; overflow: hidden;
+}
+.qtile::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0;
+  height: 2px; background: var(--gold);
+  transform: scaleX(0); transform-origin: left;
+  transition: transform .25s ease-out;
+}
+.qtile:hover {
+  border-color: var(--gold);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+.qtile:hover::after { transform: scaleX(1); }
+
+.qtile.gold {
+  background: linear-gradient(180deg, #C49C70 0%, #B0875E 100%);
+  border-color: var(--gold);
+  color: #fff;
+}
+.qtile.gold:hover { box-shadow: 0 8px 24px rgba(189, 149, 104, .30); }
+.qtile.gold::after { background: #fff; }
+
+.qtile h3 { margin: 0; font-size: 19px; font-weight: 700; line-height: 1.2; letter-spacing: -.005em; }
+.qtile p { margin: 0; font-size: 13px; color: var(--text-mid); line-height: 1.5; }
+.qtile.gold p { color: rgba(255, 255, 255, .88); }
+.qtile .cta {
+  margin-top: auto;
+  font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: var(--gold);
+  display: flex; align-items: center; gap: 6px; font-weight: 700;
+}
+.qtile.gold .cta { color: #fff; }
+/* Tile-footer .meta strips removed per Cowork direction 2026-05-05 — every
+   tile ends at the Warm Gold action link; no caption strip below. */
+
+/* ============ TOP-10 FILTER ROW (Asset Class + SEBI Category MultiSelects) ============ */
+.filter-row {
+  display: flex; align-items: flex-start; gap: 18px; flex-wrap: wrap;
+}
+.filter-cell {
+  display: flex; flex-direction: column; gap: 6px;
+}
+.filter-label {
+  font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--text-mid); font-weight: 700;
+}
+
+/* ============ TOP-10 TABLE ============ */
+.table-wrap {
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+}
+table.fund-tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
+table.fund-tbl thead th,
+table.fund-tbl tbody td {
+  /* Centre-align every cell on Home Top-10 — Cowork direction 2026-05-05.
+     Overrides the institutional default of right-aligned numerics. */
+  text-align: center;
+}
+table.fund-tbl thead th {
+  font-weight: 700;
+  font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--text-mid);
+  padding: 14px 16px;
+  background: #fff;
+  border-bottom: 1px solid var(--grey-light);
+  cursor: pointer; user-select: none; white-space: nowrap;
+}
+table.fund-tbl thead th .arr {
+  display: inline-block; margin-left: 6px; color: var(--gold);
+  opacity: 0; transition: opacity .15s;
+}
+table.fund-tbl thead th.sorted .arr { opacity: 1; }
+table.fund-tbl tbody td {
+  padding: 16px;
+  border-bottom: 1px solid rgba(217, 217, 217, .45);
+  vertical-align: middle;
+}
+table.fund-tbl tbody tr {
+  cursor: pointer;
+  border-left: 2px solid transparent;
+  transition: border-color .2s ease-out, background .2s ease-out;
+}
+table.fund-tbl tbody tr:nth-child(even) td { background: rgba(217, 217, 217, .16); }
+table.fund-tbl tbody tr:hover { border-left-color: var(--gold); }
+table.fund-tbl tbody tr:hover td { background: rgba(219, 200, 178, .22); }
+table.fund-tbl tbody tr:last-child td { border-bottom: 0; }
+table.fund-tbl .rank {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  font-weight: 700; font-size: 13px;
+  background: #fff; border: 1px solid var(--gold); color: var(--black);
+}
+table.fund-tbl tr:nth-child(-n+3) .rank {
+  background: var(--gold); color: #fff; border-color: var(--gold);
+}
+table.fund-tbl .fund-name { font-weight: 700; font-size: 14.5px; }
+table.fund-tbl .fund-sub { font-size: 12px; color: var(--text-mid); margin-top: 3px; letter-spacing: .02em; }
+.score-bar {
+  display: inline-block;
+  width: 72px; height: 6px;
+  background: var(--grey-light);
+  border-radius: 1px;
+  overflow: hidden;
+  vertical-align: middle;
+  margin-right: 10px;
+}
+.score-bar > i { display: block; height: 100%; background: var(--gold); }
+
+/* In the Top-10 cell, score bar + percentage stack centred */
+table.fund-tbl .score-cell {
+  display: inline-flex; align-items: center; gap: 8px;
+}
+
+/* Asset-class empty state nested inside the table-wrap shell */
+.table-wrap .empty-state {
+  border: 0; border-radius: 0; box-shadow: none;
+  padding: 56px 24px;
+}
+
+/* ============ ALERTS LAYOUT (uses .alert from centricity.css) ============ */
+.alerts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+
+/* ============ WHAT-CHANGED CARDS ============ */
+.changes {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 1px;
+  background: var(--rule);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.change-card {
+  background: rgba(219, 200, 178, .30);
+  padding: 24px 22px 22px;
+  cursor: pointer;
+  transition: background .2s ease-out;
+  position: relative;
+  min-height: 200px;
+  display: flex; flex-direction: column;
+}
+.change-card:hover { background: rgba(219, 200, 178, .55); }
+.change-card .hd {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 8px; margin-bottom: 14px;
+}
+.change-card .hd .lbl {
+  font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--text-mid); font-weight: 700;
+}
+.change-card .hd .count {
+  font-size: 36px; font-weight: 700; line-height: 1;
+  color: var(--black); letter-spacing: -.01em;
+}
+.change-card .body { font-size: 12.5px; color: var(--black); flex: 1; }
+.change-card .body .row {
+  display: flex; justify-content: space-between; gap: 10px;
+  padding: 6px 0; border-bottom: 1px dotted rgba(0, 0, 0, .10);
+}
+.change-card .body .row:last-child { border-bottom: 0; }
+.change-card .body .row .name {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 75%;
+}
+.change-card .body .row .delta { font-weight: 700; }
+.change-card .body .row .delta.up { color: var(--green); }
+.change-card .body .row .delta.dn { color: var(--red); }
+.change-card .foot {
+  margin-top: 12px;
+  font-size: 10.5px; letter-spacing: .22em; text-transform: uppercase;
+  color: var(--gold); font-weight: 700;
+  display: flex; align-items: center; gap: 6px;
+}
+.change-card.empty {
+  background: rgba(219, 200, 178, .12);
+  cursor: default;
+}
+.change-card.empty:hover { background: rgba(219, 200, 178, .12); }
+.change-card.empty .body {
+  display: flex; align-items: center; justify-content: center;
+  text-align: center; color: var(--text-mid); font-style: italic;
+  padding: 20px 8px;
+}
+
+/* ============ RESPONSIVE NUDGES (Home-specific) ============ */
+@media (max-width: 1380px) {
+  .quick { grid-template-columns: repeat(3, 1fr); }
+  .changes { grid-template-columns: repeat(2, 1fr); }
+  .alerts { grid-template-columns: 1fr; }
+  .hero-inner { grid-template-columns: 1fr; }
+}

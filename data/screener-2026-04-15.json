@@ -1,6 +1,7 @@
 {
   "contract_version": "screener-v1",
   "cycle_meta": {
+    "product_family": "MF_Equity_Hybrid",
     "cycle_date": "2026-04-15",
     "cycle_label": "U2 Apr 2026",
     "as_on_display": "15 Apr 2026",
@@ -224,6 +225,7 @@
       "analytics": null,
       "monitor": null
     },
+    "flag_summary": null,
     "amc_scores": [
       {
         "amc": "360 ONE",
@@ -551,7 +553,7 @@
       }
     ],
     "schema_version": "screener-v1",
-    "generated_at": "2026-05-05T07:46:45+00:00",
+    "generated_at": "2026-05-05T12:31:40+00:00",
     "source_file": "MutualFund_Whitelisting_15Apr2026.xlsx"
   },
   "funds": [
@@ -629,6 +631,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -737,6 +740,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -845,6 +849,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -953,6 +958,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -1061,6 +1067,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -1169,6 +1176,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -1277,6 +1285,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -1385,6 +1394,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -1493,6 +1503,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -1601,6 +1612,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -1709,6 +1721,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -1817,6 +1830,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -1925,6 +1939,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -2033,6 +2048,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -2141,6 +2157,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -2249,6 +2266,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -2357,6 +2375,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -2465,6 +2484,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -2573,6 +2593,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -2681,6 +2702,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -2789,6 +2811,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -2897,6 +2920,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -3005,6 +3029,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -3113,6 +3138,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -3221,6 +3247,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -3329,6 +3356,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -3437,6 +3465,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -3545,6 +3574,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -3653,6 +3683,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -3761,6 +3792,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -3869,6 +3901,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -3977,6 +4010,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -4085,6 +4119,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -4193,6 +4228,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -4301,6 +4337,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -4409,6 +4446,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -4517,6 +4555,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -4625,6 +4664,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -4733,6 +4773,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -4841,6 +4882,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -4949,6 +4991,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -5057,6 +5100,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -5165,6 +5209,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -5273,6 +5318,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -5381,6 +5427,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -5489,6 +5536,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -5597,6 +5645,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -5705,6 +5754,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -5813,6 +5863,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -5921,6 +5972,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -6029,6 +6081,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -6137,6 +6190,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -6245,6 +6299,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -6353,6 +6408,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -6461,6 +6517,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -6569,6 +6626,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -6677,6 +6735,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -6785,6 +6844,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -6893,6 +6953,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -7001,6 +7062,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -7109,6 +7171,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -7217,6 +7280,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -7325,6 +7389,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -7433,6 +7498,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -7541,6 +7607,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -7649,6 +7716,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -7757,6 +7825,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -7865,6 +7934,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -7973,6 +8043,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -8081,6 +8152,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -8189,6 +8261,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -8297,6 +8370,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -8405,6 +8479,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -8513,6 +8588,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -8621,6 +8697,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -8729,6 +8806,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -8837,6 +8915,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -8945,6 +9024,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -9053,6 +9133,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -9161,6 +9242,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -9269,6 +9351,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -9377,6 +9460,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -9485,6 +9569,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -9593,6 +9678,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -9701,6 +9787,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -9809,6 +9896,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -9917,6 +10005,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -10025,6 +10114,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -10133,6 +10223,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -10241,6 +10332,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -10349,6 +10441,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -10457,6 +10550,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -10565,6 +10659,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -10673,6 +10768,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -10781,6 +10877,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -10889,6 +10986,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -10997,6 +11095,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -11105,6 +11204,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -11213,6 +11313,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -11321,6 +11422,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -11429,6 +11531,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -11537,6 +11640,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -11645,6 +11749,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -11753,6 +11858,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -11861,6 +11967,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -11969,6 +12076,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -12077,6 +12185,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -12185,6 +12294,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -12293,6 +12403,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -12401,6 +12512,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -12509,6 +12621,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -12617,6 +12730,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -12725,6 +12839,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -12833,6 +12948,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -12941,6 +13057,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -13049,6 +13166,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -13157,6 +13275,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -13265,6 +13384,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -13373,6 +13493,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -13481,6 +13602,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -13589,6 +13711,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -13697,6 +13820,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -13805,6 +13929,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -13913,6 +14038,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -14021,6 +14147,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -14129,6 +14256,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -14237,6 +14365,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -14345,6 +14474,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -14453,6 +14583,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -14561,6 +14692,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -14669,6 +14801,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -14777,6 +14910,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -14885,6 +15019,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -14993,6 +15128,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -15101,6 +15237,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -15209,6 +15346,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -15317,6 +15455,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -15425,6 +15564,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -15533,6 +15673,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -15641,6 +15782,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -15749,6 +15891,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -15857,6 +16000,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -15965,6 +16109,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -16073,6 +16218,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -16181,6 +16327,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -16289,6 +16436,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -16397,6 +16545,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -16505,6 +16654,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -16613,6 +16763,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -16721,6 +16872,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -16829,6 +16981,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -16937,6 +17090,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -17045,6 +17199,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -17153,6 +17308,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -17261,6 +17417,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -17369,6 +17526,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -17477,6 +17635,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -17585,6 +17744,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -17693,6 +17853,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -17801,6 +17962,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -17909,6 +18071,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -18017,6 +18180,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -18125,6 +18289,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -18233,6 +18398,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -18341,6 +18507,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -18449,6 +18616,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -18557,6 +18725,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -18665,6 +18834,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -18773,6 +18943,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -18881,6 +19052,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -18989,6 +19161,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -19097,6 +19270,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -19205,6 +19379,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -19313,6 +19488,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -19421,6 +19597,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -19529,6 +19706,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -19637,6 +19815,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -19745,6 +19924,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -19853,6 +20033,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -19961,6 +20142,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -20069,6 +20251,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -20177,6 +20360,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -20285,6 +20469,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -20393,6 +20578,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -20501,6 +20687,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -20609,6 +20796,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -20717,6 +20905,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -20825,6 +21014,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -20933,6 +21123,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -21041,6 +21232,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -21149,6 +21341,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -21257,6 +21450,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -21365,6 +21559,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -21473,6 +21668,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -21581,6 +21777,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -21689,6 +21886,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -21797,6 +21995,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -21905,6 +22104,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -22013,6 +22213,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -22121,6 +22322,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -22229,6 +22431,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -22337,6 +22540,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -22445,6 +22649,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -22553,6 +22758,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -22661,6 +22867,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -22769,6 +22976,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -22877,6 +23085,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -22985,6 +23194,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -23093,6 +23303,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -23201,6 +23412,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -23309,6 +23521,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -23417,6 +23630,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -23525,6 +23739,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -23633,6 +23848,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -23741,6 +23957,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -23849,6 +24066,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -23957,6 +24175,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -24065,6 +24284,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -24173,6 +24393,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -24281,6 +24502,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -24389,6 +24611,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -24497,6 +24720,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -24605,6 +24829,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -24713,6 +24938,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -24821,6 +25047,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -24929,6 +25156,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -25037,6 +25265,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -25145,6 +25374,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -25253,6 +25483,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -25361,6 +25592,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -25469,6 +25701,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -25577,6 +25810,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -25685,6 +25919,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -25793,6 +26028,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -25901,6 +26137,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -26009,6 +26246,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -26117,6 +26355,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -26225,6 +26464,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -26333,6 +26573,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -26441,6 +26682,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -26549,6 +26791,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -26657,6 +26900,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -26765,6 +27009,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -26873,6 +27118,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -26981,6 +27227,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -27089,6 +27336,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -27197,6 +27445,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -27305,6 +27554,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -27413,6 +27663,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -27521,6 +27772,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -27629,6 +27881,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -27737,6 +27990,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -27845,6 +28099,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -27953,6 +28208,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -28061,6 +28317,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -28169,6 +28426,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -28277,6 +28535,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -28385,6 +28644,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -28493,6 +28753,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -28601,6 +28862,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -28709,6 +28971,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -28817,6 +29080,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -28925,6 +29189,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -29033,6 +29298,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -29141,6 +29407,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -29249,6 +29516,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -29357,6 +29625,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -29465,6 +29734,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -29573,6 +29843,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -29681,6 +29952,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -29789,6 +30061,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -29897,6 +30170,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -30005,6 +30279,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -30113,6 +30388,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -30221,6 +30497,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -30329,6 +30606,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -30437,6 +30715,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -30545,6 +30824,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -30653,6 +30933,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -30761,6 +31042,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -30869,6 +31151,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -30977,6 +31260,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -31085,6 +31369,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -31193,6 +31478,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -31301,6 +31587,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -31409,6 +31696,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -31517,6 +31805,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -31625,6 +31914,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -31733,6 +32023,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -31841,6 +32132,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -31949,6 +32241,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -32057,6 +32350,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -32165,6 +32459,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -32273,6 +32568,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -32381,6 +32677,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -32489,6 +32786,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -32597,6 +32895,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -32705,6 +33004,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -32813,6 +33113,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -32921,6 +33222,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -33029,6 +33331,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -33137,6 +33440,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -33245,6 +33549,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -33353,6 +33658,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -33461,6 +33767,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -33569,6 +33876,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -33677,6 +33985,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -33785,6 +34094,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -33893,6 +34203,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -34001,6 +34312,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -34109,6 +34421,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -34217,6 +34530,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -34325,6 +34639,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -34433,6 +34748,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -34541,6 +34857,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -34649,6 +34966,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -34757,6 +35075,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -34865,6 +35184,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -34973,6 +35293,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -35081,6 +35402,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -35189,6 +35511,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -35297,6 +35620,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -35405,6 +35729,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -35513,6 +35838,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -35621,6 +35947,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -35729,6 +36056,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -35837,6 +36165,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -35945,6 +36274,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -36053,6 +36383,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -36161,6 +36492,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -36269,6 +36601,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -36377,6 +36710,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -36485,6 +36819,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -36593,6 +36928,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -36701,6 +37037,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -36809,6 +37146,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -36917,6 +37255,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -37025,6 +37364,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -37133,6 +37473,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -37241,6 +37582,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -37349,6 +37691,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -37457,6 +37800,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -37565,6 +37909,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -37673,6 +38018,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -37781,6 +38127,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -37889,6 +38236,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -37997,6 +38345,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -38105,6 +38454,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -38213,6 +38563,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -38321,6 +38672,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -38429,6 +38781,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -38537,6 +38890,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -38645,6 +38999,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -38753,6 +39108,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -38861,6 +39217,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -38969,6 +39326,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -39077,6 +39435,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -39185,6 +39544,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -39293,6 +39653,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -39401,6 +39762,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -39509,6 +39871,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -39617,6 +39980,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -39725,6 +40089,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -39833,6 +40198,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -39941,6 +40307,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -40049,6 +40416,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -40157,6 +40525,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -40265,6 +40634,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -40373,6 +40743,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -40481,6 +40852,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -40589,6 +40961,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -40697,6 +41070,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -40805,6 +41179,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -40913,6 +41288,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -41021,6 +41397,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -41129,6 +41506,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -41237,6 +41615,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -41345,6 +41724,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -41453,6 +41833,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -41561,6 +41942,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -41669,6 +42051,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -41777,6 +42160,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -41885,6 +42269,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -41993,6 +42378,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -42101,6 +42487,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -42209,6 +42596,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -42317,6 +42705,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -42425,6 +42814,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -42533,6 +42923,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -42641,6 +43032,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -42749,6 +43141,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -42857,6 +43250,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -42965,6 +43359,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -43073,6 +43468,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -43181,6 +43577,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -43289,6 +43686,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -43397,6 +43795,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -43505,6 +43904,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -43613,6 +44013,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -43721,6 +44122,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -43829,6 +44231,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -43937,6 +44340,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -44045,6 +44449,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -44153,6 +44558,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -44261,6 +44667,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -44369,6 +44776,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -44477,6 +44885,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -44585,6 +44994,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -44693,6 +45103,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -44801,6 +45212,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -44909,6 +45321,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -45017,6 +45430,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -45125,6 +45539,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -45233,6 +45648,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -45341,6 +45757,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -45449,6 +45866,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -45557,6 +45975,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -45665,6 +46084,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -45773,6 +46193,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -45881,6 +46302,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -45989,6 +46411,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -46097,6 +46520,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -46205,6 +46629,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -46313,6 +46738,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -46421,6 +46847,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -46529,6 +46956,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -46637,6 +47065,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -46745,6 +47174,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -46853,6 +47283,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -46961,6 +47392,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -47069,6 +47501,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -47177,6 +47610,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -47285,6 +47719,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -47393,6 +47828,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -47501,6 +47937,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -47609,6 +48046,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -47717,6 +48155,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -47825,6 +48264,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -47933,6 +48373,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -48041,6 +48482,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -48149,6 +48591,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -48257,6 +48700,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -48365,6 +48809,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -48473,6 +48918,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -48581,6 +49027,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -48689,6 +49136,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -48797,6 +49245,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -48905,6 +49354,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -49013,6 +49463,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -49121,6 +49572,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -49229,6 +49681,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -49337,6 +49790,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -49445,6 +49899,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -49553,6 +50008,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -49661,6 +50117,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -49769,6 +50226,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -49877,6 +50335,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -49985,6 +50444,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -50093,6 +50553,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -50201,6 +50662,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -50309,6 +50771,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -50417,6 +50880,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -50525,6 +50989,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -50633,6 +51098,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -50741,6 +51207,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -50849,6 +51316,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -50957,6 +51425,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -51065,6 +51534,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -51173,6 +51643,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -51281,6 +51752,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -51389,6 +51861,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -51497,6 +51970,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -51605,6 +52079,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -51713,6 +52188,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -51821,6 +52297,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -51929,6 +52406,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -52037,6 +52515,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -52145,6 +52624,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -52253,6 +52733,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -52361,6 +52842,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -52469,6 +52951,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -52577,6 +53060,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -52685,6 +53169,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -52793,6 +53278,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -52901,6 +53387,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -53009,6 +53496,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -53117,6 +53605,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -53225,6 +53714,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -53333,6 +53823,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -53441,6 +53932,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -53549,6 +54041,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -53657,6 +54150,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -53765,6 +54259,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -53873,6 +54368,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -53981,6 +54477,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -54089,6 +54586,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -54197,6 +54695,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -54305,6 +54804,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -54413,6 +54913,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -54521,6 +55022,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -54629,6 +55131,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -54737,6 +55240,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -54845,6 +55349,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -54953,6 +55458,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -55061,6 +55567,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -55169,6 +55676,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -55277,6 +55785,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -55385,6 +55894,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -55493,6 +56003,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -55601,6 +56112,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -55709,6 +56221,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -55817,6 +56330,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -55925,6 +56439,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -56033,6 +56548,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -56141,6 +56657,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -56249,6 +56766,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -56357,6 +56875,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -56465,6 +56984,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -56573,6 +57093,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -56681,6 +57202,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -56789,6 +57311,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -56897,6 +57420,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -57005,6 +57529,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -57113,6 +57638,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -57221,6 +57747,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -57329,6 +57856,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -57437,6 +57965,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -57545,6 +58074,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -57653,6 +58183,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -57761,6 +58292,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -57869,6 +58401,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -57977,6 +58510,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -58085,6 +58619,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -58193,6 +58728,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -58301,6 +58837,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -58409,6 +58946,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -58517,6 +59055,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -58625,6 +59164,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -58733,6 +59273,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -58841,6 +59382,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -58949,6 +59491,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -59057,6 +59600,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -59165,6 +59709,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -59273,6 +59818,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -59381,6 +59927,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -59489,6 +60036,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -59597,6 +60145,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -59705,6 +60254,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -59813,6 +60363,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -59921,6 +60472,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -60029,6 +60581,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -60137,6 +60690,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -60245,6 +60799,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -60353,6 +60908,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -60461,6 +61017,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -60569,6 +61126,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -60677,6 +61235,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -60785,6 +61344,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -60893,6 +61453,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -61001,6 +61562,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -61109,6 +61671,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -61217,6 +61780,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -61325,6 +61889,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -61433,6 +61998,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -61541,6 +62107,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -61649,6 +62216,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -61757,6 +62325,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -61865,6 +62434,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -61973,6 +62543,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -62081,6 +62652,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -62189,6 +62761,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -62297,6 +62870,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -62405,6 +62979,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -62513,6 +63088,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -62621,6 +63197,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -62729,6 +63306,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -62837,6 +63415,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -62945,6 +63524,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -63053,6 +63633,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -63161,6 +63742,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -63269,6 +63851,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -63377,6 +63960,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -63485,6 +64069,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -63593,6 +64178,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -63701,6 +64287,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -63809,6 +64396,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -63917,6 +64505,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -64025,6 +64614,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -64133,6 +64723,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -64241,6 +64832,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -64349,6 +64941,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -64457,6 +65050,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -64565,6 +65159,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -64673,6 +65268,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -64781,6 +65377,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -64889,6 +65486,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -64997,6 +65595,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -65105,6 +65704,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -65213,6 +65813,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -65321,6 +65922,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -65429,6 +66031,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -65537,6 +66140,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -65645,6 +66249,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -65753,6 +66358,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -65861,6 +66467,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -65969,6 +66576,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -66077,6 +66685,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -66185,6 +66794,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -66293,6 +66903,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -66401,6 +67012,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -66509,6 +67121,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -66617,6 +67230,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -66725,6 +67339,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -66833,6 +67448,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -66941,6 +67557,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -67049,6 +67666,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -67157,6 +67775,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -67265,6 +67884,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -67373,6 +67993,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -67481,6 +68102,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -67589,6 +68211,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -67697,6 +68320,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -67805,6 +68429,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -67913,6 +68538,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -68021,6 +68647,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -68129,6 +68756,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -68237,6 +68865,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -68345,6 +68974,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -68453,6 +69083,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -68561,6 +69192,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -68669,6 +69301,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -68777,6 +69410,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -68885,6 +69519,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -68993,6 +69628,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -69101,6 +69737,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -69209,6 +69846,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -69317,6 +69955,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -69425,6 +70064,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -69533,6 +70173,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -69641,6 +70282,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -69749,6 +70391,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -69857,6 +70500,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -69965,6 +70609,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -70073,6 +70718,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -70181,6 +70827,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -70289,6 +70936,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -70397,6 +71045,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -70505,6 +71154,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -70613,6 +71263,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -70721,6 +71372,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -70829,6 +71481,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -70937,6 +71590,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -71045,6 +71699,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -71153,6 +71808,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -71261,6 +71917,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -71369,6 +72026,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -71477,6 +72135,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -71585,6 +72244,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -71693,6 +72353,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -71801,6 +72462,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -71909,6 +72571,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -72017,6 +72680,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -72125,6 +72789,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -72233,6 +72898,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -72341,6 +73007,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -72449,6 +73116,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -72557,6 +73225,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -72665,6 +73334,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -72773,6 +73443,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -72881,6 +73552,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -72989,6 +73661,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -73097,6 +73770,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -73205,6 +73879,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -73313,6 +73988,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -73421,6 +74097,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -73529,6 +74206,7 @@
       "verdict": null,
       "verdict_reasons": null,
       "analyst_note": null,
+      "cycle_flags": null,
       "analytics_pending": {
         "top_10_holdings": null,
         "sector_allocation": null,
@@ -73568,6 +74246,8 @@
     "verdict",
     "verdict_reasons",
     "analyst_note",
+    "cycle_flags",
+    "cycle_meta.flag_summary",
     "analytics_pending.top_10_holdings",
     "analytics_pending.sector_allocation",
     "analytics_pending.full_holdings",

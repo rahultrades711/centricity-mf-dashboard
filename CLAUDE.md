@@ -94,14 +94,28 @@ The dashboard reads from **four independent contracts**, each governing one upst
 
 ---
 
-## 4.1 Source Pipeline Map (locked v1)
+## 4.1 Source Pipeline Map — 4 product families × 3 source types (locked v1)
 
-| Source | Cadence | File pattern (in `data/`) | Purpose | v1 status |
+The dashboard's data architecture spans **four product families** (MF Equity & Hybrid, MF Debt, PMS, AIF), each with up to **three source types** (Screener / Analytics / Monitor). Each family has its own primary key, its own scoring methodology, and its own JSON contract. The dashboard MUST NEVER merge cycles across families.
+
+| Family | Screener | Analytics | Monitor | Primary key |
 |---|---|---|---|---|
-| **MF Screener** (Eq + Hybrid) | Bi-monthly U1 (1st–5th) + U2 (15th–20th) | `MutualFund_Whitelisting_DDMonYYYY.xlsx` | Rankings, scores, returns, risk metrics, AUM, TER, manager — drives Home, Screener table, Fund Detail header, Comparison, Portfolio Builder | ✅ Wired this Step 2 |
-| **MF Analytics** (Eq + Hybrid) | Monthly month-end only | Folder `Cent-Claude/Data/Analytics File/DD-MM-YYYY/` containing `EQUITY MF.xlsx`, `HYBRID FUNDS.xlsx`, `Debt MF.xlsx` | Top-10 holdings, sector allocation, m-cap split, full stock list — drives Fund Detail Holdings panel | 🟡 Architecture wired this Step 2; Equity + Hybrid converters built in a follow-up session |
-| **MF Monitor** (absolute returns) | "As on date" — typically aligned to Screener cycle dates | `Daily_MF_monitor_DD_Month_YYYY.xlsx` | Point-to-point trailing returns — enriches Screener and Fund Detail | 🟡 Architecture wired this Step 2; converter built in a follow-up session |
-| **Debt MF Screener** | Future (post v1) | `MutualFund_Whitelisting_Debt_DDMonYYYY.xlsx` (TBD) | Debt fund rankings + risk + duration analysis — adds Debt category tab to Screener | 🔴 Future — placeholder slot only, no stub |
+| **MF Equity & Hybrid** | `screener-v1` ✅ shipped Step 2 | `analytics-v1` (v1.x) | `monitor-v1` (v1.x) | AMFI scheme code (int) |
+| **MF Debt** | `debt-v1` (v1.x) | `debt-analytics-v1` (v1.x) | `debt-monitor-v1` (v1.x) | AMFI scheme code (int) |
+| **PMS** | `pms-v1` (v2+) | `pms-analytics-v1` (v2+) | n/a — quarterly | SEBI PMS reg no. (string) |
+| **AIF** | `aif-v1` (v2+) | `aif-analytics-v1` (v2+) | n/a — quarterly | SEBI AIF code (string) |
+
+**Cross-family merge prohibition.** The dashboard's `js/data-loader.js` MUST NEVER merge cycles across families. Each family is its own universe with its own primary key, its own scoring methodology, and its own peer-pool definitions. Cross-family comparison (e.g., MF Equity vs PMS) is conceptually meaningless because methodologies differ — never offer a UI affordance that suggests it.
+
+Every cycle JSON carries `cycle_meta.product_family` ∈ `{"MF_Equity_Hybrid", "MF_Debt", "PMS", "AIF"}` so the dashboard can refuse to load a JSON intended for a different family pipeline. v1's screener-v1 cycles emit `"MF_Equity_Hybrid"` (hardcoded by `excel_to_json_screener.py`).
+
+### v1 file patterns (in `data/` — MF Equity & Hybrid only)
+
+| Source | Cadence | File pattern in `data/` | v1 status |
+|---|---|---|---|
+| MF Eq+Hybrid Screener | Bi-monthly U1 (1st–5th) + U2 (15th–20th) | `MutualFund_Whitelisting_DDMonYYYY.xlsx` | ✅ Wired Step 2 |
+| MF Eq+Hybrid Analytics | Monthly month-end | Folder `Cent-Claude/Data/Analytics File/DD-MM-YYYY/` (`EQUITY MF.xlsx`, `HYBRID FUNDS.xlsx`, `Debt MF.xlsx`) | 🟡 Architecture wired Step 2; Equity + Hybrid converters built in v1.x |
+| MF Eq+Hybrid Monitor | "As on date" — aligned to Screener cycles | `Daily_MF_monitor_DD_Month_YYYY.xlsx` | 🟡 Architecture wired Step 2; converter built in v1.x |
 
 ### Cadence-pairing rules
 

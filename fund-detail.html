@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Centricity MF Screener — Fund Detail</title>
+<meta name="viewport" content="width=1680">
+<link rel="icon" href="assets/logo.png">
+<link rel="stylesheet" href="css/centricity.css">
+<link rel="stylesheet" href="css/fund-detail.css">
+<script defer src="js/data-loader.js"></script>
+<script defer src="js/state.js"></script>
+<script defer src="js/exports.js"></script>
+<script defer src="js/fund-detail.js"></script>
+</head>
+<body>
+
+<header class="appbar" role="banner">
+  <div class="left">
+    <div class="logo-cell"><img src="assets/logo.png" alt="Centricity WealthTech"></div>
+  </div>
+  <nav aria-label="primary">
+    <a href="index.html">Home</a>
+    <a href="screener.html">Screener</a>
+    <a class="active" href="fund-detail.html">Fund One Pagers</a>
+    <a href="portfolio-builder.html">Portfolio Builder</a>
+    <a href="compare.html">Compare</a>
+    <a href="archive.html">Archive</a>
+    <a href="alerts.html">Alerts</a>
+    <a href="watchlist.html">Watchlist</a>
+  </nav>
+  <div class="right">
+    <label class="search">
+      <span style="opacity:.6">⌕</span>
+      <input type="text" placeholder="Search funds…" aria-label="Search">
+    </label>
+  </div>
+</header>
+
+<main id="mainArea">
+
+<section class="fd-band">
+  <div class="fd-inner">
+    <div class="fd-eyebrow">
+      <span class="bar"></span><b>03 · Fund One Pager</b>
+    </div>
+
+    <div class="fd-header-row">
+      <div style="flex:1;">
+        <h1 id="fdFundName">Loading…</h1>
+        <p class="subtitle" id="fdSubtitle">—</p>
+      </div>
+      <div class="fd-action-row">
+        <button class="btn ghost" id="watchBtn">☆ Add to Watchlist</button>
+        <button class="btn primary" data-export-pdf="#mainArea" id="fdPdfBtn"
+                data-export-name="Centricity-Fund-Detail">Download PDF</button>
+      </div>
+    </div>
+
+    <div class="fd-meta-strip" id="fdMetaStrip"></div>
+
+    <div class="provenance" id="fdProvenance"></div>
+  </div>
+</section>
+
+<!-- 9-field risk strip + 4 trailing returns -->
+<section class="kpi-strip" id="kpiStrip"></section>
+
+<section class="fd-sections">
+
+  <div class="fd-card full">
+    <h2>Centricity Score Breakdown</h2>
+    <div class="body" id="fdScoreBreakdown">—</div>
+  </div>
+
+  <div class="fd-card">
+    <h2>Peer Comparison · Top 5 in category</h2>
+    <div class="body" id="fdPeers"></div>
+  </div>
+
+  <div class="fd-card">
+    <h2>Fund Facts</h2>
+    <div class="body">
+      <div class="fact-list" id="fdFacts"></div>
+    </div>
+  </div>
+
+  <!-- Holdings — analytics_pending placeholder -->
+  <div class="fd-card empty full">
+    <h2>Holdings &amp; Sector Analysis</h2>
+    <div class="body">
+      <div class="ring-motif" aria-hidden="true"></div>
+      <p><b>Holdings data integration pending — coming in v1.1.</b><br>
+         Top-10 holdings, sector allocation, m-cap split, top-3 sector concentration, and full-stock list
+         all source from the monthly Analytics file pipeline (see <code>analytics_pending</code> on this fund's record). This section
+         will populate once <code>scripts/excel_to_json_analytics.py</code> ships.</p>
+    </div>
+  </div>
+
+  <!-- Movement panel — analytics_pending placeholder -->
+  <div class="fd-card empty">
+    <h2>Movement · Last 6 Cycles</h2>
+    <div class="body">
+      <div class="ring-motif" aria-hidden="true"></div>
+      <p>Rank history, AUM trend, TER trend, and manager change badges populate
+         from the Analytics + cycle archive pipelines in v1.1. With only one cycle currently
+         in the archive, there's nothing to plot.</p>
+    </div>
+  </div>
+
+  <!-- Active Flags for THIS fund — empty state when fund.cycle_flags null -->
+  <div class="fd-card" id="fdFlagsCard">
+    <h2>Active Flags</h2>
+    <div class="body" id="fdFlags"></div>
+  </div>
+
+  <!-- Analyst Note placeholder (Phase 5) -->
+  <div class="fd-card empty">
+    <h2>Auto-Generated Analyst Note</h2>
+    <div class="body">
+      <div class="ring-motif" aria-hidden="true"></div>
+      <p>Pre-baked Pros / Cons / Risk-flags / What-changed write-ups land in Phase 5 — generated
+         during the GitHub Action via a one-time Claude API call per fund per cycle, cached in JSON.</p>
+    </div>
+  </div>
+
+</section>
+
+</main>
+
+<footer class="appfoot" role="contentinfo">
+  <div class="left">
+    <span class="gold">CENTRICITY WEALTHTECH</span>
+    <span>·</span>
+    <span>Products Team</span>
+    <span>·</span>
+    <span>Confidential</span>
+  </div>
+  <div class="right" id="footUpdated">Last updated · —</div>
+</footer>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+</body>
+</html>

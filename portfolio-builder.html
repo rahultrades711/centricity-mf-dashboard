@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Centricity MF Screener — Portfolio Builder</title>
+<meta name="viewport" content="width=1680">
+<link rel="icon" href="assets/logo.png">
+<link rel="stylesheet" href="css/centricity.css">
+<link rel="stylesheet" href="css/portfolio-builder.css">
+<script defer src="js/data-loader.js"></script>
+<script defer src="js/state.js"></script>
+<script defer src="js/multi-select.js"></script>
+<script defer src="js/exports.js"></script>
+<script defer src="js/portfolio-builder.js"></script>
+</head>
+<body>
+
+<header class="appbar" role="banner">
+  <div class="left"><div class="logo-cell"><img src="assets/logo.png" alt="Centricity WealthTech"></div></div>
+  <nav aria-label="primary">
+    <a href="index.html">Home</a>
+    <a href="screener.html">Screener</a>
+    <a href="fund-detail.html">Fund One Pagers</a>
+    <a class="active" href="portfolio-builder.html">Portfolio Builder</a>
+    <a href="compare.html">Compare</a>
+    <a href="archive.html">Archive</a>
+    <a href="alerts.html">Alerts</a>
+    <a href="watchlist.html">Watchlist</a>
+  </nav>
+  <div class="right">
+    <label class="search">
+      <span style="opacity:.6">⌕</span>
+      <input type="text" placeholder="Search…" aria-label="Search">
+    </label>
+  </div>
+</header>
+
+<main id="mainArea">
+
+<section class="pb-band">
+  <div class="pb-band-inner">
+    <h1>Portfolio <em>Builder</em></h1>
+    <p class="sub">Build a Centricity-recommended portfolio in two modes. Mode A is manual fund-pick + allocation;
+       Mode B is the rule-based generator. Saved portfolios persist locally per browser (Pattern A).</p>
+    <div class="pb-mode-tabs" role="tablist">
+      <button class="pb-mode-tab active" data-mode="a">Mode A · Manual</button>
+      <button class="pb-mode-tab" data-mode="b">Mode B · Rule-based</button>
+    </div>
+  </div>
+</section>
+
+<section class="pb-body">
+
+  <!-- MODE A — manual fund pick + allocation -->
+  <div class="pb-mode-a" id="modeA">
+
+    <div class="pb-card">
+      <h2>Funds in this portfolio</h2>
+      <div class="pb-add-row">
+        <span id="fundPicker"></span>
+        <button class="btn ghost" id="clearAllBtn">Clear all</button>
+      </div>
+      <div id="pbTableWrap"></div>
+      <div style="font-size:11.5px;color:var(--text-mid);margin-top:10px;">
+        Allocations are user-entered percentages. Negative or non-numeric inputs are ignored. Saved portfolios
+        live in your browser's localStorage; clear them via Settings (v1.x).
+      </div>
+    </div>
+
+    <div class="pb-card pb-summary">
+      <h2>Portfolio Summary</h2>
+      <div id="pbSummary">
+        <div class="sum-row"><span class="lbl">Funds</span><span class="v" id="sumCount">0</span></div>
+        <div class="sum-row"><span class="lbl">Total Allocation</span><span class="v" id="sumTotal">0%</span></div>
+        <div class="sum-row"><span class="lbl">Weighted 1Y Return</span><span class="v" id="sumR1">—</span></div>
+        <div class="sum-row"><span class="lbl">Weighted 3Y CAGR</span><span class="v" id="sumR3">—</span></div>
+        <div class="sum-row"><span class="lbl">Weighted 5Y CAGR</span><span class="v" id="sumR5">—</span></div>
+        <div class="sum-row"><span class="lbl">Weighted Sharpe</span><span class="v" id="sumSharpe">—</span></div>
+        <div class="sum-row"><span class="lbl">Weighted Std Dev</span><span class="v" id="sumStdDev">—</span></div>
+        <div class="sum-row"><span class="lbl">Blended TER</span><span class="v" id="sumTer">—</span></div>
+      </div>
+      <div class="pb-actions">
+        <button class="btn ghost" id="savePortfolioBtn">Save Portfolio</button>
+        <button class="btn primary" data-export-pdf="#mainArea" data-export-name="Centricity-Portfolio">Export PDF</button>
+      </div>
+      <div style="margin-top:14px;">
+        <h2 style="font-size:11px;">Saved Portfolios</h2>
+        <div id="savedList" style="font-size:12.5px;"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- MODE B — rule-based generator stub -->
+  <div id="modeB" hidden>
+    <div class="empty-state" style="padding: 80px 32px;">
+      <div class="ring-motif" aria-hidden="true"></div>
+      <h3>Mode B · Rule-based generator — coming in v1.x</h3>
+      <p>Set constraints (number of funds, asset class mix, category mix, sector tilts, AMC inclusions/exclusions,
+         m-cap targets, stock-level rules, risk floors), the solver picks funds preferring higher Centricity rank,
+         and the constraint coverage report explains every partial / unsatisfiable constraint in plain English.<br><br>
+         The UI design is locked in <code>04_Master_Design_Brief.md</code> §5.5 Mode B; the constraint solver
+         is a v1.x build, queued in <code>Skills/mf-dashboard-build/SKILL.md</code> §11 Pending Decisions.</p>
+    </div>
+  </div>
+
+</section>
+
+</main>
+
+<footer class="appfoot" role="contentinfo">
+  <div class="left">
+    <span class="gold">CENTRICITY WEALTHTECH</span>
+    <span>·</span>
+    <span>Products Team</span>
+    <span>·</span>
+    <span>Confidential</span>
+  </div>
+  <div class="right" id="footUpdated">Last updated · —</div>
+</footer>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+</body>
+</html>

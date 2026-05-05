@@ -1,0 +1,146 @@
+/*
+ * Centricity MF Screener Dashboard — Fund Detail page CSS
+ */
+.fd-band {
+  background: linear-gradient(180deg, #fff 0%, rgba(219, 200, 178, .14) 100%);
+  border-bottom: 1px solid var(--rule);
+  padding: 32px 56px 28px;
+}
+.fd-inner { max-width: 1740px; margin: 0 auto; }
+.fd-eyebrow {
+  display: flex; align-items: center; gap: 14px;
+  font-size: 11px; letter-spacing: .28em; text-transform: uppercase; color: var(--gold);
+  margin-bottom: 12px;
+}
+.fd-eyebrow .bar { width: 36px; height: 1px; background: var(--gold); }
+.fd-band h1 {
+  margin: 0 0 8px;
+  font-size: 32px; font-weight: 700; letter-spacing: -.01em; line-height: 1.15;
+}
+.fd-band .subtitle {
+  font-size: 15px; color: var(--text-mid); margin: 0 0 10px;
+}
+.fd-band .subtitle b { color: var(--black); font-weight: 700; }
+.fd-band .provenance {
+  display: flex; gap: 20px; flex-wrap: wrap;
+  font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--text-mid);
+  border-top: 1px solid var(--rule); padding-top: 14px; margin-top: 14px;
+}
+.fd-band .provenance .pv { display: flex; gap: 6px; align-items: center; }
+.fd-band .provenance .pv b { color: var(--black); font-weight: 700; }
+.fd-band .provenance .pv .lbl { color: var(--gold); letter-spacing: .18em; }
+
+.fd-band .fd-header-row {
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 28px;
+}
+.fd-band .fd-meta-strip {
+  display: flex; flex-wrap: wrap; gap: 0;
+  border-top: 1px solid var(--rule);
+  padding-top: 16px; margin-top: 14px;
+}
+.fd-band .fd-meta-strip .cell {
+  padding: 4px 28px 4px 0; margin-right: 28px;
+  border-right: 1px solid var(--rule);
+}
+.fd-band .fd-meta-strip .cell:last-child { border-right: 0; margin-right: 0; padding-right: 0; }
+.fd-band .fd-meta-strip .lbl {
+  font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--text-mid);
+  display: block; margin-bottom: 4px;
+}
+.fd-band .fd-meta-strip .v { font-size: 17px; font-weight: 700; }
+.fd-band .fd-action-row {
+  display: flex; gap: 10px; flex-wrap: wrap;
+}
+
+/* ============ QUANTS STRIP (9-field risk + 4 returns) ============ */
+.kpi-strip {
+  max-width: 1740px; margin: 0 auto;
+  padding: 24px 56px 0;
+  display: grid; grid-template-columns: repeat(13, 1fr); gap: 1px;
+  background: var(--rule);
+  border: 1px solid var(--rule); border-radius: 4px; overflow: hidden;
+}
+.kpi-cell {
+  background: #fff;
+  padding: 16px 14px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.kpi-cell .lbl {
+  font-size: 9.5px; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--text-mid); font-weight: 700;
+}
+.kpi-cell .v {
+  font-size: 19px; font-weight: 700; color: var(--black);
+  font-variant-numeric: tabular-nums;
+}
+.kpi-cell .v.neg { color: var(--red); }
+.kpi-cell .delta {
+  font-size: 10.5px; color: var(--text-mid);
+  font-variant-numeric: tabular-nums;
+}
+.kpi-cell .delta.neg { color: var(--red); }
+.kpi-cell .delta.pos { color: var(--green); }
+
+@media (max-width: 1380px) {
+  .kpi-strip { grid-template-columns: repeat(7, 1fr); }
+}
+
+/* ============ FUND-DETAIL SECTIONS ============ */
+.fd-sections {
+  max-width: 1740px; margin: 0 auto;
+  padding: 36px 56px 64px;
+  display: grid; grid-template-columns: 2fr 1fr; gap: 28px;
+}
+.fd-sections .full { grid-column: 1 / -1; }
+
+.fd-card {
+  background: #fff; border: 1px solid var(--rule); border-radius: 4px;
+  padding: 22px 24px; box-shadow: var(--shadow-sm);
+}
+.fd-card h2 {
+  margin: 0 0 14px;
+  font-size: 12px; letter-spacing: .22em; text-transform: uppercase;
+  color: var(--gold); font-weight: 700;
+}
+.fd-card h2 .pill { float: right; }
+.fd-card .body { font-size: 13.5px; color: var(--black); line-height: 1.55; }
+
+.fd-card.empty .body {
+  display: flex; flex-direction: column; align-items: center;
+  text-align: center; padding: 32px 16px;
+}
+.fd-card.empty .ring-motif { margin-bottom: 14px; width: 100px; height: 100px; }
+.fd-card.empty p {
+  font-size: 13px; color: var(--text-mid); margin: 0; max-width: 48ch;
+}
+
+/* peer table */
+table.peer-tbl {
+  width: 100%; border-collapse: collapse; font-size: 13px;
+}
+table.peer-tbl th, table.peer-tbl td {
+  text-align: center; padding: 9px 8px;
+  border-bottom: 1px solid rgba(217, 217, 217, .45);
+}
+table.peer-tbl th {
+  font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--text-mid); font-weight: 700; background: #fff;
+}
+table.peer-tbl td.fund-name { text-align: left; font-weight: 700; }
+table.peer-tbl tr.this-fund td { background: rgba(189, 149, 104, .14); }
+
+/* fact list */
+.fact-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 22px; }
+.fact-list .fact { display: flex; flex-direction: column; gap: 2px; }
+.fact-list .lbl {
+  font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--text-mid); font-weight: 700;
+}
+.fact-list .v {
+  font-size: 14px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 1380px) {
+  .fd-sections { grid-template-columns: 1fr; padding: 28px 32px 48px; }
+}

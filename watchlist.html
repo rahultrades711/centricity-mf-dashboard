@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Centricity MF Screener — Watchlist</title>
+<meta name="viewport" content="width=1680">
+<link rel="icon" href="assets/logo.png">
+<link rel="stylesheet" href="css/centricity.css">
+<script defer src="js/data-loader.js"></script>
+<script defer src="js/state.js"></script>
+<style>
+  .shell-band { background:#fff; border-bottom:1px solid var(--rule); padding:28px 56px 22px; }
+  .shell-band .inner { max-width:1740px; margin:0 auto; }
+  .shell-band h1 { margin:0; font-size:32px; font-weight:700; letter-spacing:-.01em; }
+  .shell-band h1 em { font-style:italic; font-weight:400; color:var(--gold-deep); }
+  .shell-band .sub { font-size:13.5px; color:var(--text-mid); margin:8px 0 0; max-width:80ch; }
+
+  .shell-body { max-width:1740px; margin:64px auto 80px; padding:0 56px; }
+  .shell-empty {
+    background:#fff; border:1px solid var(--rule); border-radius:4px;
+    padding:96px 32px; text-align:center; box-shadow:var(--shadow-sm);
+  }
+  .shell-empty .ring-motif { width:180px; height:180px; margin:0 auto 24px; }
+  .shell-empty h2 { margin:0 0 12px; font-size:24px; font-weight:700; letter-spacing:-.005em; }
+  .shell-empty h2 em { font-style:italic; font-weight:400; color:var(--gold-deep); }
+  .shell-empty p { font-size:14px; color:var(--text-mid); margin:0 auto 16px; max-width:60ch; line-height:1.6; }
+
+  .wl-list {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px;
+    max-width: 1100px; margin: 0 auto;
+  }
+  .wl-fund {
+    background: #fff; border: 1px solid var(--rule); border-radius: 4px;
+    padding: 16px 20px; box-shadow: var(--shadow-sm);
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  }
+  .wl-fund .name { font-weight: 700; font-size: 14px; }
+  .wl-fund .sub  { font-size: 12px; color: var(--text-mid); margin-top: 2px; }
+  .wl-fund .score { font-size: 16px; font-weight: 700; color: var(--gold); }
+  .wl-fund a { color: var(--gold); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<header class="appbar" role="banner">
+  <div class="left"><div class="logo-cell"><img src="assets/logo.png" alt="Centricity WealthTech"></div></div>
+  <nav aria-label="primary">
+    <a href="index.html">Home</a>
+    <a href="screener.html">Screener</a>
+    <a href="fund-detail.html">Fund One Pagers</a>
+    <a href="portfolio-builder.html">Portfolio Builder</a>
+    <a href="compare.html">Compare</a>
+    <a href="archive.html">Archive</a>
+    <a href="alerts.html">Alerts</a>
+    <a class="active" href="watchlist.html">Watchlist</a>
+  </nav>
+  <div class="right">
+    <label class="search">
+      <span style="opacity:.6">⌕</span>
+      <input type="text" placeholder="Search…" aria-label="Search">
+    </label>
+  </div>
+</header>
+
+<main>
+
+<section class="shell-band">
+  <div class="inner">
+    <h1>Your <em>Watchlist</em></h1>
+    <p class="sub">Funds you've starred from the Screener or a Fund Detail page. Stored locally per browser.
+       Movement-since-last-visit indicators activate in v1.1.</p>
+  </div>
+</section>
+
+<section class="shell-body" id="wlBody">
+  <!-- v1: render whatever watchlist exists, plus a v1.1 caption explaining
+       the deferred movement-tracking feature -->
+</section>
+
+</main>
+
+<footer class="appfoot" role="contentinfo">
+  <div class="left">
+    <span class="gold">CENTRICITY WEALTHTECH</span>
+    <span>·</span>
+    <span>Products Team</span>
+    <span>·</span>
+    <span>Confidential</span>
+  </div>
+  <div class="right" id="footUpdated">Last updated · —</div>
+</footer>
+
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+  const body = document.getElementById('wlBody');
+  let cycle;
+  try {
+    const manifest = await DataLoader.listCycles();
+    cycle = await DataLoader.loadCycle(manifest.latest || manifest.cycles[0].date);
+    document.getElementById('footUpdated').textContent = 'Last updated · ' + cycle.cycle_meta.as_on_display;
+  } catch (err) {
+    body.innerHTML = `
+      <div class="shell-empty">
+        <div class="ring-motif"></div>
+        <h2>Could not load cycle data</h2>
+        <p>Serve the dashboard locally via <code>python -m http.server</code>.</p>
+      </div>`;
+    return;
+  }
+  const watchlist = AppState.getWatchlist();
+  if (!watchlist || watchlist.length === 0) {
+    body.innerHTML = `
+      <div class="shell-empty">
+        <div class="ring-motif" aria-hidden="true"></div>
+        <h2>Your watchlist is <em>empty</em></h2>
+        <p>Star a fund on the <a href="screener.html" style="color:var(--gold);font-weight:700;">Screener</a>
+           or a Fund Detail page to add it here. Your watchlist is private to this browser
+           (Pattern A — no shared edits in v1).</p>
+        <p style="font-size:12.5px;margin-top:24px;">
+          <i>Watchlist panel — design pending, coming in v1.1 with movement-since-last-visit indicators.</i>
+        </p>
+      </div>`;
+    return;
+  }
+  const funds = watchlist.map(code => DataLoader.getFund(cycle, code)).filter(Boolean);
+  body.innerHTML = `
+    <p style="text-align:center;color:var(--text-mid);font-size:13px;margin-bottom:24px;">
+      <b>${funds.length}</b> fund${funds.length === 1 ? '' : 's'} starred.
+      <i style="margin-left:8px;">Movement-since-last-visit indicators activate in v1.1.</i>
+    </p>
+    <div class="wl-list">
+      ${funds.map(f => `
+        <div class="wl-fund">
+          <div>
+            <div class="name">${escape(f.fund_name)}</div>
+            <div class="sub">${escape(f.amc)} · ${escape(f.category)} · #${f.scheme_code}</div>
+          </div>
+          <div style="text-align:right;">
+            <div class="score">${DataLoader.fmtScorePct(f.centricity_score)}</div>
+            <a href="fund-detail.html?scheme=${f.scheme_code}">Open →</a>
+          </div>
+        </div>`).join('')}
+    </div>`;
+  function escape(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+      ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  }
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Centricity MF Screener — Archive</title>
+<meta name="viewport" content="width=1680">
+<link rel="icon" href="assets/logo.png">
+<link rel="stylesheet" href="css/centricity.css">
+<link rel="stylesheet" href="css/archive.css">
+<script defer src="js/data-loader.js"></script>
+<script defer src="js/state.js"></script>
+<script defer src="js/archive.js"></script>
+</head>
+<body>
+
+<header class="appbar" role="banner">
+  <div class="left"><div class="logo-cell"><img src="assets/logo.png" alt="Centricity WealthTech"></div></div>
+  <nav aria-label="primary">
+    <a href="index.html">Home</a>
+    <a href="screener.html">Screener</a>
+    <a href="fund-detail.html">Fund One Pagers</a>
+    <a href="portfolio-builder.html">Portfolio Builder</a>
+    <a href="compare.html">Compare</a>
+    <a class="active" href="archive.html">Archive</a>
+    <a href="alerts.html">Alerts</a>
+    <a href="watchlist.html">Watchlist</a>
+  </nav>
+  <div class="right">
+    <label class="search">
+      <span style="opacity:.6">⌕</span>
+      <input type="text" placeholder="Search…" aria-label="Search">
+    </label>
+  </div>
+</header>
+
+<main id="mainArea">
+
+<section class="arc-band">
+  <div class="arc-band-inner">
+    <h1>Historical <em>Archive</em></h1>
+    <p class="sub">Every cycle the dashboard has data for. Click a tile to load that snapshot — the rest of
+       the dashboard refreshes against it. Future cycles automatically appear here within 60 seconds of the
+       Excel landing in the GitHub Action.</p>
+  </div>
+</section>
+
+<section class="arc-body">
+  <div class="arc-grid" id="arcGrid"></div>
+  <div style="font-size:11.5px;color:var(--text-mid);margin-top:18px;">
+    Each cycle's JSON loads lazily on click — the dashboard never holds the full history in memory.
+  </div>
+</section>
+
+</main>
+
+<footer class="appfoot" role="contentinfo">
+  <div class="left">
+    <span class="gold">CENTRICITY WEALTHTECH</span>
+    <span>·</span>
+    <span>Products Team</span>
+    <span>·</span>
+    <span>Confidential</span>
+  </div>
+  <div class="right" id="footUpdated">Last updated · —</div>
+</footer>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+</body>
+</html>

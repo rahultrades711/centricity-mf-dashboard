@@ -1,0 +1,101 @@
+/*
+ * Centricity MF Screener Dashboard — Portfolio Builder page CSS
+ */
+.pb-band {
+  background: #fff; border-bottom: 1px solid var(--rule);
+  padding: 28px 56px 22px;
+}
+.pb-band-inner { max-width: 1740px; margin: 0 auto; }
+.pb-band h1 {
+  margin: 0; font-size: 32px; font-weight: 700; letter-spacing: -.01em; line-height: 1.1;
+}
+.pb-band h1 em { font-style: italic; font-weight: 400; color: var(--gold-deep); }
+.pb-band .sub { font-size: 13.5px; color: var(--text-mid); margin: 8px 0 14px; max-width: 80ch; }
+
+.pb-mode-tabs {
+  display: flex; gap: 0;
+  border-bottom: 1px solid var(--rule); margin-top: 14px;
+}
+.pb-mode-tab {
+  font-family: inherit;
+  background: transparent; border: 0;
+  padding: 14px 22px;
+  font-size: 13px; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--text-mid); font-weight: 700;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+}
+.pb-mode-tab:hover { color: var(--gold); }
+.pb-mode-tab.active { color: var(--black); border-bottom-color: var(--gold); }
+
+.pb-body {
+  max-width: 1740px; margin: 0 auto;
+  padding: 28px 56px 64px;
+}
+
+.pb-mode-a {
+  display: grid; grid-template-columns: 1fr 380px; gap: 28px;
+}
+.pb-card {
+  background: #fff; border: 1px solid var(--rule); border-radius: 4px;
+  padding: 20px 22px; box-shadow: var(--shadow-sm);
+}
+.pb-card h2 {
+  margin: 0 0 14px; font-size: 12px; letter-spacing: .22em; text-transform: uppercase;
+  color: var(--gold); font-weight: 700;
+}
+
+.pb-add-row { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap; }
+.pb-add-row .multi-select { flex: 1; }
+.pb-add-row .multi-select .ms-button { width: 100%; }
+
+table.pb-tbl { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+table.pb-tbl thead th {
+  text-align: center; padding: 10px 8px;
+  font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--text-mid); font-weight: 700;
+  border-bottom: 1px solid var(--grey-light);
+}
+table.pb-tbl thead th:first-child { text-align: left; }
+table.pb-tbl tbody td {
+  padding: 10px 8px;
+  border-bottom: 1px solid rgba(217, 217, 217, .45);
+  text-align: center; vertical-align: middle;
+}
+table.pb-tbl tbody td:first-child { text-align: left; }
+table.pb-tbl tbody td.fund-name { font-weight: 700; }
+table.pb-tbl tbody td input.alloc {
+  font-family: inherit; font-size: 13px; font-weight: 700;
+  border: 1px solid var(--rule); border-radius: 3px;
+  padding: 6px 8px; width: 80px; text-align: center;
+  background: #fff; color: var(--black);
+}
+table.pb-tbl tbody td input.alloc:focus { border-color: var(--gold); outline: none; }
+table.pb-tbl tbody td .remove {
+  background: transparent; border: 0; cursor: pointer;
+  color: var(--text-mid); font-size: 16px;
+  transition: color .15s;
+}
+table.pb-tbl tbody td .remove:hover { color: var(--red); }
+
+.pb-summary {
+  position: sticky; top: 104px; align-self: flex-start;
+}
+.pb-summary .sum-row {
+  display: flex; justify-content: space-between; padding: 8px 0;
+  border-bottom: 1px dotted var(--grey-light);
+  font-size: 13px;
+}
+.pb-summary .sum-row:last-child { border-bottom: 0; }
+.pb-summary .sum-row .lbl { color: var(--text-mid); }
+.pb-summary .sum-row .v { font-weight: 700; font-variant-numeric: tabular-nums; }
+.pb-summary .sum-row .v.warn { color: var(--red); }
+.pb-summary .sum-row .v.ok { color: var(--green); }
+
+.pb-actions { display: flex; gap: 10px; margin-top: 16px; }
+.pb-actions .btn { flex: 1; justify-content: center; }
+
+@media (max-width: 1380px) {
+  .pb-mode-a { grid-template-columns: 1fr; }
+  .pb-band, .pb-body { padding-left: 32px; padding-right: 32px; }
+}

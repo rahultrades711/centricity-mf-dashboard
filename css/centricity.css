@@ -1,0 +1,658 @@
+/*
+ * Centricity WealthTech — shared brand foundation
+ * Source of truth: Dashboard/Claude Design Dashboard Data/02_Centricity_Brand_Standards.md
+ *
+ * This file defines the palette, typography, header/footer, status pills,
+ * severity dots, gold-ring motif, common section structure, and number-rendering
+ * utilities — every piece that repeats across all 8 deployed pages.
+ *
+ * Page-specific layouts live in css/<page>.css (loaded after this file).
+ */
+
+/* ============================================================
+   1. PALETTE + TYPOGRAPHY (locked — see 02_Centricity_Brand_Standards.md)
+   ============================================================ */
+:root {
+  --white:        #FFFFFF;
+  --black:        #000000;
+  --ink:          #0E0E0E;
+  --gold:         #BD9568;
+  --gold-deep:    #A47B4C;
+  --tan:          #DBC8B2;
+  --grey-mid:     #BFBFBF;
+  --grey-light:   #D9D9D9;
+  --red:          #931621;
+  --green:        #0F5132;
+  --text-mid:     #666666;
+  --rule:         rgba(217, 217, 217, .65);
+  --tan-soft:     rgba(219, 200, 178, .30);
+  --tan-softer:   rgba(219, 200, 178, .16);
+  --shadow-sm:    0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md:    0 4px 14px rgba(0, 0, 0, .06);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--white);
+  color: var(--black);
+}
+
+body {
+  /* Cambria fallback chain — Georgia is institutional enough not to break the
+     brand if substitution happens on older Windows branch laptops. */
+  font-family: 'Cambria', Georgia, 'Times New Roman', serif;
+  font-weight: 400;
+  line-height: 1.55;
+  font-size: 15px;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "tnum";
+  font-variant-numeric: tabular-nums;
+  overflow-x: hidden;
+}
+
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; cursor: pointer; }
+
+/* Tabular number rendering — used wherever percentages, rupees, or ratios appear */
+.num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Negative-only Dark Red (#931621). Brand standard §2 forbids any other red. */
+.neg { color: var(--red); }
+.pos { color: var(--green); }
+
+/* ============================================================
+   2. TOP UTILITY STRIP
+   ============================================================ */
+.util {
+  background: var(--ink);
+  color: rgba(255, 255, 255, .7);
+  font-size: 11.5px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  padding: 7px 56px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, .06);
+}
+.util .right { display: flex; gap: 24px; align-items: center; }
+.util .right span b { color: var(--gold); font-weight: 700; }
+
+/* ============================================================
+   3. PRIMARY HEADER (sticky black bar, logo left, primary nav, search right)
+   ============================================================ */
+header.appbar {
+  position: sticky; top: 0; z-index: 50;
+  height: 84px;
+  background: var(--black);
+  color: var(--white);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 56px;
+  border-bottom: 1px solid rgba(189, 149, 104, .22);
+}
+
+header.appbar .left {
+  display: flex; align-items: center; gap: 38px;
+}
+
+header.appbar .logo-cell {
+  display: flex; align-items: center; gap: 14px;
+}
+
+header.appbar .logo-cell img {
+  height: 38px; width: auto; display: block;
+}
+
+header.appbar .logo-cell .div {
+  width: 1px; height: 36px;
+  background: rgba(189, 149, 104, .45);
+  margin: 0 6px;
+}
+
+header.appbar .product {
+  display: flex; flex-direction: column; line-height: 1.15;
+}
+header.appbar .product .eyebrow {
+  font-size: 10px; letter-spacing: .32em; text-transform: uppercase; color: var(--gold);
+}
+header.appbar .product .ttl {
+  font-size: 17px; font-weight: 700; letter-spacing: .04em; color: #fff;
+}
+
+header.appbar nav {
+  display: flex; gap: 30px; align-items: center;
+}
+header.appbar nav a {
+  font-size: 12.5px; letter-spacing: .16em; text-transform: uppercase;
+  color: rgba(255, 255, 255, .78);
+  padding: 8px 0;
+  border-bottom: 1px solid transparent;
+  transition: color .2s ease-out, border-color .2s ease-out;
+}
+header.appbar nav a:hover,
+header.appbar nav a.active {
+  color: #fff;
+  border-bottom-color: var(--gold);
+}
+
+header.appbar .right {
+  display: flex; gap: 14px; align-items: center;
+}
+
+header.appbar .search {
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(255, 255, 255, .06);
+  border: 1px solid rgba(255, 255, 255, .10);
+  padding: 8px 12px;
+  border-radius: 3px;
+  color: rgba(255, 255, 255, .7);
+  font-size: 12.5px;
+  width: 220px;
+}
+header.appbar .search:focus-within { border-color: var(--gold); }
+header.appbar .search input {
+  flex: 1; background: transparent; border: 0; outline: 0;
+  color: #fff; font-family: inherit; font-size: 13px;
+}
+header.appbar .search input::placeholder { color: rgba(255, 255, 255, .45); }
+header.appbar .search .kbd {
+  font-size: 10px; letter-spacing: .06em; color: rgba(255, 255, 255, .45);
+  border: 1px solid rgba(255, 255, 255, .18);
+  padding: 1px 5px; border-radius: 2px;
+}
+
+header.appbar .iconbtn {
+  width: 38px; height: 38px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid rgba(255, 255, 255, .14);
+  border-radius: 3px;
+  color: #fff;
+  background: transparent;
+  transition: border-color .2s, background .2s;
+}
+header.appbar .iconbtn:hover {
+  border-color: var(--gold);
+  background: rgba(189, 149, 104, .12);
+}
+
+/* ============================================================
+   4. SECTION STRUCTURE (used by every page's content blocks)
+   ============================================================ */
+main { padding: 0; }
+
+.section {
+  padding: 56px 56px 8px;
+  max-width: 1740px;
+  margin: 0 auto;
+}
+.section.light { background: #fff; }
+.section.tinted {
+  background: linear-gradient(180deg, #fff 0%, rgba(219, 200, 178, .18) 100%);
+}
+
+.sec-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 14px;
+  margin-bottom: 28px;
+  gap: 18px;
+}
+.sec-head .ttl-block .eyebrow {
+  font-size: 10.5px; letter-spacing: .28em; text-transform: uppercase; color: var(--gold);
+  font-weight: 700; margin-bottom: 8px; display: block;
+}
+.sec-head .ttl-block h2 {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+  color: var(--black);
+  line-height: 1.1;
+}
+.sec-head .ttl-block h2 em {
+  font-style: italic; font-weight: 400; color: var(--gold-deep);
+}
+.sec-head .ttl-block .sub {
+  font-size: 13.5px; color: var(--text-mid); margin-top: 8px; max-width: 64ch;
+}
+.sec-head a.more {
+  font-size: 11.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--gold);
+  border-bottom: 1px solid transparent; padding-bottom: 3px;
+  transition: border-color .2s; white-space: nowrap;
+}
+.sec-head a.more:hover { border-bottom-color: var(--gold); }
+
+/* ============================================================
+   5. STATUS PILLS (BUY / HOLD / REVIEW / AVOID)
+   per Brand Standards §7
+   ============================================================ */
+.pill {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 2px;
+  font-size: 10.5px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #fff;
+  min-width: 68px;
+  text-align: center;
+}
+.pill.buy    { background: var(--green); }
+.pill.hold   { background: var(--gold); }
+.pill.review { background: var(--text-mid); }
+.pill.avoid  { background: var(--red); }
+
+/* Score-status badge (when verdict is null, show centricity_score_status instead) */
+.badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 2px;
+  font-size: 10.5px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+.badge.ranked     { background: var(--tan); color: var(--black); }
+.badge.warning-13 { background: rgba(189, 149, 104, .15); color: var(--gold-deep); border: 1px solid var(--gold); }
+.badge.new-fund   { background: rgba(102, 102, 102, .10); color: var(--text-mid); border: 1px solid var(--grey-mid); }
+
+/* ============================================================
+   6. ALERT SEVERITY DOTS (Brand Standards §7)
+   ============================================================ */
+.alert {
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: #fff;
+  padding: 22px 24px;
+  display: flex;
+  gap: 16px;
+  transition: border-color .2s, transform .2s, box-shadow .2s;
+  box-shadow: var(--shadow-sm);
+}
+.alert:hover {
+  border-color: var(--gold);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+.alert .sev {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  flex: none;
+  margin-top: 8px;
+  box-shadow: 0 0 0 4px rgba(0, 0, 0, .04);
+}
+.alert.high .sev { background: var(--red); }
+.alert.med  .sev { background: var(--gold); }
+.alert.low  .sev { background: var(--text-mid); }
+.alert .body { flex: 1; min-width: 0; }
+.alert .lbl {
+  font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--text-mid);
+  margin-bottom: 8px;
+}
+.alert.high .lbl { color: var(--red); }
+.alert .ttl   { font-weight: 700; font-size: 16px; line-height: 1.35; margin-bottom: 8px; }
+.alert .ctx   { font-size: 13px; color: var(--text-mid); margin-bottom: 12px; line-height: 1.55; }
+.alert .fund  { font-size: 12.5px; color: var(--black); border-top: 1px dotted var(--grey-light); padding-top: 10px; }
+.alert .fund b { font-weight: 700; }
+.alert .arrow { color: var(--gold); font-size: 18px; align-self: flex-start; margin-top: 4px; flex: none; transition: transform .2s; }
+.alert:hover .arrow { transform: translateX(3px); }
+
+/* ============================================================
+   7. THE CENTRICITY GOLD-RING MOTIF (Brand Standards §4)
+   Concentric grey circle + thin gold ring. Use as watermark in section
+   corners or as a focal element on empty / placeholder states.
+   ============================================================ */
+.ring-motif {
+  position: relative;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: rgba(191, 191, 191, .16);
+}
+.ring-motif::before {
+  content: "";
+  position: absolute;
+  inset: 24px;
+  border-radius: 50%;
+  background: rgba(191, 191, 191, .30);
+}
+.ring-motif::after {
+  content: "";
+  position: absolute;
+  inset: 48px;
+  border-radius: 50%;
+  border: 1.25px solid var(--gold);
+}
+
+/* ============================================================
+   8. FOOTER (sticky black bar, "Last updated" right, org line left)
+   ============================================================ */
+.pre-foot {
+  margin-top: 48px;
+  padding: 40px 56px 32px;
+  background: linear-gradient(180deg, #fff 0%, rgba(219, 200, 178, .16) 100%);
+  border-top: 1px solid var(--rule);
+}
+.pre-foot .inner {
+  max-width: 1740px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 44px;
+  align-items: start;
+}
+.pre-foot h4 {
+  font-size: 10.5px; letter-spacing: .22em; text-transform: uppercase; color: var(--text-mid);
+  font-weight: 700; margin: 0 0 12px;
+}
+.pre-foot .brand-block .mark {
+  height: 34px; margin-bottom: 14px; display: block;
+}
+.pre-foot .brand-block p {
+  margin: 0; font-size: 13px; color: var(--text-mid); max-width: 48ch; line-height: 1.55;
+}
+.pre-foot ul {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.pre-foot ul a { font-size: 13px; color: var(--black); transition: color .2s; }
+.pre-foot ul a:hover { color: var(--gold); }
+
+footer.appfoot {
+  background: var(--black);
+  color: #fff;
+  padding: 14px 56px;
+  font-size: 12px;
+  letter-spacing: .06em;
+  display: flex; align-items: center; justify-content: space-between;
+}
+footer.appfoot .left {
+  display: flex; align-items: center; gap: 18px; color: rgba(255, 255, 255, .7);
+}
+footer.appfoot .left .gold { color: var(--gold); font-weight: 700; }
+footer.appfoot .right { color: rgba(255, 255, 255, .7); }
+
+/* ============================================================
+   9. TOAST (bottom-of-page transient notifications)
+   ============================================================ */
+.toast {
+  position: fixed; left: 50%; bottom: 64px;
+  transform: translate(-50%, 16px);
+  background: var(--black);
+  color: #fff;
+  padding: 11px 18px;
+  border-radius: 3px;
+  font-size: 12.5px;
+  opacity: 0;
+  transition: opacity .25s, transform .25s;
+  pointer-events: none;
+  box-shadow: var(--shadow-md);
+  z-index: 200;
+  border: 1px solid rgba(189, 149, 104, .4);
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* ============================================================
+   10. EMPTY-STATE PLACEHOLDER (used by Alerts and Watchlist v1.1 shells,
+       and by any v1 panel where data isn't wired yet)
+   ============================================================ */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 24px;
+  text-align: center;
+  background: #fff;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+}
+.empty-state .ring-motif {
+  margin-bottom: 24px;
+  width: 140px;
+  height: 140px;
+}
+.empty-state h3 {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0 0 8px;
+  letter-spacing: -.005em;
+  color: var(--black);
+}
+.empty-state p {
+  font-size: 13.5px;
+  color: var(--text-mid);
+  margin: 0;
+  max-width: 56ch;
+  line-height: 1.55;
+}
+
+/* ============================================================
+   10.5. MULTI-SELECT COMPONENT (js/multi-select.js)
+   Reusable button + popover with search + tri-state Select-all + grouped
+   options + disabled rows. Used by Home filters, Screener left rail, etc.
+   Brand-compliant: Cambria, palette only, Warm Gold focus rings.
+   ============================================================ */
+.multi-select {
+  position: relative;
+  display: inline-block;
+  font-family: 'Cambria', Georgia, 'Times New Roman', serif;
+}
+
+/* — button (visible when popover closed) — */
+.multi-select .ms-button {
+  appearance: none; -webkit-appearance: none;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  background: #fff;
+  border: 1px solid var(--gold);
+  color: var(--black);
+  padding: 8px 14px 8px 14px;
+  border-radius: 3px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 200px;
+  letter-spacing: 0;
+  text-transform: none;
+  transition: background .15s ease-out;
+}
+.multi-select .ms-button:hover { background: var(--tan-softer); }
+.multi-select.open .ms-button {
+  background: var(--tan-softer);
+  border-color: var(--gold-deep);
+}
+.multi-select .ms-label { flex: 1; text-align: left; }
+.multi-select .ms-caret { color: var(--gold); font-size: 10px; }
+
+/* — popover — */
+.multi-select .ms-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 80;
+  min-width: 280px;
+  max-width: 360px;
+  max-height: 380px;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid var(--gold);
+  border-radius: 4px;
+  box-shadow: var(--shadow-md);
+  padding: 6px;
+}
+.multi-select .ms-popover[hidden] { display: none; }
+
+/* — search input — */
+.multi-select .ms-search {
+  font-family: inherit;
+  font-size: 13px;
+  padding: 8px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  outline: none;
+  margin-bottom: 4px;
+  background: #fff;
+  color: var(--black);
+}
+.multi-select .ms-search:focus { border-color: var(--gold); }
+
+/* — select-all toggle row — */
+.multi-select .ms-row-toggle {
+  background: var(--tan-softer);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: .04em;
+  color: var(--text-mid);
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: 4px;
+  padding: 8px 10px;
+}
+.multi-select .ms-row-toggle:hover { background: var(--tan-soft); cursor: pointer; }
+
+/* — list of options — */
+.multi-select .ms-list {
+  overflow-y: auto;
+  max-height: 280px;
+}
+.multi-select .ms-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  cursor: pointer;
+  border-radius: 2px;
+  font-size: 13.5px;
+  color: var(--black);
+  transition: background .12s ease-out;
+}
+.multi-select .ms-row:hover { background: var(--tan-softer); }
+.multi-select .ms-row[aria-selected="true"] { background: rgba(189, 149, 104, .08); }
+.multi-select .ms-row-disabled {
+  cursor: not-allowed;
+  opacity: .55;
+  background: rgba(217, 217, 217, .25);
+  font-style: italic;
+}
+.multi-select .ms-row-disabled:hover { background: rgba(217, 217, 217, .25); }
+
+/* — group header (non-clickable) — */
+.multi-select .ms-group-header {
+  padding: 8px 10px 4px;
+  font-size: 10.5px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--gold);
+  font-weight: 700;
+  border-top: 1px dotted var(--rule);
+  margin-top: 4px;
+}
+.multi-select .ms-group-header:first-child {
+  border-top: 0;
+  margin-top: 0;
+}
+
+/* — checkbox glyph (3 states: empty / checked / indeterminate) — */
+.multi-select .ms-checkbox {
+  width: 16px; height: 16px; flex: none;
+  border: 1.4px solid var(--gold);
+  border-radius: 2px;
+  background: #fff;
+  position: relative;
+  transition: background .12s, border-color .12s;
+}
+.multi-select .ms-checkbox.checked {
+  background: var(--gold);
+  border-color: var(--gold);
+}
+.multi-select .ms-checkbox.checked::after {
+  content: "";
+  position: absolute;
+  left: 4px; top: 1px;
+  width: 4px; height: 8px;
+  border-right: 2px solid #fff;
+  border-bottom: 2px solid #fff;
+  transform: rotate(45deg);
+}
+.multi-select .ms-checkbox.indeterminate {
+  background: var(--gold);
+  border-color: var(--gold);
+}
+.multi-select .ms-checkbox.indeterminate::after {
+  content: "";
+  position: absolute;
+  left: 3px; right: 3px; top: 6px;
+  height: 2px;
+  background: #fff;
+  border-radius: 1px;
+}
+
+.multi-select .ms-row-text { flex: 1; }
+
+/* — empty-state ("No matches" when search yields nothing) — */
+.multi-select .ms-empty {
+  padding: 16px 12px;
+  font-size: 12.5px;
+  color: var(--text-mid);
+  font-style: italic;
+  text-align: center;
+}
+
+/* — focus rings: Brand Standards §6 — */
+.multi-select .ms-button:focus-visible,
+.multi-select .ms-search:focus-visible,
+.multi-select .ms-row:focus-visible,
+.multi-select .ms-row-toggle:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+/* ============================================================
+   11. FOCUS RINGS (Brand Standards §6 — Warm Gold, 2px, 2px offset)
+   ============================================================ */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+/* ============================================================
+   12. RESPONSIVE NUDGES (Brand Standards: desktop-first, 1380px breakpoint)
+   ============================================================ */
+@media (max-width: 1380px) {
+  .section { padding: 40px 32px 8px; }
+  header.appbar { padding: 0 32px; }
+  header.appbar .search { width: 160px; }
+  .pre-foot .inner { grid-template-columns: 1fr 1fr; }
+}
+
+/* ============================================================
+   13. PRINT — used by the html2pdf.js export pipeline (js/exports.js).
+       Strips the sticky header/footer noise and shows a clean print frame.
+   ============================================================ */
+@media print {
+  header.appbar,
+  footer.appfoot,
+  .util,
+  .toast { display: none !important; }
+  body { background: #fff; }
+  .section { padding: 24px 32px; max-width: none; }
+}
