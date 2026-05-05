@@ -125,7 +125,7 @@ For any given Screener cycle date **C**:
    - `monitor-YYYY-MM-DD.json`
    - `debt-YYYY-MM-DD.json` (future)
 
-3. **Dashboard merges JSONs by AMFI scheme code at load time.** If a fund has Screener data but no Analytics data, the Analytics fields render as "—" and the Holdings panel shows the placeholder. **Independent failure modes** — Analytics missing must never break Screener rendering, and vice versa.
+3. **Dashboard merges by AMFI; for sources without AMFI in their Excel, the converter is responsible for the Scheme-Name → AMFI translation at build time.** The dashboard always reads JSONs keyed by AMFI scheme code and joins them at load time. When an upstream Excel lacks an AMFI column (e.g. the Analytics workbooks — confirmed in ISSUE-0008), the corresponding converter loads the Screener Excel for that cycle, builds a Scheme-Name → AMFI lookup from `📋 Data` cols B + D, and emits its JSON keyed by AMFI. The dashboard never sees the raw scheme-name join. If a fund has Screener data but no Analytics data, the Analytics fields render as "—" and the Holdings panel shows the placeholder. **Independent failure modes** — Analytics missing must never break Screener rendering, and vice versa.
 
 4. **Each source has its own contract.** The schema-check Action validates each source's Excel against its own contract independently — a malformed Analytics push never blocks a valid Screener deploy.
 
