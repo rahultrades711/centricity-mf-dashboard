@@ -42,14 +42,16 @@
 <section class="titleband">
   <div class="titleband-inner">
     <div>
-      <span class="eyebrow">02 · Interactive Screener</span>
       <h1 id="screenerTitle">Loading…</h1>
       <p class="sub" id="screenerSub">Loading cycle data…</p>
     </div>
     <div class="actions">
-      <button class="btn ghost" id="exportPdfBtn">Export PDF</button>
-      <button class="btn ghost" id="exportPptBtn">Export PPT</button>
-      <a class="btn ghost" href="compare.html">Compare</a>
+      <!-- PDF + PPT exports deferred until web design lock-in (Fix-List 2 §I) -->
+      <button class="btn ghost deferred" id="exportPdfBtn" disabled
+              title="Coming after web design lock-in">Export PDF</button>
+      <button class="btn ghost deferred" id="exportPptBtn" disabled
+              title="Coming after web design lock-in">Export PPT</button>
+      <button class="btn ghost" id="compareBtn" disabled>Compare <span class="pip" id="compareCount">0</span></button>
       <button class="btn primary" id="weightsBtn">Edit Weights</button>
     </div>
   </div>
@@ -85,7 +87,7 @@
     </div>
 
     <!-- Returns Filters -->
-    <div class="filter-group section">
+    <div class="filter-group filter-section">
       <div class="section-head">
         <h3 class="section-title">Returns Filters</h3>
         <button type="button" class="reset-mini" data-section="returns">Reset</button>
@@ -98,7 +100,7 @@
     </div>
 
     <!-- Risk Ratios -->
-    <div class="filter-group section">
+    <div class="filter-group filter-section">
       <div class="section-head">
         <h3 class="section-title">Risk Ratios</h3>
         <button type="button" class="reset-mini" data-section="risk">Reset</button>
@@ -110,7 +112,7 @@
     </div>
 
     <!-- Others -->
-    <div class="filter-group section">
+    <div class="filter-group filter-section">
       <div class="section-head">
         <h3 class="section-title">Others</h3>
         <button type="button" class="reset-mini" data-section="others">Reset</button>
@@ -139,11 +141,17 @@
           <b id="resultCount">—</b> of <b id="totalCount">—</b> funds
         </span>
       </div>
+      <div class="right">
+        <span class="addcol-wrap">
+          <span class="addcol-label">Add columns</span>
+          <span id="addColMS"></span>
+        </span>
+      </div>
     </div>
+    <div class="cap-warn" id="capWarn" hidden>Max 5 funds for Compare</div>
 
     <div class="fund-table-wrap" id="tableWrap"></div>
     <div class="legend">
-      Returns annualised. Negative values render in <span style="color:var(--red)">#931621</span> with a Unicode minus.
       Edit Weights affects the Score column on this page only — Home, Compare and Fund Detail
       always read the Excel-locked Centricity score.
     </div>

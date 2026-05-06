@@ -236,6 +236,23 @@
   }
 
   /* -------------------------------------------------------- *
+   *  Per-page UI persistence — Screener "Add columns" picker
+   *  (Cowork 2026-05-06 — Fix-List 2 §D)
+   *
+   *  'screener.extra_columns' (array<string>): dotted-path keys for
+   *  extra columns the analyst has enabled beyond the 11 default
+   *  Screener columns. Default = empty (no extras).
+   * -------------------------------------------------------- */
+  function getScreenerExtraColumns() {
+    const v = _get('screener.extra_columns', []);
+    return Array.isArray(v) ? v : [];
+  }
+  function setScreenerExtraColumns(arr) {
+    if (!Array.isArray(arr)) return false;
+    return _set('screener.extra_columns', arr);
+  }
+
+  /* -------------------------------------------------------- *
    *  Reset everything (Settings → "clear my saved views, weights, watchlist")
    * -------------------------------------------------------- */
   function resetAll() {
@@ -245,6 +262,7 @@
       'home.top10_assetclass',     // legacy single-string
       'home.top10_assetclasses',   // current array
       'home.top10_categories',
+      'screener.extra_columns',
     ].forEach(_remove);
     return true;
   }
@@ -267,6 +285,8 @@
     // Per-page UI — Home Top-10 filters
     getTop10AssetClasses, setTop10AssetClasses,
     getTop10Categories, setTop10Categories,
+    // Per-page UI — Screener extra-columns picker
+    getScreenerExtraColumns, setScreenerExtraColumns,
     // Reset
     resetAll,
     // Namespace exposed for diagnostics

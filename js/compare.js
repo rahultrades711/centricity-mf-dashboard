@@ -40,8 +40,10 @@
     initFundPicker();
     initTabs();
 
+    // Accept ?schemes= (canonical, Fix-List 2 §A) or ?funds= (backward compat)
     const params = new URLSearchParams(window.location.search);
-    const initial = (params.get('funds') || '').split(',').map(Number).filter(Boolean);
+    const rawCsv = params.get('schemes') || params.get('funds') || '';
+    const initial = rawCsv.split(',').map(Number).filter(Boolean);
     if (initial.length > 0) {
       _fundMS.setSelected(initial.map(String));
     }
@@ -85,8 +87,8 @@
         }
         _selected = sel.map(code => DataLoader.getFund(_cycle, Number(code))).filter(Boolean);
         renderTab(_activeTab);
-        // keep URL in sync
-        const url = sel.length > 0 ? '?funds=' + sel.join(',') : window.location.pathname;
+        // keep URL in sync — canonical key is ?schemes= per Fix-List 2 §A
+        const url = sel.length > 0 ? '?schemes=' + sel.join(',') : window.location.pathname;
         window.history.replaceState({}, '', url);
       },
     });

@@ -9,19 +9,32 @@
  * — never hardcoded. Adding/removing a parameter in the next Excel cycle
  * auto-resizes the drawer (CLAUDE.md §9 rule 1).
  *
- * Cowork 2026-05-06 — Fix-List 1 changes (full list in SKILL.md §10):
- *   A. Cycle label uses cycle_meta.cycle_label_date ("15th Apr 2026")
- *   B. Export PDF + PPT wired via Exports.buildScreener{PDF,PPT}
- *   C. Edit Weights drawer redesigned: numeric inputs, OK/Cancel/Reset,
- *      OK disabled while sum ≠ 100 ± 0.01, modal overlay (works at 100% zoom)
- *   D. Copy Share Link button removed (URL state still updated for natural copy)
- *   E. Asset Class is selectable tiles; Category dropdown renamed (no "SEBI" prefix)
- *   F. AUM is a 2-handle range slider, 0 → 1L+ Cr, Indian comma grouping
- *   G. 14 additional 2-handle range filters across Returns / Risk / Others sections
- *      with min/max derived from current cycle data
- *   H. Table header restyled (black/white ALL CAPS, 1 step bigger), Rolling Returns
- *      + YTD columns added, TER column removed, non-Ranked funds visible
- *   I. 11-column order, centred-cell rule for numerics, horizontal scroll wrapper
+ * Cowork 2026-05-06 (Fix-List 1) — initial overhaul.
+ * Cowork 2026-05-06 (Fix-List 2) — incremental polish:
+ *   §A. 12th utility column (checkbox) at left edge; Compare button
+ *       restored in title-band actions; cap at 5 selections; selection
+ *       persists across filter / sort but resets on hard reload.
+ *   §B. Table layout — horizontal scroll wrapper, sticky checkbox + Rank
+ *       + Fund-Name columns, multi-line centred headers, centred Category
+ *       body cells, Fund Name as a Warm Gold link with hover underline,
+ *       click navigation isolated to the link itself.
+ *   §C. Sort comparator audit — composite Ranked-first priority dropped;
+ *       null-last sorting (existing) handles the default-load case
+ *       (score desc puts Ranked first because non-Ranked have null
+ *       _displayScore). Per-column sort behaves as the user expects:
+ *       click YTD desc → HDFC Defence Fund-Reg(G) at row 1. See
+ *       ISSUE-0011 for the root-cause writeup.
+ *   §D. "Add columns" multi-select dropdown — per-fund extras (m-cap
+ *       split, hybrid extension, all 9 risk metrics, calendar returns,
+ *       cost/turnover, tenure, identification). Persisted to
+ *       centricity.v1.screener.extra_columns.
+ *   §E. Weight drawer — OK forces sort to score desc, recomputes ranks,
+ *       and re-sorts the table; numeric inputs reformat to 2dp on blur.
+ *   §F. All range sliders share the AUM slider's full-rail width.
+ *   §G. Footer note slimmed (returns-annualised sentence dropped).
+ *   §H. Section-number eyebrow removed from titleband.
+ *   §I. PDF + PPT export buttons disabled with "Coming after web design
+ *       lock-in" caption (library code retained for v1.x).
  *
  * URL query-string state (so analysts can copy the address bar to share):
  *   ?ac=equity,hybrid                    → asset-class tile selection
@@ -30,11 +43,17 @@
  *   ?sort=score_desc                     → table sort key + direction
  *   ?rng_<key>=<min>~<max>               → range filter state, e.g. rng_aum_cr=5000~50000
  *   ?w_<param>=<value>                   → applied weight overrides
+ *   ?xcol=risk_metrics.sortino_3y,...    → enabled extra columns
  *   ?q=quant                             → search box
  *
  * Persistence priority on load: URL params > AppState.* > cycle defaults.
- * Range filter state lives only in URL (ephemeral); custom weights persist
- * via AppState.setCustomWeights so analyst exploration survives page reloads.
+ * Range filter + extra-column selections persist via URL only (ephemeral);
+ * extra columns ALSO persist to AppState so the picker survives reloads.
+ * Custom weights persist via AppState.setCustomWeights so analyst
+ * exploration survives page reloads.
+ *
+ * In-row Compare selection state (`_selected`) lives in module memory only
+ * and resets on hard reload (per spec).
  */
 (function () {
   'use strict';
@@ -49,13 +68,18 @@
   let _drawerOpen = false;
   let _sortKey = 'score';
   let _sortDir = 'desc';
+  const MAX_COMPARE = 5;
+  let _selected = new Set();          // AMFI codes ticked for Compare
 
-  let _acTiles, _catMS, _amcMS;       // selector instances
+  let _acTiles, _catMS, _amcMS, _addColMS;       // selector instances
 
   // Filter ranges in *display units*. AUM in ₹ Cr, returns/risk in %, score in %.
   // Domains (min/max derived from data) drive what counts as "full range".
   let _filterRanges  = {};            // {key: {min, max}}
   let _filterDomains = {};            // {key: {min, max, step, niceMin, niceMax}}
+
+  let _activeExtras = [];             // array of dotted-path values (extra columns)
+  let _capWarnTimer = null;
 
   /* ---------- range filter config (drives both UI and predicate) ---------- */
   /**
@@ -95,68 +119,122 @@
     others:  ['manager_tenure_yrs', 'fund_tenure_yrs', 'no_of_stocks', 'ter_pct', 'centricity_score'],
   };
 
-  /* ---------- table column config (drives both render + exports) ---------- */
-  /**
-   * 11 data columns per Cowork 2026-05-06. Order is left-to-right.
-   * `align` controls header + body cells. Numerics are centred per the
-   * Home v3 rule. `key` is the sort key. `sortValue` is what the
-   * comparator pulls; `text` is what renders in the table cell;
-   * `exportText` flattens to a single line for PDF / PPT.
-   */
-  const COLUMNS = [
-    { key: 'rank',     label: 'Rank',           align: 'center',
-      sortValue: f => f.centricity_rank_overall,
-      text: f => `<span class="num">${f.centricity_score_status === 'Ranked' && f.centricity_rank_overall != null ? f.centricity_rank_overall : '—'}</span>`,
-      exportText: f => f.centricity_score_status === 'Ranked' && f.centricity_rank_overall != null ? '#' + f.centricity_rank_overall : '—' },
-    { key: 'name',     label: 'Fund / AMC',     align: 'left', cls: 'fund-cell',
+  /* ---------- nested-path resolver (used by sort + extra columns) ---------- */
+  function pluck(obj, path) {
+    if (obj == null) return null;
+    return String(path).split('.').reduce((o, k) => (o == null ? null : o[k]), obj);
+  }
+
+  /* ---------- table column config (drives both render + sort) ----------
+   * Fix-List 2 §A — `_check` column is the new index 0, then `_rank`
+   * column displays IN-TABLE positional rank (under current weights / sort)
+   * rather than the JSON's centricity_rank_overall directly.
+   * Fix-List 2 §B — `name` column drops the AMC subline; only the fund-
+   * name text is the click target (rendered as a gold link).
+   * Fix-List 2 §C — composite Ranked-first sort dropped; null-last
+   * sorting handles the default. */
+  const DEFAULT_COLUMNS = [
+    { key: '_check',   label: '',               align: 'center', cls: 'col-check',
+      sortable: false,
+      sortValue: () => null,
+      text: f => `<input type="checkbox" class="row-check" data-scheme="${f.scheme_code}"${_selected.has(f.scheme_code) ? ' checked' : ''} aria-label="Select for compare">` },
+    { key: 'rank',     label: 'Rank',           align: 'center', cls: 'col-rank',
+      sortable: true,
+      sortValue: f => f._displayRank,
+      text: f => `<span class="num">${f._displayRank != null ? f._displayRank : '—'}</span>`,
+      titleHelp: 'Rank under current weights. Reset weights to see Excel-locked Centricity rank.' },
+    { key: 'name',     label: 'Fund Name',      align: 'left',   cls: 'col-name',
+      sortable: true,
       sortValue: f => (f.fund_name || '').toLowerCase(),
-      text: f => `<div class="fund-name">${escapeHtml(f.fund_name)}</div><div class="fund-sub">${escapeHtml(f.amc || '—')} · #${f.scheme_code}</div>`,
-      exportText: f => `${f.fund_name || '—'} (${f.amc || '—'})` },
-    { key: 'category', label: 'Category',       align: 'left',
+      text: f => `<a class="fund-name-link" href="fund-detail.html?scheme=${f.scheme_code}">${escapeHtml(f.fund_name)}</a>` },
+    { key: 'category', label: 'Category',       align: 'center', sortable: true,
       sortValue: f => (f.category || '').toLowerCase(),
-      text: f => escapeHtml(f.category || '—'),
-      exportText: f => f.category || '—' },
-    { key: 'aum',      label: 'AUM ₹ Cr',       align: 'center',
+      text: f => escapeHtml(f.category || '—') },
+    { key: 'aum',      label: 'AUM ₹ Cr',       align: 'center', sortable: true,
       sortValue: f => f.aum_cr,
-      text: f => `₹ ${DataLoader.fmtINR(f.aum_cr)}`,
-      exportText: f => f.aum_cr != null ? '₹ ' + DataLoader.fmtINR(f.aum_cr) : '—' },
-    { key: 'rolling',  label: 'Rolling Returns', align: 'center', neg: true,
+      text: f => `₹ ${DataLoader.fmtINR(f.aum_cr)}` },
+    { key: 'rolling',  label: 'Rolling Returns', align: 'center', neg: true, sortable: true,
       sortValue: f => f.rolling_3y_avg_pct,
       pickRaw:   f => f.rolling_3y_avg_pct,
-      text: f => fmtPctCell(f.rolling_3y_avg_pct),
-      exportText: f => DataLoader.fmtPct(f.rolling_3y_avg_pct) },
-    { key: 'ytd',      label: 'YTD',            align: 'center', neg: true,
+      text: f => fmtPctCell(f.rolling_3y_avg_pct) },
+    { key: 'ytd',      label: 'YTD',            align: 'center', neg: true, sortable: true,
       sortValue: f => f.cy_returns ? f.cy_returns.cy_ytd_pct : null,
       pickRaw:   f => f.cy_returns ? f.cy_returns.cy_ytd_pct : null,
-      text: f => fmtPctCell(f.cy_returns ? f.cy_returns.cy_ytd_pct : null),
-      exportText: f => DataLoader.fmtPct(f.cy_returns ? f.cy_returns.cy_ytd_pct : null) },
-    { key: 'r1',       label: '1Y',             align: 'center', neg: true,
+      text: f => fmtPctCell(f.cy_returns ? f.cy_returns.cy_ytd_pct : null) },
+    { key: 'r1',       label: '1Y',             align: 'center', neg: true, sortable: true,
       sortValue: f => f.trailing_returns ? f.trailing_returns.return_1y_pct : null,
       pickRaw:   f => f.trailing_returns ? f.trailing_returns.return_1y_pct : null,
-      text: f => fmtPctCell(f.trailing_returns ? f.trailing_returns.return_1y_pct : null),
-      exportText: f => DataLoader.fmtPct(f.trailing_returns ? f.trailing_returns.return_1y_pct : null) },
-    { key: 'r3',       label: '3Y',             align: 'center', neg: true,
+      text: f => fmtPctCell(f.trailing_returns ? f.trailing_returns.return_1y_pct : null) },
+    { key: 'r3',       label: '3Y',             align: 'center', neg: true, sortable: true,
       sortValue: f => f.trailing_returns ? f.trailing_returns.return_3y_pct : null,
       pickRaw:   f => f.trailing_returns ? f.trailing_returns.return_3y_pct : null,
-      text: f => fmtPctCell(f.trailing_returns ? f.trailing_returns.return_3y_pct : null),
-      exportText: f => DataLoader.fmtPct(f.trailing_returns ? f.trailing_returns.return_3y_pct : null) },
-    { key: 'r5',       label: '5Y',             align: 'center', neg: true,
+      text: f => fmtPctCell(f.trailing_returns ? f.trailing_returns.return_3y_pct : null) },
+    { key: 'r5',       label: '5Y',             align: 'center', neg: true, sortable: true,
       sortValue: f => f.trailing_returns ? f.trailing_returns.return_5y_pct : null,
       pickRaw:   f => f.trailing_returns ? f.trailing_returns.return_5y_pct : null,
-      text: f => fmtPctCell(f.trailing_returns ? f.trailing_returns.return_5y_pct : null),
-      exportText: f => DataLoader.fmtPct(f.trailing_returns ? f.trailing_returns.return_5y_pct : null) },
-    { key: 'sharpe',   label: 'Sharpe',         align: 'center',
+      text: f => fmtPctCell(f.trailing_returns ? f.trailing_returns.return_5y_pct : null) },
+    { key: 'sharpe',   label: 'Sharpe',         align: 'center', sortable: true,
       sortValue: f => f.risk_metrics ? f.risk_metrics.sharpe_3y : null,
-      text: f => DataLoader.fmtNum(f.risk_metrics ? f.risk_metrics.sharpe_3y : null),
-      exportText: f => DataLoader.fmtNum(f.risk_metrics ? f.risk_metrics.sharpe_3y : null) },
-    { key: 'score',    label: 'Score',          align: 'center',
+      text: f => DataLoader.fmtNum(f.risk_metrics ? f.risk_metrics.sharpe_3y : null) },
+    { key: 'score',    label: 'Score',          align: 'center', sortable: true,
       sortValue: f => f._displayScore,
-      text: f => renderScoreCell(f),
-      exportText: f => f.centricity_score_status === 'Ranked'
-        ? DataLoader.fmtScorePct(f._displayScore)
-        : (f.centricity_score_status === '1-3yr Warning'
-            ? `Warning ${f.centricity_score_warning_pct != null ? f.centricity_score_warning_pct.toFixed(2) + '%' : ''}`.trim()
-            : 'New Fund — Monitoring') },
+      text: f => renderScoreCell(f) },
+  ];
+
+  /* ---------- "Add columns" library — Fix-List 2 §D ----------
+   * Each entry:
+   *   value:  dotted JSON path used as both the lookup key and the column key
+   *   label:  display text in the picker AND the table header
+   *   group:  picker section (Holdings / Hybrid / Risk / Cost / Tenure / Id / Calendar / Other)
+   *   kind:   format selector — 'pct' (signed), 'pct-pos', 'num', 'int',
+   *           'inr', 'date', 'string', 'score-int' (AMC score /10)
+   *   neg:    only meaningful for 'pct' — true to apply Dark Red on negatives
+   * No parameter_scores fields; those are scoring intermediates and would
+   * clutter the picker (per §D). They stay surfaced on Fund Detail's
+   * parameter-score breakdown table.
+   */
+  const EXTRA_COLS = [
+    // Holdings (m-cap split)
+    { value: 'mcap_split.large_pct',   label: 'Large Cap %',   group: 'Holdings',         kind: 'pct-pos' },
+    { value: 'mcap_split.mid_pct',     label: 'Mid Cap %',     group: 'Holdings',         kind: 'pct-pos' },
+    { value: 'mcap_split.small_pct',   label: 'Small Cap %',   group: 'Holdings',         kind: 'pct-pos' },
+    { value: 'mcap_split.others_pct',  label: 'Others %',      group: 'Holdings',         kind: 'pct-pos' },
+    { value: 'no_of_stocks',           label: 'No. of Stocks', group: 'Holdings',         kind: 'int' },
+    // Hybrid extension
+    { value: 'hybrid_extension.equity_pct',       label: 'Equity %',          group: 'Hybrid extension', kind: 'pct-pos' },
+    { value: 'hybrid_extension.debt_pct',         label: 'Debt %',            group: 'Hybrid extension', kind: 'pct-pos' },
+    { value: 'hybrid_extension.others_pct_hybrid',label: 'Others % (Hybrid)', group: 'Hybrid extension', kind: 'pct-pos' },
+    { value: 'hybrid_extension.ytm',              label: 'YTM',               group: 'Hybrid extension', kind: 'pct-pos' },
+    { value: 'hybrid_extension.mod_duration_yrs', label: 'Mod Duration',      group: 'Hybrid extension', kind: 'num', suffix: ' yrs' },
+    { value: 'hybrid_extension.avg_maturity_yrs', label: 'Avg Maturity',      group: 'Hybrid extension', kind: 'num', suffix: ' yrs' },
+    // Risk metrics
+    { value: 'risk_metrics.sortino_3y',           label: 'Sortino',         group: 'Risk metrics', kind: 'num' },
+    { value: 'risk_metrics.std_dev_3y_pct',       label: 'Std Dev (3Y)',    group: 'Risk metrics', kind: 'pct-pos' },
+    { value: 'risk_metrics.max_drawdown_3y_pct',  label: 'Max DD (3Y)',     group: 'Risk metrics', kind: 'pct', neg: true },
+    { value: 'risk_metrics.beta_3y',              label: 'Beta',            group: 'Risk metrics', kind: 'num' },
+    { value: 'risk_metrics.treynor_3y',           label: 'Treynor',         group: 'Risk metrics', kind: 'num' },
+    { value: 'risk_metrics.up_capture_3y_pct',    label: 'Up Capture',      group: 'Risk metrics', kind: 'pct-pos' },
+    { value: 'risk_metrics.down_capture_3y_pct',  label: 'Down Capture',    group: 'Risk metrics', kind: 'pct-pos' },
+    { value: 'risk_metrics.overall_capture_3y_pct',label:'Overall Capture', group: 'Risk metrics', kind: 'pct-pos' },
+    // Cost & turnover
+    { value: 'ter_pct',                           label: 'TER %',           group: 'Cost & turnover', kind: 'pct-pos' },
+    { value: 'turnover_pct',                      label: 'Turnover %',      group: 'Cost & turnover', kind: 'pct-pos' },
+    // Tenure
+    { value: 'manager_tenure_yrs',                label: 'Manager Tenure',  group: 'Tenure', kind: 'num', suffix: ' yrs' },
+    { value: 'fund_tenure_yrs',                   label: 'Fund Tenure',     group: 'Tenure', kind: 'num', suffix: ' yrs' },
+    // Identification
+    { value: 'amc',                               label: 'AMC',             group: 'Identification', kind: 'string' },
+    { value: 'amc_score',                         label: 'AMC Score',       group: 'Identification', kind: 'score-int' },
+    { value: 'benchmark',                         label: 'Benchmark',       group: 'Identification', kind: 'string' },
+    { value: 'inception_date',                    label: 'Inception Date',  group: 'Identification', kind: 'date' },
+    { value: 'manager_name',                      label: 'Manager Name',    group: 'Identification', kind: 'string' },
+    // Calendar returns
+    { value: 'cy_returns.cy2022_pct',             label: 'CY2022 %',        group: 'Calendar returns', kind: 'pct', neg: true },
+    { value: 'cy_returns.cy2023_pct',             label: 'CY2023 %',        group: 'Calendar returns', kind: 'pct', neg: true },
+    { value: 'cy_returns.cy2024_pct',             label: 'CY2024 %',        group: 'Calendar returns', kind: 'pct', neg: true },
+    { value: 'cy_returns.cy2025_pct',             label: 'CY2025 %',        group: 'Calendar returns', kind: 'pct', neg: true },
+    // Other
+    { value: 'consistency_pct',                   label: 'Consistency %',   group: 'Other', kind: 'pct-pos' },
   ];
 
   /* ---------- bootstrap ---------- */
@@ -179,6 +257,7 @@
     _allFunds = cycle.funds.slice();
     _scoringWeights = cycle.cycle_meta.scoring_weights.slice();
     _customWeights = AppState.getCustomWeights();
+    _activeExtras = AppState.getScreenerExtraColumns() || [];
 
     // Title + sub
     const m = cycle.cycle_meta;
@@ -196,7 +275,8 @@
     initRangeSliders();
     initWeightDrawer();
     initToolbar();
-    initExports();
+    initAddColumns();
+    initCompareButton();
     parseUrlState();
     applyAndRender();
     initToasts();
@@ -218,16 +298,11 @@
    * ============================================================ */
   function initFilterDomains() {
     RANGE_CONFIG.forEach(cfg => {
-      // AUM has hard caps so the "1L+" sentinel works
       if (cfg.hardCapMin != null && cfg.hardCapMax != null) {
-        _filterDomains[cfg.key] = {
-          min: cfg.hardCapMin, max: cfg.hardCapMax, step: cfg.step,
-        };
+        _filterDomains[cfg.key] = { min: cfg.hardCapMin, max: cfg.hardCapMax, step: cfg.step };
         _filterRanges[cfg.key]  = { min: cfg.hardCapMin, max: cfg.hardCapMax };
         return;
       }
-
-      // Score is stored 0..1 but slider works in 0..100
       if (cfg.kind === 'score-pct') {
         _filterDomains[cfg.key] = { min: 0, max: 100, step: cfg.step };
         _filterRanges[cfg.key]  = { min: 0, max: 100 };
@@ -242,8 +317,6 @@
       }
       const lo = Math.min(...vals);
       const hi = Math.max(...vals);
-      // Snap niceLo / niceHi outward to the step boundary so initial display
-      // and slider value (which always snaps to step) agree.
       const step = cfg.step;
       const niceLo = Math.floor(niceMin(lo, cfg) / step) * step;
       const niceHi = Math.ceil(niceMax(hi, cfg)  / step) * step;
@@ -255,15 +328,8 @@
   function niceMin(v, cfg) {
     if (cfg.kind === 'int') return Math.max(0, Math.floor(v));
     if (cfg.kind === 'pct-pos') return 0;
-    if (cfg.kind === 'num') {
-      if (v >= 0) return Math.floor(v * 10) / 10;
-      return Math.floor(v * 10) / 10;
-    }
-    if (cfg.kind === 'pct') {
-      // Round outward to nearest 5 for negatives, nearest 5 for positives
-      if (v >= 0) return Math.floor(v / 5) * 5;
-      return Math.floor(v / 5) * 5;
-    }
+    if (cfg.kind === 'num') return Math.floor(v * 10) / 10;
+    if (cfg.kind === 'pct') return Math.floor(v / 5) * 5;
     return v;
   }
   function niceMax(v, cfg) {
@@ -278,9 +344,6 @@
    * FILTERS — Asset Class tiles + Category dropdown + AMC dropdown
    * ============================================================ */
   function initFilters() {
-    const m = _cycle.cycle_meta;
-
-    // Asset Class — selectable tiles (Cowork 2026-05-06 Fix-List 1 §E.1)
     const acItems = [
       { value: 'equity', label: 'Equity', sub: countOf('Equity') + ' funds' },
       { value: 'debt',   label: 'Debt',   sub: 'pending v1.x', disabled: true },
@@ -294,7 +357,6 @@
       onChange: () => { rebuildCategoryItems(); applyAndRender(); writeUrlState(); },
     });
 
-    // Category — dropdown (renamed from "SEBI Category", §E.2)
     _catMS = MultiSelect.create(document.getElementById('catMS'), {
       items: buildCategoryItems(_acTiles.getSelected()),
       selected: buildCategoryItems(['equity', 'hybrid']).map(i => i.value),
@@ -307,7 +369,6 @@
       onChange: () => { applyAndRender(); writeUrlState(); },
     });
 
-    // AMC — dropdown (unchanged §E.3)
     _amcMS = MultiSelect.create(document.getElementById('amcMS'), {
       items: buildAmcItems(),
       selected: buildAmcItems().map(i => i.value),
@@ -335,7 +396,6 @@
       writeUrlState();
     });
 
-    // Per-section reset buttons
     document.querySelectorAll('.reset-mini').forEach(btn => {
       btn.addEventListener('click', () => {
         const sectionKey = btn.getAttribute('data-section');
@@ -356,7 +416,6 @@
   function countOf(subClass) {
     return _allFunds.filter(f => f.sub_category_class === subClass).length.toLocaleString('en-IN');
   }
-
   function buildCategoryItems(assetClasses) {
     const cats = (_cycle.cycle_meta.categories || []);
     const items = [];
@@ -413,22 +472,18 @@
       function commit() {
         let lo = parseFloat(minIn.value);
         let hi = parseFloat(maxIn.value);
-        if (lo > hi) { [lo, hi] = [hi, lo]; }
+        if (lo > hi) [lo, hi] = [hi, lo];
         _filterRanges[cfg.key] = { min: lo, max: hi };
         syncRangeUI(cfg);
         applyAndRender();
         writeUrlState();
       }
       minIn.addEventListener('input', () => {
-        if (parseFloat(minIn.value) > parseFloat(maxIn.value)) {
-          minIn.value = maxIn.value;
-        }
+        if (parseFloat(minIn.value) > parseFloat(maxIn.value)) minIn.value = maxIn.value;
         commit();
       });
       maxIn.addEventListener('input', () => {
-        if (parseFloat(maxIn.value) < parseFloat(minIn.value)) {
-          maxIn.value = minIn.value;
-        }
+        if (parseFloat(maxIn.value) < parseFloat(minIn.value)) maxIn.value = minIn.value;
         commit();
       });
 
@@ -453,7 +508,6 @@
       fill.style.left  = `${lpct}%`;
       fill.style.width = `${Math.max(0, rpct - lpct)}%`;
     }
-
     const display = root.querySelector('[data-rng-display]');
     if (display) display.innerHTML = formatRangeDisplay(cfg, r, d);
   }
@@ -464,38 +518,23 @@
     const hi = isMaxAtCap ? '<span class="rng-max">₹1L+ Cr</span>' : formatRangeValue(cfg, r.max);
     return `<span class="rng-min">${lo}</span> – ${hi}`;
   }
-
   function formatRangeValue(cfg, v) {
     if (v == null || isNaN(v)) return '—';
     const isNeg = v < 0;
     const cls = isNeg ? 'rng-max rng-neg' : 'rng-max';
     let body;
     switch (cfg.kind) {
-      case 'inr':
-        body = '₹' + DataLoader.fmtINR(v) + ' Cr';
-        break;
-      case 'pct':
-        body = (isNeg ? '−' : (v > 0 ? '+' : '')) + Math.abs(v).toFixed(1) + '%';
-        break;
-      case 'pct-pos':
-        body = v.toFixed(1) + '%';
-        break;
-      case 'score-pct':
-        body = v.toFixed(0) + '%';
-        break;
-      case 'num':
-        body = (isNeg ? '−' : '') + Math.abs(v).toFixed(2) + (cfg.suffix || '');
-        break;
-      case 'int':
-        body = String(Math.round(v));
-        break;
-      default:
-        body = String(v);
+      case 'inr':       body = '₹' + DataLoader.fmtINR(v) + ' Cr'; break;
+      case 'pct':       body = (isNeg ? '−' : (v > 0 ? '+' : '')) + Math.abs(v).toFixed(1) + '%'; break;
+      case 'pct-pos':   body = v.toFixed(1) + '%'; break;
+      case 'score-pct': body = v.toFixed(0) + '%'; break;
+      case 'num':       body = (isNeg ? '−' : '') + Math.abs(v).toFixed(2) + (cfg.suffix || ''); break;
+      case 'int':       body = String(Math.round(v)); break;
+      default:          body = String(v);
     }
     return `<span class="${cls}">${escapeHtml(body)}</span>`;
   }
 
-  /* ---------- range filter predicate ---------- */
   function isRangeFullDomain(key) {
     const r = _filterRanges[key], d = _filterDomains[key];
     if (!r || !d) return true;
@@ -506,13 +545,9 @@
     const r = _filterRanges[cfg.key];
     const d = _filterDomains[cfg.key];
     if (!r || !d) return true;
-    if (v == null) return isRangeFullDomain(cfg.key);   // nulls only pass at full range
-    if (cfg.kind === 'inr' && r.max >= d.max) {
-      return v >= r.min;                                // 1L+ — no upper bound
-    }
-    if (cfg.kind === 'score-pct') {
-      return (v * 100) >= r.min && (v * 100) <= r.max;
-    }
+    if (v == null) return isRangeFullDomain(cfg.key);
+    if (cfg.kind === 'inr' && r.max >= d.max) return v >= r.min;
+    if (cfg.kind === 'score-pct') return (v * 100) >= r.min && (v * 100) <= r.max;
     return v >= r.min && v <= r.max;
   }
 
@@ -529,14 +564,18 @@
     });
     document.getElementById('okWeightsBtn').addEventListener('click', () => {
       const sum = sumDraft();
-      if (Math.abs(sum - 100) > 0.01) return;             // guard (button should already be disabled)
-      // Apply: store as customWeights (or null if exactly default-equal)
+      if (Math.abs(sum - 100) > 0.01) return;             // guard
       const isDefault = _scoringWeights.every(w =>
         Math.abs(_draftWeights[w.parameter] - w.weight_pct) < 0.0001);
       _customWeights = isDefault ? null : Object.assign({}, _draftWeights);
       if (_customWeights == null) AppState.resetWeights();
       else                        AppState.setCustomWeights(_customWeights);
       closeDrawer();
+
+      // Fix-List 2 §E.1 — force a re-sort by score desc on weight apply.
+      // This makes the in-table positional rank reflect the new weighted
+      // ranking, regardless of whatever column the user previously sorted by.
+      _sortKey = 'score'; _sortDir = 'desc';
       applyAndRender();
       writeUrlState();
       showToast(isDefault ? 'Weights reset to Excel-shipped values.' : 'Weights applied.');
@@ -585,6 +624,7 @@
     wrap.innerHTML = _scoringWeights.map(w => {
       const v = (_draftWeights && _draftWeights[w.parameter] != null) ? _draftWeights[w.parameter] : w.weight_pct;
       const dirArrow = w.direction === 'Higher' ? '↑' : '↓';
+      // Fix-List 2 §E.2 — initial display always 2dp, blur reformats too.
       return `
         <div class="weight-row" data-param="${escapeHtml(w.parameter)}">
           <span class="name">${escapeHtml(w.parameter)} <span class="dir">${dirArrow}</span></span>
@@ -602,6 +642,15 @@
         _draftWeights[param] = isNaN(v) ? 0 : v;
         updateDrawerSum();
       });
+      // Fix-List 2 §E.2 — reformat to 2dp on blur so '5' becomes '5.00',
+      // '5.1' becomes '5.10'. Native <input type=number> strips trailing
+      // zeros otherwise.
+      input.addEventListener('blur', () => {
+        const v = parseFloat(input.value);
+        if (isNaN(v)) { input.value = '0.00'; _draftWeights[param] = 0; }
+        else          { input.value = v.toFixed(2); _draftWeights[param] = v; }
+        updateDrawerSum();
+      });
     });
     updateDrawerSum();
   }
@@ -614,12 +663,6 @@
     el.classList.toggle('warn', !ok);
     el.classList.toggle('ok', ok);
     document.getElementById('okWeightsBtn').disabled = !ok;
-
-    // Highlight any zero-or-negative inputs in red so the user spots them
-    document.querySelectorAll('#weightInputs input[type="number"]').forEach(input => {
-      const v = parseFloat(input.value);
-      input.classList.toggle('invalid', !ok && (isNaN(v) || v < 0));
-    });
   }
 
   function getActiveWeights() {
@@ -653,20 +696,24 @@
       );
     }
 
-    // Recompute Score for Ranked funds against active weights
+    // Recompute Score for Ranked funds against active weights, and assign
+    // _displayRank by sorting Ranked-only by score desc — Fix-List 2 §E.1.
     funds = funds.map(f => {
       const cloned = Object.assign({}, f);
-      if (f.centricity_score_status === 'Ranked') {
-        cloned._displayScore = DataLoader.recomputeScore(f, activeWeights);
-      } else {
-        cloned._displayScore = null;
-      }
+      cloned._displayScore = (f.centricity_score_status === 'Ranked')
+        ? DataLoader.recomputeScore(f, activeWeights)
+        : null;
       return cloned;
     });
+    const rankedFunds = funds.filter(f => f.centricity_score_status === 'Ranked' && f._displayScore != null);
+    rankedFunds.sort((a, b) => (b._displayScore || 0) - (a._displayScore || 0));
+    rankedFunds.forEach((f, idx) => { f._displayRank = idx + 1; });
+    funds.forEach(f => {
+      if (f.centricity_score_status !== 'Ranked' || f._displayScore == null) f._displayRank = null;
+    });
 
-    // Apply range filters last so they see the recomputed score
+    // Apply range filters
     RANGE_CONFIG.forEach(cfg => {
-      // Build a temporary accessor-aware predicate that respects custom score
       if (cfg.key === 'centricity_score') {
         funds = funds.filter(f => {
           const r = _filterRanges[cfg.key], d = _filterDomains[cfg.key];
@@ -686,27 +733,24 @@
     _filteredFunds = funds;
     document.getElementById('resultCount').textContent = funds.length.toLocaleString('en-IN');
     renderTable(funds);
+    syncCompareButton();
   }
 
   /**
-   * Composite sort: (status priority asc, then user-chosen key/dir).
-   * Status priority — Ranked first, then 1-3yr Warning, then New Fund Monitoring.
+   * Per-column sort, no composite Ranked-first override (Fix-List 2 §C
+   * audit findings — see ISSUE-0011). Null values sort last in either
+   * direction (consistent UX). Ranked-first behaviour on the default
+   * load (score desc) emerges naturally because non-Ranked funds have
+   * null _displayScore and null sorts last.
    */
   function rowComparator(key, dir) {
     const m = dir === 'asc' ? 1 : -1;
-    const STATUS_RANK = { 'Ranked': 0, '1-3yr Warning': 1, 'New Fund Monitoring': 2 };
-    const accessor = (f) => {
-      const col = COLUMNS.find(c => c.key === key);
-      return col ? col.sortValue(f) : null;
-    };
+    const col = activeColumns().find(c => c.key === key);
+    const accessor = col && col.sortValue ? col.sortValue : () => null;
     return (a, b) => {
-      // Nullish coalescing — Ranked maps to 0, which is falsy under `||`. Use `??`.
-      const sa = STATUS_RANK[a.centricity_score_status] ?? 99;
-      const sb = STATUS_RANK[b.centricity_score_status] ?? 99;
-      if (sa !== sb) return sa - sb;
       const av = accessor(a), bv = accessor(b);
       if (av == null && bv == null) return 0;
-      if (av == null) return 1;
+      if (av == null) return 1;        // null always last
       if (bv == null) return -1;
       if (av < bv) return -1 * m;
       if (av > bv) return 1 * m;
@@ -715,8 +759,46 @@
   }
 
   /* ============================================================
-   * TABLE RENDER (11 columns; non-Ranked rows visible)
+   * TABLE RENDER (12 default + 0..N extras; sticky left columns)
    * ============================================================ */
+  function activeColumns() {
+    const extras = _activeExtras.map(path => makeExtraColumn(path)).filter(Boolean);
+    return DEFAULT_COLUMNS.concat(extras);
+  }
+  function makeExtraColumn(path) {
+    const lib = EXTRA_COLS.find(x => x.value === path);
+    if (!lib) return null;
+    return {
+      key: 'x_' + path.replace(/\W+/g, '_'),
+      label: lib.label,
+      align: 'center',
+      neg: !!lib.neg,
+      sortable: true,
+      sortValue: f => extraSortValue(pluck(f, path), lib),
+      pickRaw:   f => pluck(f, path),
+      text:      f => formatExtraCell(pluck(f, path), lib),
+    };
+  }
+  function extraSortValue(v, lib) {
+    if (v == null) return null;
+    if (lib.kind === 'string' || lib.kind === 'date') return String(v).toLowerCase();
+    return v;
+  }
+  function formatExtraCell(v, lib) {
+    if (v == null) return '—';
+    switch (lib.kind) {
+      case 'pct':       return `<span class="num">${DataLoader.fmtPct(v)}</span>`;
+      case 'pct-pos':   return `${DataLoader.fmtNum(v)}%`;
+      case 'num':       return `${DataLoader.fmtNum(v)}${lib.suffix || ''}`;
+      case 'int':       return String(Math.round(v));
+      case 'inr':       return `₹ ${DataLoader.fmtINR(v)}`;
+      case 'date':      return DataLoader.fmtDate(v);
+      case 'string':    return escapeHtml(String(v));
+      case 'score-int': return `${v} / 10`;
+      default:          return escapeHtml(String(v));
+    }
+  }
+
   function renderTable(funds) {
     const wrap = document.getElementById('tableWrap');
     if (funds.length === 0) {
@@ -730,25 +812,43 @@
       return;
     }
 
+    const cols = activeColumns();
+
     const head = `
       <thead><tr>
-        ${COLUMNS.map(c => {
-          const sortedCls = _sortKey === c.key ? 'sorted' : '';
-          const alignCls  = c.align === 'left' ? 'left' : '';
-          return `<th data-key="${c.key}" class="${sortedCls} ${alignCls}">${escapeHtml(c.label)}<span class="arr">${_sortDir === 'asc' ? '▴' : '▾'}</span></th>`;
+        ${cols.map(c => {
+          const sortedCls = (_sortKey === c.key) ? 'sorted' : '';
+          const noSort = c.sortable === false ? 'no-sort' : '';
+          const cls = [c.cls || '', sortedCls, noSort].filter(Boolean).join(' ');
+          // Header-cell content: label + sort arrow. Checkbox header has the
+          // tri-state "select all visible" checkbox instead of the column name.
+          if (c.key === '_check') {
+            const checkedCount = funds.filter(f => _selected.has(f.scheme_code)).length;
+            const visibleSelectable = Math.min(funds.length, MAX_COMPARE);
+            const allChecked = checkedCount > 0 && checkedCount >= visibleSelectable;
+            return `<th class="${cls}"><input type="checkbox" class="header-check"${allChecked ? ' checked' : ''} aria-label="Select all visible (top 5)"></th>`;
+          }
+          const arrow = c.sortable === false
+            ? ''
+            : `<span class="arr">${_sortDir === 'asc' ? '▴' : '▾'}</span>`;
+          const title = c.titleHelp ? ` title="${escapeHtml(c.titleHelp)}"` : '';
+          return `<th data-key="${c.key}" class="${cls}"${title}>${escapeHtml(c.label)}${arrow}</th>`;
         }).join('')}
       </tr></thead>`;
 
     const rows = funds.map(f => {
-      const tds = COLUMNS.map(c => {
+      const tds = cols.map(c => {
         const cls = [
+          c.cls || '',
           c.align === 'left' ? 'left' : '',
-          c.cls === 'fund-cell' ? 'fund-cell' : '',
           c.neg && c.pickRaw && typeof c.pickRaw(f) === 'number' && c.pickRaw(f) < 0 ? 'neg' : '',
         ].filter(Boolean).join(' ');
         return `<td class="${cls}">${c.text(f)}</td>`;
       }).join('');
-      const rowCls = f.centricity_score_status === 'Ranked' ? '' : 'non-ranked';
+      const rowCls = [
+        f.centricity_score_status === 'Ranked' ? '' : 'non-ranked',
+        _selected.has(f.scheme_code) ? 'selected' : '',
+      ].filter(Boolean).join(' ');
       return `<tr data-scheme="${f.scheme_code}" class="${rowCls}">${tds}</tr>`;
     }).join('');
 
@@ -760,9 +860,13 @@
         </table>
       </div>`;
 
+    // Header sort
     wrap.querySelectorAll('thead th').forEach(th => {
+      const k = th.getAttribute('data-key');
+      if (!k) return;                                  // checkbox header
+      const col = cols.find(c => c.key === k);
+      if (!col || col.sortable === false) return;
       th.addEventListener('click', () => {
-        const k = th.getAttribute('data-key');
         if (_sortKey === k) _sortDir = _sortDir === 'asc' ? 'desc' : 'asc';
         else { _sortKey = k; _sortDir = 'desc'; }
         applyAndRender();
@@ -770,13 +874,59 @@
       });
     });
 
-    // Row click — navigate to fund detail
-    wrap.querySelectorAll('tbody tr').forEach(tr => {
-      tr.addEventListener('click', () => {
-        const code = Number(tr.getAttribute('data-scheme'));
-        if (code) window.location.href = `fund-detail.html?scheme=${code}`;
+    // Row checkbox toggles + header tri-state
+    wrap.querySelectorAll('tbody .row-check').forEach(cb => {
+      cb.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const code = Number(cb.getAttribute('data-scheme'));
+        if (cb.checked) {
+          if (_selected.size >= MAX_COMPARE) {
+            cb.checked = false;
+            flashCapWarn();
+            return;
+          }
+          _selected.add(code);
+        } else {
+          _selected.delete(code);
+        }
+        markRowSelected(cb, _selected.has(code));
+        syncCompareButton();
       });
     });
+    const headerCheck = wrap.querySelector('thead .header-check');
+    if (headerCheck) {
+      headerCheck.addEventListener('click', (e) => {
+        e.stopPropagation();
+        // Toggle: if any visible row in the top-MAX_COMPARE is selected,
+        // clear it; else select the top MAX_COMPARE.
+        const top = funds.slice(0, MAX_COMPARE);
+        const allOn = top.every(f => _selected.has(f.scheme_code));
+        if (allOn) {
+          top.forEach(f => _selected.delete(f.scheme_code));
+        } else {
+          _selected.clear();
+          top.forEach(f => _selected.add(f.scheme_code));
+        }
+        applyAndRender();   // re-renders all checkbox states + row-selected classes
+      });
+    }
+  }
+  function markRowSelected(cb, selected) {
+    const tr = cb.closest('tr');
+    if (!tr) return;
+    tr.classList.toggle('selected', selected);
+  }
+
+  function flashCapWarn() {
+    const el = document.getElementById('capWarn');
+    if (!el) return;
+    el.hidden = false;
+    // Restart the CSS animation
+    el.style.animation = 'none';
+    void el.offsetWidth;
+    el.style.animation = '';
+    clearTimeout(_capWarnTimer);
+    _capWarnTimer = setTimeout(() => { el.hidden = true; }, 2400);
   }
 
   function renderScoreCell(f) {
@@ -796,9 +946,26 @@
     }
     return `<span class="badge new-fund">New Fund — Monitoring</span>`;
   }
-
   function fmtPctCell(v) {
     return `<span class="num">${DataLoader.fmtPct(v)}</span>`;
+  }
+
+  /* ============================================================
+   * COMPARE BUTTON
+   * ============================================================ */
+  function initCompareButton() {
+    const btn = document.getElementById('compareBtn');
+    btn.addEventListener('click', () => {
+      if (_selected.size < 2) return;
+      const codes = Array.from(_selected).join(',');
+      window.location.href = `compare.html?schemes=${codes}`;
+    });
+  }
+  function syncCompareButton() {
+    const btn = document.getElementById('compareBtn');
+    const count = _selected.size;
+    btn.disabled = count < 2;
+    document.getElementById('compareCount').textContent = String(count);
   }
 
   /* ============================================================
@@ -812,80 +979,26 @@
   }
 
   /* ============================================================
-   * EXPORTS — Branded PDF + PPT (Cowork 2026-05-06)
+   * "ADD COLUMNS" MULTI-SELECT — Fix-List 2 §D
    * ============================================================ */
-  function initExports() {
-    document.getElementById('exportPdfBtn').addEventListener('click', async () => {
-      try {
-        await Exports.buildScreenerPDF(buildExportPayload());
-      } catch (err) {
-        console.error('Export PDF failed:', err);
-        showToast('Export PDF failed — check console.');
-      }
+  function initAddColumns() {
+    _addColMS = MultiSelect.create(document.getElementById('addColMS'), {
+      items: EXTRA_COLS.map(x => ({ value: x.value, label: x.label, group: x.group })),
+      selected: _activeExtras,
+      label: 'Add columns',
+      allLabel: 'All extras',
+      noneLabel: 'None added',
+      oneLabel: (i) => `+ ${i.label}`,
+      manyLabel: (n) => `+ ${n} columns`,
+      searchPlaceholder: 'Search field…',
+      groups: true,
+      onChange: (sel) => {
+        _activeExtras = sel.slice();
+        AppState.setScreenerExtraColumns(_activeExtras);
+        applyAndRender();
+        writeUrlState();
+      },
     });
-    document.getElementById('exportPptBtn').addEventListener('click', async () => {
-      try {
-        await Exports.buildScreenerPPT(buildExportPayload());
-      } catch (err) {
-        console.error('Export PPT failed:', err);
-        showToast('Export PPT failed — check console.');
-      }
-    });
-  }
-
-  function buildExportPayload() {
-    const cycleLabel = DataLoader.fmtCycleLabelDate(_cycle.cycle_meta);
-    const fileSafe = cycleLabel.replace(/[^A-Za-z0-9]+/g, '-');
-    return {
-      funds: _filteredFunds,
-      cycleLabel,
-      filtersCaption: buildFiltersCaption(),
-      fileBase: `Centricity-Screener-${fileSafe}`,
-      columns: COLUMNS.map(c => ({
-        label: c.label,
-        align: c.align,
-        neg: !!c.neg,
-        key: f => c.exportText(f),
-      })),
-    };
-  }
-
-  function buildFiltersCaption() {
-    const parts = [];
-    const ac = _acTiles ? _acTiles.getSelected() : [];
-    parts.push(ac.map(a => a.charAt(0).toUpperCase() + a.slice(1)).join(' + ') || 'No asset class');
-    const cat = _catMS ? _catMS.getSelected() : [];
-    parts.push(`${cat.length} categor${cat.length === 1 ? 'y' : 'ies'}`);
-    const amc = _amcMS ? _amcMS.getSelected() : [];
-    const allAmcCount = buildAmcItems().length;
-    if (amc.length !== allAmcCount) parts.push(`${amc.length}/${allAmcCount} AMCs`);
-
-    // Range filters that aren't at full domain
-    RANGE_CONFIG.forEach(cfg => {
-      if (isRangeFullDomain(cfg.key)) return;
-      const r = _filterRanges[cfg.key], d = _filterDomains[cfg.key];
-      const isMaxAtCap = cfg.kind === 'inr' && r.max >= d.max;
-      const lo = exportRangeText(cfg, r.min);
-      const hi = isMaxAtCap ? '1L+' : exportRangeText(cfg, r.max);
-      parts.push(`${cfg.label} ${lo}–${hi}`);
-    });
-
-    const search = (document.getElementById('searchInput').value || '').trim();
-    if (search) parts.push(`q: "${search}"`);
-    return parts.join('  ·  ');
-  }
-
-  function exportRangeText(cfg, v) {
-    if (v == null) return '—';
-    switch (cfg.kind) {
-      case 'inr':       return '₹' + DataLoader.fmtINR(v);
-      case 'pct':       return (v < 0 ? '−' : (v > 0 ? '+' : '')) + Math.abs(v).toFixed(1) + '%';
-      case 'pct-pos':   return v.toFixed(1) + '%';
-      case 'score-pct': return v.toFixed(0) + '%';
-      case 'num':       return (v < 0 ? '−' : '') + Math.abs(v).toFixed(2) + (cfg.suffix || '');
-      case 'int':       return String(Math.round(v));
-      default:          return String(v);
-    }
   }
 
   /* ============================================================
@@ -913,6 +1026,7 @@
         p.set('w_' + slugify(k), v);
       });
     }
+    if (_activeExtras.length > 0) p.set('xcol', _activeExtras.join(','));
     const newUrl = p.toString() ? '?' + p.toString() : window.location.pathname;
     window.history.replaceState({}, '', newUrl);
   }
@@ -957,6 +1071,16 @@
       _customWeights[param] = parseFloat(value);
     });
     if (_customWeights) AppState.setCustomWeights(_customWeights);
+
+    if (p.has('xcol')) {
+      const xcols = p.get('xcol').split(',').filter(Boolean)
+        .filter(v => EXTRA_COLS.find(x => x.value === v));
+      if (xcols.length) {
+        _activeExtras = xcols;
+        AppState.setScreenerExtraColumns(_activeExtras);
+        if (_addColMS) _addColMS.setSelected(_activeExtras);
+      }
+    }
   }
 
   function slugify(s) { return String(s).toLowerCase().replace(/[^a-z0-9]+/g, '_'); }

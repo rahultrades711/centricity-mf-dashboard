@@ -4,14 +4,24 @@
  * title band, 2-col layout, filter rail (tiles + range sliders),
  * action toolbar, fund table, modal-overlay weight drawer.
  *
- * Cowork 2026-05-06 — Fix-List 1 changes:
- *   • Asset Class is now a row of selectable tiles (.tile-select)
- *   • All numeric filters are 2-handle range sliders (.rng)
- *   • Weight drawer is a fixed-position modal (was a sidebar drawer that
- *     slid off-screen at 100% zoom on a 1366px laptop)
- *   • Table header is black/white ALL CAPS, body row text is one step smaller
- *   • Horizontal scroll wrapper around the table for narrow viewports
- *   • Copy Share Link button + handler removed — natural URL copy still works
+ * Cowork 2026-05-06 (Fix-List 1) — Asset Class tiles, range-slider rail,
+ * modal weight drawer, black ALL-CAPS header table.
+ *
+ * Cowork 2026-05-06 (Fix-List 2) layered on top —
+ *   • Section-number eyebrow removed from title band
+ *   • 12th utility column (checkbox) at left edge
+ *   • Sticky columns on the left: checkbox + Rank + Fund Name
+ *   • Horizontal scroll on the table-wrap so wide column counts
+ *     scroll left-to-right rather than break the layout
+ *   • Header cells centred + multi-line (white-space: normal) with max-width
+ *   • Category body cells centred (was left)
+ *   • Fund Name renders as a Warm Gold link with hover underline; clicks
+ *     are isolated to the link itself (row-click navigation removed)
+ *   • Range sliders unified to full filter-rail width (was inconsistent
+ *     padding between AUM and the section sliders)
+ *   • "Coming after web design lock-in" caption styling for deferred buttons
+ *   • Compare button cap-warn flash for the 5-fund limit
+ *   • "Add columns" picker styling above the table
  */
 
 /* ============ TITLE BAND ============ */
@@ -24,10 +34,6 @@
   max-width: 1740px; margin: 0 auto;
   display: flex; align-items: flex-end; justify-content: space-between;
   gap: 32px; flex-wrap: wrap;
-}
-.titleband .eyebrow {
-  font-size: 10.5px; letter-spacing: .28em; text-transform: uppercase;
-  color: var(--gold); font-weight: 700; display: block; margin-bottom: 8px;
 }
 .titleband h1 {
   margin: 0; font-size: 34px; font-weight: 700; letter-spacing: -.01em; line-height: 1.1;
@@ -57,6 +63,22 @@
   font-size: 10px; letter-spacing: .05em; font-weight: 700;
   padding: 1px 6px; border-radius: 2px; min-width: 18px; text-align: center;
 }
+/* Deferred-button caption — Fix-List 2 §I (PDF/PPT exports) */
+.btn.deferred {
+  position: relative;
+  opacity: .45;
+}
+.btn.deferred::after {
+  content: "Coming after web design lock-in";
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 50%; transform: translateX(-50%);
+  font-size: 9.5px; letter-spacing: .08em; text-transform: none;
+  color: var(--text-mid);
+  font-weight: 400;
+  white-space: nowrap;
+  pointer-events: none;
+}
 
 /* ============ LAYOUT (2-col fixed; drawer is now a modal overlay) ============ */
 .layout {
@@ -83,7 +105,13 @@ aside.rail {
 .rail .filter-group .multi-select { width: 100%; }
 .rail .filter-group .multi-select .ms-button { width: 100%; min-width: 0; }
 
-.rail .filter-group.section {
+/* Renamed from `.filter-group.section` to `.filter-group.filter-section` to
+ * avoid colliding with the global `.section` utility class in centricity.css
+ * (which sets padding: 56px 56px 8px on page-level sections, including a
+ * 1380px responsive override that adds 32px horizontal padding). The old
+ * collision was eating 64px off every section-grouped slider's width.
+ * Fix-List 2 §F. */
+.rail .filter-group.filter-section {
   border-top: 1px solid var(--rule);
   padding-top: 14px; margin-top: 6px;
 }
@@ -151,10 +179,16 @@ aside.rail {
   font-size: 10.5px; font-weight: 400; color: var(--text-mid); letter-spacing: 0;
 }
 
-/* ============ RANGE SLIDERS (two-handle) ============ */
-.rng {
+/* ============ RANGE SLIDERS (two-handle) ============
+ * Fix-List 2 §F — every .rng inside the rail is full-width of its
+ * parent's content box. AUM and section sliders share the exact
+ * same horizontal frame; no extra padding on the group sliders.
+ */
+.rail .rng {
   margin-bottom: 14px;
   font-family: inherit;
+  width: 100%;            /* explicit so .filter-group.section sliders match AUM */
+  box-sizing: border-box;
 }
 .rng-head {
   display: flex; align-items: baseline; justify-content: space-between;
@@ -174,7 +208,9 @@ aside.rail {
 .rng-track-wrap {
   position: relative;
   height: 22px;
+  width: 100%;
   padding: 8px 0;
+  box-sizing: border-box;
 }
 .rng-track {
   position: absolute;
@@ -235,6 +271,7 @@ aside.rail {
   gap: 12px; flex-wrap: wrap; margin-bottom: 14px;
 }
 .toolbar .left { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.toolbar .right { display: flex; align-items: center; gap: 8px; }
 .toolbar .count { font-size: 12.5px; color: var(--text-mid); }
 .toolbar .count b { color: var(--black); font-weight: 700; }
 
@@ -250,7 +287,35 @@ aside.rail {
   font-family: inherit; font-size: 13px; color: var(--black);
 }
 
-/* ============ FUND TABLE ============ */
+/* "Add columns" picker — Fix-List 2 §D */
+.addcol-wrap {
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.addcol-label {
+  font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--text-mid); font-weight: 700;
+}
+
+/* Compare-cap inline note — Fix-List 2 §A */
+.cap-warn {
+  font-size: 11.5px; color: var(--red);
+  letter-spacing: .04em;
+  margin: 0 0 12px;
+  padding: 6px 12px;
+  background: rgba(147, 22, 33, .06);
+  border-left: 3px solid var(--red);
+  border-radius: 0 3px 3px 0;
+  display: inline-block;
+  animation: cap-warn-pulse .9s ease-out;
+}
+.cap-warn[hidden] { display: none; }
+@keyframes cap-warn-pulse {
+  0%   { background: rgba(147, 22, 33, .22); }
+  40%  { background: rgba(147, 22, 33, .12); }
+  100% { background: rgba(147, 22, 33, .06); }
+}
+
+/* ============ FUND TABLE — Fix-List 2 §B layout polish ============ */
 .fund-table-wrap {
   background: #fff; border: 1px solid var(--rule); border-radius: 4px;
   box-shadow: var(--shadow-sm);
@@ -258,11 +323,14 @@ aside.rail {
 }
 .scroll-tbody {
   max-height: calc(100vh - 290px);
-  overflow-x: auto;
-  overflow-y: auto;
+  overflow-x: auto;          /* horizontal scroll for wide column counts */
+  overflow-y: auto;          /* vertical scroll preserved */
 }
 table.screener-tbl {
-  width: 100%; border-collapse: collapse;
+  width: max-content;        /* let the table grow with column count */
+  min-width: 100%;
+  border-collapse: separate; /* required for sticky-column borders to render */
+  border-spacing: 0;
   font-size: 12.5px;
   font-variant-numeric: tabular-nums;
 }
@@ -270,14 +338,19 @@ table.screener-tbl thead th {
   position: sticky; top: 0;
   background: var(--black);
   color: #fff;
-  text-align: center;
+  text-align: center;        /* every header centred — Fix-List 2 §B */
   font-weight: 700;
-  font-size: 13.5px;              /* one step bigger than 12.5px body cells per Cowork 2026-05-06 §H.1 */
+  font-size: 13.5px;          /* one step bigger than 12.5px body cells */
   letter-spacing: .14em; text-transform: uppercase;
   padding: 13px 10px;
   border-right: 1px solid rgba(255, 255, 255, .08);
-  cursor: pointer; user-select: none; white-space: nowrap;
+  cursor: pointer; user-select: none;
+  white-space: normal;        /* allow header to wrap to two lines */
+  line-height: 1.18;
+  vertical-align: middle;
   z-index: 5;
+  max-width: 140px;
+  min-width: 78px;
 }
 table.screener-tbl thead th .arr {
   display: inline-block; margin-left: 6px; color: var(--gold);
@@ -285,7 +358,8 @@ table.screener-tbl thead th .arr {
 }
 table.screener-tbl thead th.sorted { background: #1a1a1a; }
 table.screener-tbl thead th.sorted .arr { opacity: 1; }
-table.screener-tbl thead th.left { text-align: left; }
+table.screener-tbl thead th.no-sort { cursor: default; }
+table.screener-tbl thead th.no-sort .arr { display: none; }
 table.screener-tbl tbody td {
   padding: 11px 10px;
   border-bottom: 1px solid rgba(217, 217, 217, .45);
@@ -293,39 +367,90 @@ table.screener-tbl tbody td {
   text-align: center;
   white-space: nowrap;
   font-size: 12.5px;
+  background: #fff;            /* opaque so sticky cols don't bleed */
 }
-table.screener-tbl tbody td.left { text-align: left; }
-table.screener-tbl tbody td.neg { color: var(--red); }
-table.screener-tbl tbody tr {
-  cursor: pointer;
-  border-left: 2px solid transparent;
-  transition: border-color .15s, background .15s;
-}
-table.screener-tbl tbody tr:nth-child(even) td { background: rgba(217, 217, 217, .12); }
-table.screener-tbl tbody tr:hover { border-left-color: var(--gold); }
+table.screener-tbl tbody tr:nth-child(even) td { background: rgba(247, 246, 244, 1); }
 table.screener-tbl tbody tr:hover td { background: rgba(219, 200, 178, .22); }
-table.screener-tbl tbody tr.selected { background: rgba(219, 200, 178, .35); }
-table.screener-tbl tbody tr.selected td { background: rgba(219, 200, 178, .22); }
-table.screener-tbl tbody tr.non-ranked td { color: var(--text-mid); }
-table.screener-tbl tbody tr.non-ranked td.left { color: var(--text-mid); }
-table.screener-tbl tbody tr.non-ranked .fund-name { color: var(--black); }
 
-table.screener-tbl .check {
-  display: inline-block; width: 16px; height: 16px;
-  border: 1.4px solid var(--gold); border-radius: 2px; background: #fff;
-  position: relative; vertical-align: middle;
+table.screener-tbl tbody td.neg { color: var(--red); }
+table.screener-tbl tbody td.left { text-align: left; }
+
+/* Sticky left columns — checkbox · Rank · Fund Name (Fix-List 2 §B)
+ * Fixed widths so `left:` offsets are deterministic. The 3 sticky cols
+ * are columns 1, 2, 3 of the rendered <tr>; the checkbox column is
+ * 36px, Rank 60px, Fund Name 220px → cumulative 36, 96, 156px. */
+table.screener-tbl thead th.col-check,
+table.screener-tbl tbody td.col-check {
+  position: sticky; left: 0;
+  z-index: 6;
+  width: 36px; min-width: 36px; max-width: 36px;
+  padding: 6px;
+  text-align: center;
 }
-table.screener-tbl .check.checked { background: var(--gold); }
-table.screener-tbl .check.checked::after {
-  content: ""; position: absolute;
-  left: 4px; top: 1px; width: 4px; height: 8px;
-  border-right: 2px solid #fff; border-bottom: 2px solid #fff;
-  transform: rotate(45deg);
+table.screener-tbl thead th.col-rank,
+table.screener-tbl tbody td.col-rank {
+  position: sticky; left: 36px;
+  z-index: 6;
+  width: 60px; min-width: 60px; max-width: 60px;
 }
-table.screener-tbl .fund-name { font-weight: 700; font-size: 12.5px; }
-table.screener-tbl .fund-sub { font-size: 11px; color: var(--text-mid); margin-top: 2px; }
-table.screener-tbl td.fund-cell { max-width: 280px; }
-table.screener-tbl td.fund-cell .fund-name { white-space: normal; }
+table.screener-tbl thead th.col-name,
+table.screener-tbl tbody td.col-name {
+  position: sticky; left: 96px;
+  z-index: 6;
+  width: 220px; min-width: 220px; max-width: 220px;
+  text-align: left;
+  /* hairline rule separates the sticky frame from scrolling area */
+  border-right: 1px solid var(--rule);
+}
+table.screener-tbl thead th.col-check { z-index: 7; }
+table.screener-tbl thead th.col-rank  { z-index: 7; }
+table.screener-tbl thead th.col-name  { z-index: 7; }
+
+/* Body cells inside sticky columns inherit row backgrounds correctly */
+table.screener-tbl tbody tr.non-ranked td { color: var(--text-mid); }
+table.screener-tbl tbody tr.non-ranked td.col-name a { color: var(--gold-deep); }
+
+/* Fund-name link — only the text is the click target (Fix-List 2 §B) */
+table.screener-tbl .fund-name-link {
+  color: var(--gold);
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 12.5px;
+  cursor: pointer;
+  white-space: normal;
+  display: inline-block;
+  line-height: 1.25;
+}
+table.screener-tbl .fund-name-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+table.screener-tbl .fund-name-link:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+/* Row-level hover highlight uses the gold accent on the FUND NAME column,
+ * not a left-border on the entire row, since the row is no longer click-
+ * targeted; the fund-name link is the only interactive element. */
+table.screener-tbl tbody tr.selected td { background: rgba(219, 200, 178, .35); }
+table.screener-tbl tbody tr.selected:nth-child(even) td { background: rgba(219, 200, 178, .35); }
+
+/* Checkbox column — leave the click well-behaved */
+table.screener-tbl .row-check {
+  cursor: pointer;
+  width: 16px; height: 16px;
+  margin: 0;
+  accent-color: var(--gold);
+}
+table.screener-tbl .header-check {
+  cursor: pointer;
+  width: 14px; height: 14px;
+  accent-color: var(--gold);
+}
+table.screener-tbl thead th.col-check { font-size: 0; line-height: 0; }
+table.screener-tbl thead th.col-check input { vertical-align: middle; }
+
 table.screener-tbl .badge {
   font-size: 9.5px; padding: 2px 8px; letter-spacing: .12em;
 }
