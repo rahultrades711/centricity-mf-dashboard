@@ -374,5 +374,111 @@
     return { id, getSelected, setSelected, refresh, destroy };
   }
 
-  window.MultiSelect = { create };
+  /* ============================================================
+   *  TILES MODE (Cowork 2026-05-06 — Screener Fix-List 1 §E)
+   *
+   *  Inline horizontal tile-row for at-most-a-handful selections (Asset
+   *  Class). Each item renders as a click-to-toggle card with the same
+   *  shape as MultiSelect items: { value, label, group?, disabled?, sub? }.
+   *  Returns the same { getSelected, setSelected, refresh, destroy } API
+   *  so callers can swap factories without touching their handlers.
+   *
+   *  Behavioural difference from the dropdown form:
+   *    • No popover, no search — every choice is always visible
+   *    • `keepAtLeastOne: true` (default) prevents the user from
+   *      deselecting the last selected tile
+   *    • `sub` (optional per-item secondary line, e.g., a count) renders
+   *      under the label
+   *
+   *  Visual rules — see screener.css `.tile-select`. Selected tile gets
+   *  Warm Gold border + Light Tan fill; unselected sits on white with a
+   *  hairline grey border (Brand Standards §2 + §6).
+   * ============================================================ */
+  function createTiles(targetEl, options) {
+    if (!targetEl) throw new Error('MultiSelect.createTiles: target element required');
+    options = options || {};
+    let items = (options.items || []).slice();
+    let selected = new Set(options.selected || []);
+    const cfg = {
+      onChange:        typeof options.onChange === 'function' ? options.onChange : () => {},
+      keepAtLeastOne:  options.keepAtLeastOne !== false,
+      ariaLabel:       options.label || 'Tile selection',
+    };
+
+    targetEl.innerHTML = '';
+    targetEl.classList.add('tile-select');
+    targetEl.setAttribute('role', 'group');
+    targetEl.setAttribute('aria-label', cfg.ariaLabel);
+
+    function render() {
+      targetEl.innerHTML = items.map(item => {
+        const checked = selected.has(item.value);
+        const dis = item.disabled ? 'disabled' : '';
+        const cls = ['tile', checked ? 'on' : '', item.disabled ? 'disabled' : ''].filter(Boolean).join(' ');
+        const sub = item.sub ? `<span class="sub">${escape(item.sub)}</span>` : '';
+        return `
+          <button type="button" class="${cls}" data-value="${escape(item.value)}"
+                  aria-pressed="${checked ? 'true' : 'false'}" ${dis}>
+            <span class="lbl">${escape(item.label || item.value)}</span>
+            ${sub}
+          </button>`;
+      }).join('');
+
+      targetEl.querySelectorAll('button.tile').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (btn.hasAttribute('disabled')) return;
+          const value = btn.getAttribute('data-value');
+          if (selected.has(value)) {
+            if (cfg.keepAtLeastOne && selected.size <= 1) return;  // refuse last-deselect
+            selected.delete(value);
+          } else {
+            selected.add(value);
+          }
+          render();
+          cfg.onChange(getSelected());
+        });
+      });
+    }
+
+    function escape(s) {
+      if (s == null) return '';
+      return String(s).replace(/[&<>"']/g, c =>
+        ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+    }
+
+    function getSelected() {
+      return items.filter(i => !i.disabled && selected.has(i.value)).map(i => i.value);
+    }
+    function setSelected(arr) {
+      const sane = (arr || []).filter(v => items.some(i => i.value === v && !i.disabled));
+      if (cfg.keepAtLeastOne && sane.length === 0 && items.some(i => !i.disabled)) {
+        // Refuse empty selection — fall back to first enabled item
+        const first = items.find(i => !i.disabled);
+        if (first) sane.push(first.value);
+      }
+      selected = new Set(sane);
+      render();
+      cfg.onChange(getSelected());
+    }
+    function refresh(newItems) {
+      items = (newItems || []).slice();
+      // Drop selections that no longer exist
+      const valid = new Set(items.filter(i => !i.disabled).map(i => i.value));
+      selected = new Set(Array.from(selected).filter(v => valid.has(v)));
+      if (cfg.keepAtLeastOne && selected.size === 0 && items.some(i => !i.disabled)) {
+        selected.add(items.find(i => !i.disabled).value);
+      }
+      render();
+      cfg.onChange(getSelected());
+    }
+    function destroy() {
+      targetEl.classList.remove('tile-select');
+      targetEl.innerHTML = '';
+    }
+
+    render();
+    return { getSelected, setSelected, refresh, destroy };
+  }
+
+  window.MultiSelect = { create, createTiles };
 })();

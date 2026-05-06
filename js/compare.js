@@ -34,7 +34,7 @@
       return;
     }
     _cycle = cycle;
-    document.getElementById('cmpCycle').textContent = cycle.cycle_meta.cycle_label;
+    document.getElementById('cmpCycle').textContent = DataLoader.fmtCycleLabelDate(cycle.cycle_meta);
     document.getElementById('footUpdated').textContent = 'Last updated · ' + cycle.cycle_meta.as_on_display;
 
     initFundPicker();

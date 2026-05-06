@@ -60,7 +60,7 @@
       return `
         <div class="arc-tile ${isCurrent ? 'current' : ''}" data-date="${c.date}" tabindex="0" role="button">
           <span class="tag">${tagPrefix}</span>
-          <h3>${escapeHtml(c.label || c.date)}</h3>
+          <h3>${escapeHtml(DataLoader.fmtCycleLabelDate(c.date))}</h3>
           <div class="sub">As on ${escapeHtml(DataLoader.fmtDate(c.date))}</div>
           <div class="stats">${meta}</div>
           <div class="cta">${isCurrent ? 'Active →' : 'Load this cycle →'}</div>

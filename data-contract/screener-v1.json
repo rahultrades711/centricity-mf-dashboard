@@ -239,7 +239,8 @@
         "_note": "Identifies which Centricity product family this cycle JSON belongs to. Per CLAUDE.md §4.1 (4 product families × 3 source types grid), the dashboard MUST NOT merge cycles across families — each family has its own primary key (AMFI int for MF, SEBI PMS reg-no string for PMS, SEBI AIF code string for AIF) and its own scoring methodology. Hardcoded by each family's converter at emission time. v1 ships with MF_Equity_Hybrid only."
       },
       "cycle_date": { "type": "string", "format": "YYYY-MM-DD", "example": "2026-04-15" },
-      "cycle_label": { "type": "string", "example": "U2 Apr 2026", "derivation": "U1 if day <= 10 (1st-5th cycle window), else U2" },
+      "cycle_label": { "type": "string", "example": "U2 Apr 2026", "derivation": "U1 if day <= 10 (1st-5th cycle window), else U2", "_status": "deprecated for display 2026-05-06; retained for backward compatibility. UI surfaces read cycle_label_date instead." },
+      "cycle_label_date": { "type": "string", "example": "15th Apr 2026", "format": "{day}{ordinal_suffix} {Mon} {YYYY}", "derivation": "Day-with-ordinal-suffix display label. Canonical cycle caption for every UI surface (Home heading, Screener page header, Fund Detail provenance, Archive tile labels, Compare cycle column, footer, exports). Replaces cycle_label for display per Cowork direction 2026-05-06." },
       "as_on_display": { "type": "string", "example": "15 Apr 2026", "format": "DD MMM YYYY" },
       "total_funds": { "type": "int", "example": 676 },
       "category_count": { "type": "int", "example": 26 },

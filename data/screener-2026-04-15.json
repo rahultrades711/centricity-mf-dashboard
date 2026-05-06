@@ -4,6 +4,7 @@
     "product_family": "MF_Equity_Hybrid",
     "cycle_date": "2026-04-15",
     "cycle_label": "U2 Apr 2026",
+    "cycle_label_date": "15th Apr 2026",
     "as_on_display": "15 Apr 2026",
     "total_funds": 676,
     "category_count": 26,
@@ -553,8 +554,8 @@
       }
     ],
     "schema_version": "screener-v1",
-    "generated_at": "2026-05-05T12:31:40+00:00",
-    "source_file": "MutualFund_Whitelisting_15Apr2026.xlsx"
+    "generated_at": "2026-05-06T08:45:27+00:00",
+    "source_file": "MF_15Apr2026_temp.xlsx"
   },
   "funds": [
     {

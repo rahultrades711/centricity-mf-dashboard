@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <title>Centricity MF Screener — Screener</title>
-<meta name="viewport" content="width=1680">
+<meta name="viewport" content="width=1366">
 <link rel="icon" href="assets/logo.png">
 <link rel="stylesheet" href="css/centricity.css">
 <link rel="stylesheet" href="css/screener.css">
@@ -47,8 +47,9 @@
       <p class="sub" id="screenerSub">Loading cycle data…</p>
     </div>
     <div class="actions">
-      <button class="btn ghost" id="exportBtn" data-export-pdf="#mainArea" data-export-name="Centricity-Screener">Export PDF</button>
-      <button class="btn ghost" id="compareBtn" disabled>Compare <span class="pip" id="compareCount">0</span></button>
+      <button class="btn ghost" id="exportPdfBtn">Export PDF</button>
+      <button class="btn ghost" id="exportPptBtn">Export PPT</button>
+      <a class="btn ghost" href="compare.html">Compare</a>
       <button class="btn primary" id="weightsBtn">Edit Weights</button>
     </div>
   </div>
@@ -58,53 +59,76 @@
 
   <!-- LEFT FILTER RAIL -->
   <aside class="rail" aria-label="Filters">
+
+    <!-- Asset Class — selectable tiles -->
     <div class="filter-group">
       <h3>Asset Class</h3>
-      <span id="acMS"></span>
+      <div id="acTiles"></div>
     </div>
 
+    <!-- Category (renamed from "SEBI Category") — multi-select dropdown -->
     <div class="filter-group">
-      <h3>SEBI Category</h3>
+      <h3>Category</h3>
       <span id="catMS"></span>
     </div>
 
+    <!-- AMC -->
     <div class="filter-group">
       <h3>AMC</h3>
       <span id="amcMS"></span>
     </div>
 
+    <!-- AUM (own group; goes 0 → 1L+) -->
     <div class="filter-group">
       <h3>AUM (₹ Cr)</h3>
-      <div class="range-input">
-        <input type="number" id="aumMin" placeholder="Min" min="0">
-        <span>—</span>
-        <input type="number" id="aumMax" placeholder="Max" min="0">
-      </div>
+      <div class="rng" id="rngAum"></div>
     </div>
 
-    <div class="filter-group">
-      <h3>Sharpe (3Y)</h3>
-      <div class="range-input">
-        <input type="number" id="sharpeMin" placeholder="≥" step="0.1">
-        <span>min</span>
+    <!-- Returns Filters -->
+    <div class="filter-group section">
+      <div class="section-head">
+        <h3 class="section-title">Returns Filters</h3>
+        <button type="button" class="reset-mini" data-section="returns">Reset</button>
       </div>
+      <div class="rng" id="rngRolling" data-rng="rolling_3y_avg_pct"></div>
+      <div class="rng" id="rngYtd"     data-rng="cy_ytd_pct"></div>
+      <div class="rng" id="rngR1"      data-rng="return_1y_pct"></div>
+      <div class="rng" id="rngR3"      data-rng="return_3y_pct"></div>
+      <div class="rng" id="rngR5"      data-rng="return_5y_pct"></div>
     </div>
 
-    <div class="filter-group">
-      <h3>Score</h3>
-      <div class="range-input">
-        <input type="number" id="scoreMin" placeholder="≥ %" min="0" max="100" step="1">
-        <span>%</span>
+    <!-- Risk Ratios -->
+    <div class="filter-group section">
+      <div class="section-head">
+        <h3 class="section-title">Risk Ratios</h3>
+        <button type="button" class="reset-mini" data-section="risk">Reset</button>
       </div>
+      <div class="rng" id="rngSharpe"  data-rng="sharpe_3y"></div>
+      <div class="rng" id="rngDownCap" data-rng="down_capture_3y_pct"></div>
+      <div class="rng" id="rngUpCap"   data-rng="up_capture_3y_pct"></div>
+      <div class="rng" id="rngTurn"    data-rng="turnover_pct"></div>
+    </div>
+
+    <!-- Others -->
+    <div class="filter-group section">
+      <div class="section-head">
+        <h3 class="section-title">Others</h3>
+        <button type="button" class="reset-mini" data-section="others">Reset</button>
+      </div>
+      <div class="rng" id="rngMgrTen"  data-rng="manager_tenure_yrs"></div>
+      <div class="rng" id="rngFundTen" data-rng="fund_tenure_yrs"></div>
+      <div class="rng" id="rngStocks"  data-rng="no_of_stocks"></div>
+      <div class="rng" id="rngTer"     data-rng="ter_pct"></div>
+      <div class="rng" id="rngScore"   data-rng="centricity_score"></div>
     </div>
 
     <div class="reset-row">
-      <button class="btn ghost" id="resetBtn">Reset filters</button>
+      <button class="btn ghost" id="resetBtn">Reset all filters</button>
     </div>
   </aside>
 
   <!-- CENTER: TABLE -->
-  <section>
+  <section class="center">
     <div class="toolbar">
       <div class="left">
         <label class="search-box">
@@ -115,36 +139,37 @@
           <b id="resultCount">—</b> of <b id="totalCount">—</b> funds
         </span>
       </div>
-      <div class="right">
-        <button class="btn ghost" id="copyLinkBtn" title="Copy a shareable URL with the current filters + sort + weights">Copy share link</button>
-      </div>
     </div>
 
     <div class="fund-table-wrap" id="tableWrap"></div>
-    <div style="font-size:11.5px;color:var(--text-mid);margin-top:10px;">
-      Returns annualised. Negative values render in <span style="color:var(--red)">#931621</span>.
-      Score updates live as you edit weights — recompute uses each fund's stored
-      <code>parameter_scores</code> × your current weights ÷ 100.
-      Page refresh restores filters from the URL or your last-saved view (whichever is more recent).
+    <div class="legend">
+      Returns annualised. Negative values render in <span style="color:var(--red)">#931621</span> with a Unicode minus.
+      Edit Weights affects the Score column on this page only — Home, Compare and Fund Detail
+      always read the Excel-locked Centricity score.
     </div>
   </section>
-
-  <!-- RIGHT: WEIGHT DRAWER -->
-  <aside class="drawer" id="weightDrawer" hidden>
-    <h3>
-      <span>Edit Weights</span>
-      <span class="sum" id="weightSum">—</span>
-    </h3>
-    <div id="weightSliders"></div>
-    <div class="drawer-actions">
-      <button class="btn ghost" id="resetWeightsBtn">Reset to Excel</button>
-      <button class="btn ghost" id="closeDrawerBtn">Close</button>
-    </div>
-  </aside>
 
 </div>
 
 </main>
+
+<!-- WEIGHT DRAWER (modal overlay — viewport-anchored, works at 100% zoom on any laptop) -->
+<div class="drawer-backdrop" id="drawerBackdrop" hidden></div>
+<aside class="drawer" id="weightDrawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle" hidden>
+  <div class="drawer-head">
+    <div>
+      <h3 id="drawerTitle">Edit Weights</h3>
+      <p class="drawer-sub">Per-parameter weighting drives this page's Score column. Sum must equal 100% to apply. Changes never propagate to Home, Compare, or Fund Detail.</p>
+    </div>
+    <div class="drawer-sum" id="weightSum">—</div>
+  </div>
+  <div class="drawer-body" id="weightInputs"></div>
+  <div class="drawer-actions">
+    <button type="button" class="btn ghost" id="resetWeightsBtn">Reset to defaults</button>
+    <button type="button" class="btn ghost" id="cancelWeightsBtn">Cancel</button>
+    <button type="button" class="btn primary" id="okWeightsBtn">OK</button>
+  </div>
+</aside>
 
 <footer class="appfoot" role="contentinfo">
   <div class="left">

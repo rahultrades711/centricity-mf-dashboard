@@ -22,7 +22,7 @@
  *
  * ──────────────────────────────────────────────────────────────────────────
  * Sections wired:
- *   - Hero heading + subtitle      ← cycle_meta.{cycle_label, total_funds, ...}
+ *   - Hero heading + subtitle      ← cycle_meta.{cycle_label_date, total_funds, ...}
  *   - Hero meta-strip              ← same
  *   - Hero cycle picker            ← listCycles()
  *   - Top-10 Centricity Rank       ← MultiSelect Asset Class (Equity / Debt / Hybrid)
@@ -111,7 +111,7 @@
     document.getElementById('heroEyebrow').innerHTML =
       `<span class="bar"></span><b>Update as on ${m.as_on_display}</b>`;
     document.getElementById('heroTitle').innerHTML =
-      `Centricity Mutual Fund Screener<span class="sep">·</span><span class="cycle-tag">${escapeHtml(m.cycle_label)}</span>`;
+      `Centricity Mutual Fund Screener<span class="sep">·</span><span class="cycle-tag">${escapeHtml(DataLoader.fmtCycleLabelDate(m))}</span>`;
     document.getElementById('heroLede').textContent =
       `${m.total_funds.toLocaleString('en-IN')} funds across ${m.category_count} SEBI categories, ` +
       `ranked on Products Team framework. As on ${m.as_on_display}.`;
@@ -132,7 +132,7 @@
     [...cycles].sort((a, b) => (a.date < b.date ? 1 : -1)).forEach(c => {
       const o = document.createElement('option');
       o.value = c.date;
-      o.textContent = c.label || DataLoader.fmtDate(c.date);
+      o.textContent = DataLoader.fmtCycleLabelDate(c.date);
       if (c.date === currentDate) o.selected = true;
       sel.appendChild(o);
     });
@@ -439,7 +439,7 @@
       </div>`).join('');
     const sub = document.getElementById('changesSub');
     if (sub) {
-      sub.textContent = `Cycle-over-cycle deltas. With only one cycle (${cycle.cycle_meta.cycle_label}) ` +
+      sub.textContent = `Cycle-over-cycle deltas. With only one cycle (${DataLoader.fmtCycleLabelDate(cycle.cycle_meta)}) ` +
         `currently in the archive, comparison cards are empty until the next refresh.`;
     }
   }

@@ -419,9 +419,25 @@ def _parse_master_header_line(text: str) -> dict:
 
 
 def _cycle_label(iso: str) -> str:
+    """Internal-use U-cycle code (U1/U2). Retained for backward compatibility
+    inside the JSON; the dashboard reads `cycle_label_date` for display."""
     d = _dt.date.fromisoformat(iso)
     suffix = "U1" if d.day <= 10 else "U2"
     return f"{suffix} {d.strftime('%b %Y')}"
+
+
+def _cycle_label_date(iso: str) -> str:
+    """Display-format cycle label: '15th Apr 2026' (day + ordinal suffix +
+    abbreviated month + four-digit year). This is the canonical cycle label
+    for every UI surface — heading bars, provenance lines, archive tiles,
+    cycle column captions, exports. U1/U2 codes are deprecated for display."""
+    d = _dt.date.fromisoformat(iso)
+    day = d.day
+    if 11 <= day <= 13:
+        suffix = "th"
+    else:
+        suffix = {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
+    return f"{day}{suffix} {d.strftime('%b %Y')}"
 
 
 def build_cycle_meta(wb, source_filename: str, summary: dict, contract: dict) -> dict:
@@ -488,6 +504,7 @@ def build_cycle_meta(wb, source_filename: str, summary: dict, contract: dict) ->
         "product_family": "MF_Equity_Hybrid",
         "cycle_date": cycle_date,
         "cycle_label": _cycle_label(cycle_date),
+        "cycle_label_date": _cycle_label_date(cycle_date),
         "as_on_display": _display_date(cycle_date),
         "total_funds": parsed["total_funds"],
         "category_count": parsed["category_count"],
@@ -1236,7 +1253,7 @@ def convert(xlsx_path: Path) -> Path:
 
     # 3. Cycle metadata
     cycle_meta = build_cycle_meta(wb, xlsx_path.name, summary, contract)
-    print(f"[converter] cycle: {cycle_meta['cycle_label']} | as on {cycle_meta['as_on_display']} | Rf {cycle_meta['rf_rate_display']}", file=sys.stderr)
+    print(f"[converter] cycle: {cycle_meta['cycle_label_date']} (internal {cycle_meta['cycle_label']}) | as on {cycle_meta['as_on_display']} | Rf {cycle_meta['rf_rate_display']}", file=sys.stderr)
 
     # 4. Funds
     warnings: list[str] = []

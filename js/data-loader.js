@@ -109,7 +109,7 @@
     manifestCache = {
       generated_at: null,
       latest: '2026-04-15',
-      cycles: [{ date: '2026-04-15', label: 'U2 Apr 2026' }],
+      cycles: [{ date: '2026-04-15', label: 'U2 Apr 2026', label_date: '15th Apr 2026' }],
       _source: 'bootstrap',  // GitHub Action will overwrite with _source: 'action'
     };
     return manifestCache;
@@ -317,6 +317,42 @@
   }
 
   /**
+   * Cycle label as a day-with-ordinal-suffix date — '15th Apr 2026'. The
+   * canonical UI cycle caption (Cowork 2026-05-06 — U1/U2 codes deprecated
+   * for display). Reads cycle_meta.cycle_label_date when present; falls back
+   * to deriving from cycle_meta.cycle_date so older cycle JSONs still render.
+   *
+   * Accepts either a cycle_meta object or a bare ISO date string.
+   *
+   * fmtCycleLabelDate(cycle.cycle_meta) -> "15th Apr 2026"
+   * fmtCycleLabelDate('2026-04-15')     -> "15th Apr 2026"
+   * fmtCycleLabelDate(null)             -> "—"
+   */
+  function fmtCycleLabelDate(metaOrIso) {
+    if (!metaOrIso) return '—';
+    if (typeof metaOrIso === 'object' && metaOrIso.cycle_label_date) {
+      return metaOrIso.cycle_label_date;
+    }
+    const iso = (typeof metaOrIso === 'object')
+      ? (metaOrIso.cycle_date || metaOrIso.date)
+      : metaOrIso;
+    if (!iso) return '—';
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso));
+    if (!m) return '—';
+    const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+    if (isNaN(d.getTime())) return '—';
+    const day = d.getUTCDate();
+    let suffix;
+    if (day >= 11 && day <= 13) suffix = 'th';
+    else if (day % 10 === 1)    suffix = 'st';
+    else if (day % 10 === 2)    suffix = 'nd';
+    else if (day % 10 === 3)    suffix = 'rd';
+    else                        suffix = 'th';
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${day}${suffix} ${months[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+  }
+
+  /**
    * Returns the CSS class for a numeric cell — 'num' or 'num neg'.
    * Negative-only Dark Red per Brand Standards §2.
    */
@@ -355,6 +391,7 @@
     fmtNum,
     fmtScorePct,
     fmtDate,
+    fmtCycleLabelDate,
     pctClass,
   };
 })();

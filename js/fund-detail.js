@@ -49,7 +49,7 @@
 
     const fund = DataLoader.getFund(cycle, scheme);
     if (!fund) {
-      renderError(`No fund with scheme code ${scheme} in cycle ${cycle.cycle_meta.cycle_label}.`);
+      renderError(`No fund with scheme code ${scheme} in cycle ${DataLoader.fmtCycleLabelDate(cycle.cycle_meta)}.`);
       return;
     }
     _fund = fund;
