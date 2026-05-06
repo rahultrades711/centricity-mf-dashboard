@@ -378,14 +378,16 @@ table.screener-tbl tbody td.left { text-align: left; }
 /* Sticky left columns — checkbox · Rank · Fund Name (Fix-List 2 §B)
  * Fixed widths so `left:` offsets are deterministic. The 3 sticky cols
  * are columns 1, 2, 3 of the rendered <tr>; the checkbox column is
- * 36px, Rank 60px, Fund Name 220px → cumulative 36, 96, 156px. */
+ * 36px, Rank 60px, Fund Name 220px → cumulative 36, 96, 156px.
+ *
+ * Position only — alignment is split below so the Fund Name HEADER
+ * stays centred (Fix-List 2.1 §1) while the body cells stay left-aligned. */
 table.screener-tbl thead th.col-check,
 table.screener-tbl tbody td.col-check {
   position: sticky; left: 0;
   z-index: 6;
   width: 36px; min-width: 36px; max-width: 36px;
   padding: 6px;
-  text-align: center;
 }
 table.screener-tbl thead th.col-rank,
 table.screener-tbl tbody td.col-rank {
@@ -398,13 +400,64 @@ table.screener-tbl tbody td.col-name {
   position: sticky; left: 96px;
   z-index: 6;
   width: 220px; min-width: 220px; max-width: 220px;
-  text-align: left;
   /* hairline rule separates the sticky frame from scrolling area */
   border-right: 1px solid var(--rule);
 }
+/* Fund Name body cells are left-aligned (the only real text in the row);
+ * but the HEADER must stay centred per the universal centring rule —
+ * Fix-List 2.1 §1. */
+table.screener-tbl tbody td.col-name { text-align: left; }
 table.screener-tbl thead th.col-check { z-index: 7; }
 table.screener-tbl thead th.col-rank  { z-index: 7; }
 table.screener-tbl thead th.col-name  { z-index: 7; }
+
+/* Universal header centring (Fix-List 2.1 §1) — every <th> in the
+ * Screener table, default OR dynamically appended via the "Add columns"
+ * picker, must centre both axes. The base `thead th` rule already sets
+ * text-align:center + vertical-align:middle; this !important guard
+ * defends against any future per-column override that might sneak in. */
+table.screener-tbl thead th {
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+/* Sticky-cell OPAQUE backgrounds at every row state (Fix-List 2.1 §2)
+ * — sticky <td> cells must form a solid wall so non-sticky columns
+ * scrolling underneath are completely invisible during horizontal
+ * scroll. Each row state has its own opaque colour; alpha-blending
+ * with white is precomputed where the spec colour was rgba.
+ *
+ *   default       #FFFFFF                white
+ *   even stripe   rgb(247, 246, 244)     existing opaque cream
+ *   hover         rgb(247, 243, 238)     == rgba(219,200,178,.22) over white
+ *   selected      rgb(242, 236, 228)     == rgba(219,200,178,.35) over white
+ *
+ * Class-on-td selectors below are MORE specific than the generic
+ * `tr:hover td` / `tr:nth-child(even) td` rules above, so they win
+ * the cascade without !important. */
+table.screener-tbl tbody td.col-check,
+table.screener-tbl tbody td.col-rank,
+table.screener-tbl tbody td.col-name {
+  background-color: #ffffff;
+}
+table.screener-tbl tbody tr:nth-child(even) td.col-check,
+table.screener-tbl tbody tr:nth-child(even) td.col-rank,
+table.screener-tbl tbody tr:nth-child(even) td.col-name {
+  background-color: rgb(247, 246, 244);
+}
+table.screener-tbl tbody tr:hover td.col-check,
+table.screener-tbl tbody tr:hover td.col-rank,
+table.screener-tbl tbody tr:hover td.col-name {
+  background-color: rgb(247, 243, 238);
+}
+table.screener-tbl tbody tr.selected td.col-check,
+table.screener-tbl tbody tr.selected td.col-rank,
+table.screener-tbl tbody tr.selected td.col-name,
+table.screener-tbl tbody tr.selected:nth-child(even) td.col-check,
+table.screener-tbl tbody tr.selected:nth-child(even) td.col-rank,
+table.screener-tbl tbody tr.selected:nth-child(even) td.col-name {
+  background-color: rgb(242, 236, 228);
+}
 
 /* Body cells inside sticky columns inherit row backgrounds correctly */
 table.screener-tbl tbody tr.non-ranked td { color: var(--text-mid); }
@@ -448,8 +501,18 @@ table.screener-tbl .header-check {
   width: 14px; height: 14px;
   accent-color: var(--gold);
 }
-table.screener-tbl thead th.col-check { font-size: 0; line-height: 0; }
-table.screener-tbl thead th.col-check input { vertical-align: middle; }
+/* Header checkbox cell — flex centring so the input sits in the middle
+ * of the cell on both axes regardless of multi-line headers in adjacent
+ * columns. Replaces the prior `font-size: 0; line-height: 0` hack which
+ * suppressed text rendering but left the input baseline-aligned (and
+ * conflicted with the universal vertical-align:middle rule). */
+table.screener-tbl thead th.col-check {
+  display: table-cell;
+}
+table.screener-tbl thead th.col-check input {
+  display: block;
+  margin: 0 auto;
+}
 
 table.screener-tbl .badge {
   font-size: 9.5px; padding: 2px 8px; letter-spacing: .12em;
