@@ -969,6 +969,183 @@ def _compute_derived_risk_3y(
     return out
 
 
+def _safe_minus_3y(d: _dt.date) -> _dt.date:
+    """Subtract 3 calendar years from `d`, handling Feb-29."""
+    try:
+        return d.replace(year=d.year - 3)
+    except ValueError:
+        # 29 Feb on a non-leap year-3 → 28 Feb
+        return d.replace(month=2, day=28, year=d.year - 3)
+
+
+def _compute_rolling_3y_stats(
+    series: list[tuple[_dt.date, float]],
+    cycle_date: _dt.date,
+    bench_series: list[tuple[_dt.date, float]] | None,
+) -> dict | None:
+    """
+    Daily-roll 3-year rolling CAGR statistics from the fund's NAV series.
+    Returns None when the fund has fewer than 252 daily NAV observations
+    (less than ~1 year of data — can't form even one 3Y window).
+
+    For each ascending date `t` in the series where (t − 3 years) lies
+    inside the series, compute fund_cagr = (NAV[t] / NAV[t−3y])^(1/3) − 1.
+    If `bench_series` is provided AND the same window has benchmark
+    observations on both endpoints, also compute bench_cagr and tally
+    pct_beat_benchmark.
+
+    All percentages returned as float `%` (e.g., 19.84 = 19.84%, not 0.1984).
+    Window-start dates rendered as ISO 'YYYY-MM-DD'.
+    """
+    if not series or len(series) < 252:
+        return None
+    # Trim to history that ends at or before cycle_date (defensive — series
+    # is loaded from the workbook so the last row should already be the
+    # cycle's NAV, but a stray future-dated row shouldn't poison the stats).
+    history = [(d, v) for (d, v) in series if d <= cycle_date]
+    if len(history) < 252:
+        return None
+
+    cagrs: list[tuple[_dt.date, float]] = []   # (window_start_date, fund_3y_cagr)
+    paired: list[tuple[float, float]] = []     # (fund_cagr, bench_cagr) for beat-benchmark calc
+
+    for (t_d, t_v) in history:
+        if t_v is None or t_v <= 0:
+            continue
+        back_d = _safe_minus_3y(t_d)
+        # Find the latest series point with date <= back_d
+        b_d, b_v = _series_value_at_or_before(history, back_d)
+        if b_v is None or b_v <= 0:
+            continue
+        # Require the window start to be within ~30 days of the calendar
+        # offset (otherwise sparse data produces phantom long windows).
+        if (back_d - b_d).days > 30:
+            continue
+        try:
+            f_cagr = (t_v / b_v) ** (1.0 / 3.0) - 1.0
+        except (ValueError, ZeroDivisionError, OverflowError):
+            continue
+        cagrs.append((b_d, f_cagr))
+        if bench_series:
+            _bt_d, bt_v = _series_value_at_or_before(bench_series, t_d)
+            _bb_d, bb_v = _series_value_at_or_before(bench_series, back_d)
+            if bt_v is not None and bb_v is not None and bb_v > 0 and bt_v > 0:
+                try:
+                    b_cagr = (bt_v / bb_v) ** (1.0 / 3.0) - 1.0
+                    paired.append((f_cagr, b_cagr))
+                except (ValueError, ZeroDivisionError, OverflowError):
+                    pass
+
+    if not cagrs:
+        return None
+
+    n = len(cagrs)
+    cagr_values = [c for (_, c) in cagrs]
+    cagr_values_sorted = sorted(cagr_values)
+    median = cagr_values_sorted[n // 2] if n % 2 == 1 else (
+        (cagr_values_sorted[n // 2 - 1] + cagr_values_sorted[n // 2]) / 2.0
+    )
+    avg = sum(cagr_values) / n
+    best_idx = max(range(n), key=lambda i: cagr_values[i])
+    worst_idx = min(range(n), key=lambda i: cagr_values[i])
+
+    pct_positive = sum(1 for c in cagr_values if c > 0) / n
+    pct_above_12 = sum(1 for c in cagr_values if c > 0.12) / n
+    pct_beat = (sum(1 for f, b in paired if f > b) / len(paired)) if paired else None
+
+    return {
+        "avg_pct": round(avg * 100, 4),
+        "median_pct": round(median * 100, 4),
+        "best_pct": round(cagr_values[best_idx] * 100, 4),
+        "best_window_start": cagrs[best_idx][0].isoformat(),
+        "worst_pct": round(cagr_values[worst_idx] * 100, 4),
+        "worst_window_start": cagrs[worst_idx][0].isoformat(),
+        "pct_positive": round(pct_positive * 100, 4),
+        "pct_above_12": round(pct_above_12 * 100, 4),
+        "pct_beat_benchmark": round(pct_beat * 100, 4) if pct_beat is not None else None,
+        "observation_count": n,
+    }
+
+
+def _resample_navs_to_monthly(
+    series: list[tuple[_dt.date, float]],
+    start_d: _dt.date,
+    end_d: _dt.date,
+) -> list[dict]:
+    """
+    Last available NAV in each calendar month within [start_d, end_d].
+    Output: ascending list of {"d": "YYYY-MM", "v": float (raw NAV)}.
+    The dashboard normalises to ₹1,00,000 growth at the selected window
+    start at render time; no normalisation here.
+    """
+    by_month: dict[tuple[int, int], tuple[_dt.date, float]] = {}
+    for d, v in series:
+        if d < start_d or d > end_d:
+            continue
+        if v is None or v <= 0:
+            continue
+        key = (d.year, d.month)
+        prev = by_month.get(key)
+        if prev is None or prev[0] < d:
+            by_month[key] = (d, v)
+    items = sorted(by_month.items(), key=lambda kv: kv[0])
+    return [
+        {"d": f"{k[0]:04d}-{k[1]:02d}", "v": round(v, 4)}
+        for k, (_, v) in items
+    ]
+
+
+def emit_nav_series_file(
+    funds: list[dict],
+    nav_by_amfi: dict[int, list[tuple[_dt.date, float]]],
+    bm_by_name: dict[str, list[tuple[_dt.date, float]]],
+    cycle_date: _dt.date,
+    out_path: Path,
+) -> None:
+    """
+    Emit data/nav-series-YYYY-MM-DD.json — monthly-frequency NAV series
+    for every fund + its benchmark, capped at 13 years before cycle_date.
+    Lazy-loaded by fund-detail.js for the "Growth of ₹ 1,00,000" chart.
+
+    Schema (per CLAUDE.md §4.1, emitted alongside the screener JSON):
+      {
+        "cycle_date": "YYYY-MM-DD",
+        "series": {
+          "<amfi>": {
+            "inception_date": "YYYY-MM-DD"|null,
+            "benchmark":      "<name>"|null,
+            "fund":  [{"d":"YYYY-MM","v":<nav>}, ...],
+            "bench": [{"d":"YYYY-MM","v":<nav>}, ...]
+          }, ...
+        }
+      }
+    """
+    cap_back = cycle_date - _dt.timedelta(days=int(13 * 365.25))
+    series_out: dict[str, dict] = {}
+    for fund in funds:
+        amfi = fund.get("scheme_code")
+        if amfi is None:
+            continue
+        fund_navs = nav_by_amfi.get(amfi, [])
+        if not fund_navs:
+            continue
+        bench_name = fund.get("benchmark")
+        bench_navs = bm_by_name.get(bench_name, []) if bench_name else []
+        series_out[str(amfi)] = OrderedDict([
+            ("inception_date", fund.get("inception_date")),
+            ("benchmark", bench_name),
+            ("fund",  _resample_navs_to_monthly(fund_navs,  cap_back, cycle_date)),
+            ("bench", _resample_navs_to_monthly(bench_navs, cap_back, cycle_date)),
+        ])
+
+    payload = OrderedDict([
+        ("cycle_date", cycle_date.isoformat()),
+        ("series", series_out),
+    ])
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, separators=(",", ":"))
+
+
 def _trailing_returns_from_series(series: list[tuple[_dt.date, float]],
                                   cycle_date: _dt.date,
                                   targets: dict[str, _dt.date]) -> dict:
@@ -1001,7 +1178,9 @@ def _trailing_returns_from_series(series: list[tuple[_dt.date, float]],
     return out
 
 
-def build_funds(wb, contract: dict, cycle_meta: dict, warnings: list[str]) -> list[dict]:
+def build_funds(
+    wb, contract: dict, cycle_meta: dict, warnings: list[str]
+) -> tuple[list[dict], dict, dict]:
     eq_set = set(contract["categories"]["equity"])
     hb_set = set(contract["categories"]["hybrid"])
 
@@ -1079,6 +1258,7 @@ def build_funds(wb, contract: dict, cycle_meta: dict, warnings: list[str]) -> li
 
         # Trailing returns + derived 3Y risk metrics from in-memory NAV series
         series = nav_by_amfi.get(d["scheme_code"])
+        bench_series = bm_by_name.get(d["benchmark"]) if d["benchmark"] else None
         if series is None:
             warnings.append(
                 f"AMFI {d['scheme_code']} ({d['fund_name']!r}) not found in 📈 Fund NAV row 1."
@@ -1087,6 +1267,9 @@ def build_funds(wb, contract: dict, cycle_meta: dict, warnings: list[str]) -> li
                         "return_5y_pct": None, "return_si_pct": None}
             derived_risk = {"sortino_3y": None, "std_dev_3y_pct": None,
                             "max_drawdown_3y_pct": None}
+            rolling_stats = None
+            nav_latest_value = None
+            nav_latest_date = None
         else:
             trailing = _trailing_returns_from_series(series, cycle_date, targets)
             derived_risk = _compute_derived_risk_3y(
@@ -1096,6 +1279,11 @@ def build_funds(wb, contract: dict, cycle_meta: dict, warnings: list[str]) -> li
                 rf_annual=cycle_meta.get("rf_rate_annual"),
                 fund_tenure_yrs=cm["fund_tenure_yrs"],
             )
+            rolling_stats = _compute_rolling_3y_stats(series, cycle_date, bench_series)
+            # Latest NAV — last non-null observation in the fund's series
+            last_d, last_v = series[-1]
+            nav_latest_value = round(last_v, 4) if last_v is not None else None
+            nav_latest_date = last_d.isoformat() if last_d is not None else None
 
         bm_ret = benchmark_returns_for(d["benchmark"])
 
@@ -1144,6 +1332,17 @@ def build_funds(wb, contract: dict, cycle_meta: dict, warnings: list[str]) -> li
         ])
         record["rolling_3y_avg_pct"] = _round(cm["rolling_3y_avg_pct"], 4)
         record["consistency_pct"] = _round(cm["consistency_pct"], 4)
+        # Latest NAV pulled from the last row of 📈 Fund NAV — used by Fund
+        # Detail's hero meta-strip and as the anchor of the "Growth of
+        # ₹ 1,00,000" chart's normalisation. (Fund Detail Fix-List 1 §A.)
+        record["nav_latest_value"] = nav_latest_value
+        record["nav_latest_date"] = nav_latest_date
+        # Daily-roll 3Y CAGR statistics — derives from 📈 Fund NAV in-place
+        # against the fund's benchmark series. Powers Fund Detail's "Rolling
+        # Returns" 6-card grid (avg / median / best / worst / pct > 0% /
+        # pct beat benchmark / pct above 12%). Null when fewer than 252
+        # daily NAV observations exist (sub-1Y data — can't form a window).
+        record["rolling_3y_stats"] = rolling_stats
         # Order matches Master Design Brief §5.3 Fund Detail Quants strip:
         # Sharpe | Sortino | Std Dev | Max DD | Beta | Treynor | Up/Down Capture
         record["risk_metrics"] = OrderedDict([
@@ -1226,7 +1425,10 @@ def build_funds(wb, contract: dict, cycle_meta: dict, warnings: list[str]) -> li
         for i, f in enumerate(ranked, start=1):
             f["centricity_rank_in_category"] = i
 
-    return funds
+    # Return NAV maps alongside the fund list so convert() can emit the
+    # separate nav-series-YYYY-MM-DD.json file without re-reading the
+    # workbook (Fund Detail Fix-List 1 §A.3).
+    return funds, nav_by_amfi, bm_by_name
 
 
 # ---------------------------------------------------------------------------
@@ -1255,9 +1457,11 @@ def convert(xlsx_path: Path) -> Path:
     cycle_meta = build_cycle_meta(wb, xlsx_path.name, summary, contract)
     print(f"[converter] cycle: {cycle_meta['cycle_label_date']} (internal {cycle_meta['cycle_label']}) | as on {cycle_meta['as_on_display']} | Rf {cycle_meta['rf_rate_display']}", file=sys.stderr)
 
-    # 4. Funds
+    # 4. Funds — also returns the in-memory NAV maps so we can emit the
+    # separate nav-series-YYYY-MM-DD.json file without re-reading the
+    # workbook (Fund Detail Fix-List 1 §A.3).
     warnings: list[str] = []
-    funds = build_funds(wb, contract, cycle_meta, warnings)
+    funds, nav_by_amfi, bm_by_name = build_funds(wb, contract, cycle_meta, warnings)
     summary["fund_count"] = len(funds)
     print(f"[converter] built {len(funds)} fund records", file=sys.stderr)
 
@@ -1300,6 +1504,18 @@ def convert(xlsx_path: Path) -> Path:
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(output, f, ensure_ascii=False, indent=2, default=str)
     print(f"[converter] wrote {out_path} ({out_path.stat().st_size:,} bytes)", file=sys.stderr)
+
+    # 7. Emit the separate monthly NAV-series file consumed by Fund Detail's
+    # "Growth of ₹ 1,00,000" chart. Lazy-loaded by fund-detail.js — kept
+    # out of the main screener JSON to keep that file under 3 MB.
+    cycle_date_obj = _dt.date.fromisoformat(cycle_meta["cycle_date"])
+    nav_series_path = DATA_DIR / f"nav-series-{cycle_meta['cycle_date']}.json"
+    print(f"[converter] emitting nav series file: {nav_series_path.name}", file=sys.stderr)
+    emit_nav_series_file(funds, nav_by_amfi, bm_by_name, cycle_date_obj, nav_series_path)
+    print(
+        f"[converter]   wrote {nav_series_path} ({nav_series_path.stat().st_size:,} bytes)",
+        file=sys.stderr,
+    )
 
     if warnings:
         print(f"[converter] {len(warnings)} warning(s) (showing first 5):", file=sys.stderr)

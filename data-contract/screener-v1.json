@@ -344,6 +344,34 @@
       },
       "rolling_3y_avg_pct": { "type": "float|null", "unit": "%", "source": "📊 CM col M" },
       "consistency_pct": { "type": "float|null", "unit": "%", "source": "📊 CM col N" },
+      "nav_latest_value": {
+        "type": "float|null",
+        "_added": "2026-05-06 (Fund Detail Fix-List 1 §A.1, additive)",
+        "source": "Last non-null NAV in 📈 Fund NAV for the fund's column. Null when the fund has no NAV series row."
+      },
+      "nav_latest_date": {
+        "type": "string|null",
+        "format": "YYYY-MM-DD",
+        "_added": "2026-05-06 (Fund Detail Fix-List 1 §A.1, additive)",
+        "source": "Date of the last non-null NAV row in 📈 Fund NAV for this fund. Null when the fund has no NAV series."
+      },
+      "rolling_3y_stats": {
+        "type": "object|null",
+        "_added": "2026-05-06 (Fund Detail Fix-List 1 §A.2, additive)",
+        "_overview": "Daily-roll 3Y CAGR statistics from 📈 Fund NAV against the fund's benchmark series. Powers Fund Detail's 6-card Rolling Returns grid (avg / median / best / worst / pct > 0% / pct above 12% / pct beat benchmark). Null when fewer than 252 daily NAV observations exist (sub-1Y data — can't form a single 3Y window).",
+        "shape_when_populated": {
+          "avg_pct": "float — arithmetic mean of all 3Y CAGRs across the rolling window pool, in %",
+          "median_pct": "float — median of the same pool, in %",
+          "best_pct": "float — max 3Y CAGR observation, in %",
+          "best_window_start": "string YYYY-MM-DD — start date of the best window",
+          "worst_pct": "float — min 3Y CAGR observation, in %",
+          "worst_window_start": "string YYYY-MM-DD — start date of the worst window",
+          "pct_positive": "float — % of windows with CAGR > 0%",
+          "pct_above_12": "float — % of windows with CAGR > 12% (realistic India equity floor)",
+          "pct_beat_benchmark": "float|null — % of windows where fund 3Y CAGR > benchmark 3Y CAGR (same window). Null when no benchmark series matched.",
+          "observation_count": "int — number of 3Y windows tallied"
+        }
+      },
       "risk_metrics": {
         "_note": "Order matches Master Design Brief §5.3 Fund Detail Quants strip: Sharpe | Sortino | Std Dev | Max DD | Beta | Treynor | Up/Down Capture. Three fields are DERIVED at JSON-build time from 📈 Fund NAV (sortino_3y, std_dev_3y_pct, max_drawdown_3y_pct); the remaining six are sourced directly from 📊 Computed Metrics. All nine are null when fund_tenure_yrs < 3.",
         "sharpe_3y": { "type": "float|null", "source": "📊 CM col O" },

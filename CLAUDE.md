@@ -87,6 +87,8 @@ The dashboard reads from **four independent contracts**, each governing one upst
 - `return_1y` / `return_3y` / `return_5y` / `return_si` — trailing point-to-point CAGR from `📈 Fund NAV`
 - `benchmark_return_1y` / `_3y` / `_5y` — same from `📈 Benchmark NAV`
 - `alpha_3y` / `alpha_5y` — fund minus benchmark over the trailing window
+- `nav_latest_value` / `nav_latest_date` — last non-null NAV row for the fund (Fund Detail Fix-List 1 §A.1, additive)
+- `rolling_3y_stats` — daily-roll 3Y CAGR statistics (avg / median / best / worst window-start dates / pct_positive / pct_above_12 / pct_beat_benchmark / observation_count). Null when fewer than 252 daily NAV observations (sub-1Y data — can't form a 3Y window). Powers Fund Detail's 6-card Rolling Returns grid. (Fund Detail Fix-List 1 §A.2, additive)
 
 **`analytics_pending: true` flags** appear on every Screener fund record for fields sourced from the Analytics pipeline (top-10 holdings, sector allocation, full stocks, manager-change history, category history). The dashboard renders these as placeholders ("Holdings data integration pending — coming in v1.1") until the Analytics converter ships.
 
@@ -114,6 +116,7 @@ Every cycle JSON carries `cycle_meta.product_family` ∈ `{"MF_Equity_Hybrid", "
 | Source | Cadence | File pattern in `data/` | v1 status |
 |---|---|---|---|
 | MF Eq+Hybrid Screener | Bi-monthly U1 (1st–5th) + U2 (15th–20th) | `MutualFund_Whitelisting_DDMonYYYY.xlsx` | ✅ Wired Step 2 |
+| MF Eq+Hybrid NAV-series (per cycle) | Same cadence as Screener (emitted alongside) | n/a — derived in `excel_to_json_screener.py` from `📈 Fund NAV` + `📈 Benchmark NAV`. Output: `data/nav-series-YYYY-MM-DD.json` (monthly, capped 13y back). Lazy-loaded by `fund-detail.js` only. | ✅ Wired 2026-05-06 (Fund Detail Fix-List 1 §A.3) |
 | MF Eq+Hybrid Analytics | Monthly month-end | Folder `Cent-Claude/Data/Analytics File/DD-MM-YYYY/` (`EQUITY MF.xlsx`, `HYBRID FUNDS.xlsx`, `Debt MF.xlsx`) | 🟡 Architecture wired Step 2; Equity + Hybrid converters built in v1.x |
 | MF Eq+Hybrid Monitor | "As on date" — aligned to Screener cycles | `Daily_MF_monitor_DD_Month_YYYY.xlsx` | 🟡 Architecture wired Step 2; converter built in v1.x |
 
@@ -170,10 +173,13 @@ Dashboard-Repo/
 │   ├── HYBRID_FUNDS_DD-MM-YYYY.xlsx               ← Analytics input (Hybrid)
 │   ├── Daily_MF_monitor_DD_Month_YYYY.xlsx        ← Monitor input
 │   ├── screener-YYYY-MM-DD.json                   ← Screener output (auto)
+│   ├── nav-series-YYYY-MM-DD.json                 ← Monthly NAV + benchmark series, capped 13y back; lazy-loaded by fund-detail.js for the "Growth of ₹ 1,00,000" chart. Emitted alongside the screener JSON by the same converter.
+│   ├── manager-profiles.json                      ← Manager bios (post-converter scrape via scripts/scrape_manager_profiles.py); fund-detail.js looks up by manager_name, falls back to a placeholder caption when the file or the entry is missing.
 │   ├── analytics-YYYY-MM-DD.json                  ← Analytics output (auto)
 │   └── monitor-YYYY-MM-DD.json                    ← Monitor output (auto)
 ├── scripts/
-│   ├── excel_to_json_screener.py          ← built Step 2
+│   ├── excel_to_json_screener.py          ← built Step 2; emits screener JSON + nav-series file alongside (Fund Detail Fix-List 1 §A)
+│   ├── scrape_manager_profiles.py         ← built Sheet 3 review; standalone post-converter; outputs manager-profiles.json with cadence cache
 │   ├── excel_to_json_analytics.py         ← stub for v1.x (TODO comment)
 │   └── excel_to_json_monitor.py           ← stub for v1.x (TODO comment)
 ├── index.html                             ← Screen 1 — Home

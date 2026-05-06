@@ -1,0 +1,1409 @@
+{
+  "last_updated": "2026-05-06",
+  "profiles": {
+    "Harish krishnan": {
+      "amc": "Aditya Birla SL",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Shreyash Devalkar": {
+      "amc": "Axis",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Nimesh Chandan": {
+      "amc": "Bajaj Finserv",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Manish Gunwani": {
+      "amc": "Bandhan",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Alok Singh": {
+      "amc": "Bank of India",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Jitendra Sriram": {
+      "amc": "Baroda BNP Paribas",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Shridatta Bhandwaldar": {
+      "amc": "Canara Rob",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Abhishek Singh": {
+      "amc": "DSP",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Bharat Lahoti": {
+      "amc": "Edelweiss",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Venkatesh Sanjeevi": {
+      "amc": "Franklin India",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Anupam Tiwari": {
+      "amc": "Groww",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Rahul Baijal": {
+      "amc": "HDFC",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Neelotpal Sahai": {
+      "amc": "HSBC",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Sankaran Naren": {
+      "amc": "ICICI Pru",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Alok Ranjan": {
+      "amc": "ITI",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Hiten Jain": {
+      "amc": "Invesco India",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Deepak Gupta.": {
+      "amc": "JM",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Rohit Tandon": {
+      "amc": "Kotak",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Sumit Bhatnagar": {
+      "amc": "LIC MF",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Fatema Pacha": {
+      "amc": "Mahindra Manulife",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Gaurav Misra": {
+      "amc": "Mirae Asset",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Ajay Khandelwal": {
+      "amc": "Motilal Oswal",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Sailesh Raj Bhan": {
+      "amc": "Nippon India",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Anandha Padmanabhan Anjeneyan": {
+      "amc": "PGIM India",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Rajeev Thakkar": {
+      "amc": "Parag Parikh",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Sandeep Tandon": {
+      "amc": "Quant",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Saurabh Pant": {
+      "amc": "SBI",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Umeshkumar Mehta": {
+      "amc": "Samco",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Ashwin Jain": {
+      "amc": "Sundaram",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Abhinav Sharma": {
+      "amc": "Tata",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Anuj Kapil": {
+      "amc": "Taurus",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Karthikraj Lakshmanan": {
+      "amc": "UTI",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Pratik Dharmshi": {
+      "amc": "Union",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Ramesh Mantri": {
+      "amc": "WOC",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Vishal Gajwani": {
+      "amc": "Aditya Birla Sun Life",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Nitin Gosar": {
+      "amc": "Bank of India",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Sanjay Chawla": {
+      "amc": "Baroda BNP Paribas",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Amit Nadekar": {
+      "amc": "Canara Rob",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Rohit Singhania": {
+      "amc": "DSP",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Sumanta Khan": {
+      "amc": "Edelweiss",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Gopal Agrawal": {
+      "amc": "HDFC",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Cheenu Gupta": {
+      "amc": "HSBC",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Alok Bahl": {
+      "amc": "Helios",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Ihab Dalwai": {
+      "amc": "ICICI Pru",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Aditya Khemani": {
+      "amc": "Invesco India",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Asit Bhandarkar": {
+      "amc": "JM",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Harsha Upadhyaya": {
+      "amc": "Kotak",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Sudhanshu Asthana": {
+      "amc": "LIC MF",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Neelesh Dhamnaskar": {
+      "amc": "Mahindra Manulife",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Neelesh Surana": {
+      "amc": "Mirae Asset",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Ashutosh Shirwaikar": {
+      "amc": "Navi",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Aishwarya Agarwal": {
+      "amc": "Nippon India",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Vinay Paharia": {
+      "amc": "PGIM India",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Madanagopal Ramu": {
+      "amc": "Sundaram",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Chandraprakash Padiyar": {
+      "amc": "Tata",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "V. Srivatsa": {
+      "amc": "UTI",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Vinod Malviya": {
+      "amc": "Union",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Mayur Patel": {
+      "amc": "360 ONE",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Sanjay Doshi": {
+      "amc": "Abakkus",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Sachin Relekar": {
+      "amc": "Axis",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Anoop Vijaykumar": {
+      "amc": "Capitalmind",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Bhavin Gandhi": {
+      "amc": "DSP",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Trideep Bhattacharya": {
+      "amc": "Edelweiss",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "R. Janakiraman": {
+      "amc": "Franklin India",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Amit Ganatra": {
+      "amc": "HDFC",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Abhishek Gupta": {
+      "amc": "HSBC",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Rajat Chandak": {
+      "amc": "ICICI Pru",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Dhimant Shah": {
+      "amc": "ITI",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Taher Badshah": {
+      "amc": "Invesco India",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Satish Ramanathan": {
+      "amc": "JM",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Tanvi Kacheria": {
+      "amc": "JioBlackRock",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Varun Goel": {
+      "amc": "Mirae Asset",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Dhaval Patel": {
+      "amc": "NJ",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Meenakshi Dawar": {
+      "amc": "Nippon India",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Kenneth Andrade": {
+      "amc": "Old Bridge",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Dinesh Balachandran": {
+      "amc": "SBI",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Nirali Bhansali": {
+      "amc": "Samco",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Deepak Ramaraju": {
+      "amc": "Shriram",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "S. Bharath": {
+      "amc": "Sundaram",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Mihir Vora": {
+      "amc": "TRUSTMF",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Anand Sharma": {
+      "amc": "Tata",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Aparna Shanker": {
+      "amc": "The Wealth Company",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Ajay Tyagi": {
+      "amc": "UTI",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Saravanan V N": {
+      "amc": "Unifi",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Sanjay Bembalkar": {
+      "amc": "Union",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Abhinav Khandelwal": {
+      "amc": "Aditya Birla SL",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Daylynn Pinto": {
+      "amc": "Bandhan",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Chirag Dagli": {
+      "amc": "DSP",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Amar Kalkundrikar": {
+      "amc": "HDFC",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Venugopal Manghat": {
+      "amc": "HSBC",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Lalit Kumar": {
+      "amc": "ICICI Pru",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Devender Singhal": {
+      "amc": "Kotak",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Dikshit Mittal": {
+      "amc": "LIC MF",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Vishal Jajoo": {
+      "amc": "Mahindra Manulife",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Ankit Jain": {
+      "amc": "Mirae Asset",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Atul Mehra": {
+      "amc": "Motilal Oswal",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Sharma Vivek": {
+      "amc": "PGIM India",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "R. Srinivasan": {
+      "amc": "SBI",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Meeta Shetty": {
+      "amc": "Tata",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Harshad Patwardhan": {
+      "amc": "Union",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Kunal Sangoi": {
+      "amc": "Aditya Birla SL",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Ajay Argal": {
+      "amc": "Franklin India",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Vaibhav Dusad": {
+      "amc": "ICICI Pru",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Shibani Kurian": {
+      "amc": "Kotak",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Mahesh Bendre": {
+      "amc": "LIC MF",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Krishna Sanghavi": {
+      "amc": "Mahindra Manulife",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Vinay Sharma": {
+      "amc": "Nippon India",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Tarang Agrawal": {
+      "amc": "Old Bridge",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Vishal Chopda": {
+      "amc": "UTI",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Ritu Modi": {
+      "amc": "Bandhan",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Pratish Krishnan": {
+      "amc": "Baroda BNP Paribas",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Pranav Gokhale": {
+      "amc": "Canara Rob",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Vinit Sambre": {
+      "amc": "DSP",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Chirag Setalvad": {
+      "amc": "HDFC",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Atul Bhole": {
+      "amc": "Kotak",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Kirti Dalvi": {
+      "amc": "Mahindra Manulife",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Rupesh Patel": {
+      "amc": "Nippon India",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Bhavin Vithlani": {
+      "amc": "SBI",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Satish Chandra Mishra": {
+      "amc": "Tata",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Gaurav Chopra": {
+      "amc": "Union",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Tejas Sheth": {
+      "amc": "Axis",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Dhruv Bhatia": {
+      "amc": "Edelweiss",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Harish Bihani": {
+      "amc": "Kotak",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Samir Rachh": {
+      "amc": "Nippon India",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Utsav Mehta": {
+      "amc": "PGIM India",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Chirag Mehta": {
+      "amc": "Quantum",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Rohit Seksaria": {
+      "amc": "Sundaram",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Nitin Jain": {
+      "amc": "UTI",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Dhaval Gala": {
+      "amc": "Aditya Birla SL",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Nitin Arora": {
+      "amc": "Axis",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Vishal Mishra": {
+      "amc": "Canara Rob",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Aparna Karnik": {
+      "amc": "DSP",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Rajasa Kakulavarapu": {
+      "amc": "Franklin India",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Anand Laddha": {
+      "amc": "HDFC",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Mittul Kalawadia": {
+      "amc": "ICICI Pru",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Dhrumil Shah": {
+      "amc": "Nippon India",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "George Thomas": {
+      "amc": "Quantum",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Nidhi Chawla": {
+      "amc": "SBI",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Siddarth Mohta": {
+      "amc": "Sundaram",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Sailesh Jain": {
+      "amc": "Tata",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Sonam Udasi": {
+      "amc": "Tata",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Amit Premchandani": {
+      "amc": "UTI",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Ashish Ongari": {
+      "amc": "360 ONE",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Dhaval Shah": {
+      "amc": "Aditya Birla Sun Life",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Ashwani Agarwalla": {
+      "amc": "Edelweiss",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Paras Matalia": {
+      "amc": "Groww",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Deepesh Kashyap": {
+      "amc": "Invesco India",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Viral Shah": {
+      "amc": "NJ",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Milind Agrawal": {
+      "amc": "SBI",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Nitya Mishra": {
+      "amc": "ICICI Pru",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Priyanka Khandelwal": {
+      "amc": "ICICI Pru",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Mandar Pawar": {
+      "amc": "Kotak",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Arjun Khanna": {
+      "amc": "Kotak",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Tanmaya Desai": {
+      "amc": "SBI",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Raj Gandhi": {
+      "amc": "SBI",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Vivek Gedda": {
+      "amc": "SBI",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Murthy Nagarajan": {
+      "amc": "Tata",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Jonas Bhutta": {
+      "amc": "Aditya Birla SL",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Vishal Biraia": {
+      "amc": "Bandhan",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Ashish Shah": {
+      "amc": "HDFC",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Sagar Gandhi": {
+      "amc": "Invesco India",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Nalin Rasik Bhatt": {
+      "amc": "Kotak",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Bharti Sawant": {
+      "amc": "Mirae Asset",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Rahul Modi": {
+      "amc": "Nippon India",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Sachin Trivedi": {
+      "amc": "UTI",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Nilesh Jethani": {
+      "amc": "Bank of India",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Amit Kadam": {
+      "amc": "Canara Rob",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Preethi R S": {
+      "amc": "DSP",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Gautam Bhupal": {
+      "amc": "HSBC",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Antariksha Banerjee": {
+      "amc": "ICICI Pru",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Nilay Dalal": {
+      "amc": "ITI",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Abhijith Vara": {
+      "amc": "Mirae Asset",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Kapil Malhotra": {
+      "amc": "Tata",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Trupti Agrawal": {
+      "amc": "WOC",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Viraj Kulkarni": {
+      "amc": "Bandhan",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Nikhil Mathur": {
+      "amc": "HDFC",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Dharmesh Kakkad": {
+      "amc": "ICICI Pru",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Dhananjay Tikariha": {
+      "amc": "Kotak",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Vrijesh Kasera": {
+      "amc": "Mirae Asset",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Rajat Srivastava": {
+      "amc": "Tata",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Kamal Gada": {
+      "amc": "UTI",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Rakesh Sethia": {
+      "amc": "HDFC",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Roshan Chutkey": {
+      "amc": "ICICI Pru",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Nikhil Kale": {
+      "amc": "Invesco India",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Renjith Sivaram": {
+      "amc": "Mahindra Manulife",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Balakumar B": {
+      "amc": "HDFC",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Chanchal Khandelwal": {
+      "amc": "Aditya Birla SL",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Hitesh Das": {
+      "amc": "Axis",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Sorbh Gupta": {
+      "amc": "Bajaj Finserv",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Ennettee Fernandes": {
+      "amc": "Canara Rob",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Amit Sinha": {
+      "amc": "HDFC",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Anish Goenka": {
+      "amc": "HSBC",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Manish Poddar": {
+      "amc": "Invesco India",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Navin Matta": {
+      "amc": "Mahindra Manulife",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Siddhant Chhabria": {
+      "amc": "Mirae Asset",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Varun Sharma": {
+      "amc": "Motilal Oswal",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Kinjal Desai": {
+      "amc": "Nippon India",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Ashit Desai": {
+      "amc": "SBI",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Anuj Bansal": {
+      "amc": "Sundaram",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Rohit Shimpi": {
+      "amc": "SBI",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Vishal Agarwal": {
+      "amc": "Axis",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Ashish Naik": {
+      "amc": "Axis",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Karthik Kumar": {
+      "amc": "Axis",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Rishi Sharma": {
+      "amc": "Bandhan",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Bhavesh Jain": {
+      "amc": "Edelweiss",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Arihant Jain": {
+      "amc": "Franklin India",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Srinivasan Ramamurthy": {
+      "amc": "HDFC",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Priya Ranjan": {
+      "amc": "HDFC",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Manasvi Shah": {
+      "amc": "ICICI Pru",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Manish Banthia": {
+      "amc": "ICICI Pru",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Aatur Shah": {
+      "amc": "ICICI Pru",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Sanket Gaidhani": {
+      "amc": "ICICI Pru",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Shirish Guthe": {
+      "amc": "Nippon India",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Sukanya Ghosh": {
+      "amc": "SBI",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Anup Upadhyay": {
+      "amc": "SBI",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Rahul Singh (Tata)": {
+      "amc": "Tata",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Sharwan Kumar Goyal": {
+      "amc": "UTI",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Harshil Suvarnkar": {
+      "amc": "Aditya Birla SL",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Jayesh Sundar": {
+      "amc": "Axis",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Prateek Poddar": {
+      "amc": "Bandhan",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Anupam Joshi": {
+      "amc": "HDFC",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Harshad Borawake": {
+      "amc": "Mirae Asset",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Rajesh Bhatia": {
+      "amc": "ITI",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Bhavik Dave": {
+      "amc": "Nippon India",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Amey Sathe": {
+      "amc": "Invesco India",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Anurag Mittal": {
+      "amc": "UTI",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Lovelish Solanki": {
+      "amc": "Aditya Birla SL",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Mayank Hyanki": {
+      "amc": "Axis",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Kapil Kankonkar": {
+      "amc": "Bandhan",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Sushil Budhia": {
+      "amc": "Nippon India",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Sanjeev Sharma": {
+      "amc": "Quant",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Clyton Richard Fernandes": {
+      "amc": "Sundaram",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Mithraem Bharucha": {
+      "amc": "Bank of India",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    },
+    "Sneha Pandey": {
+      "amc": "Quantum",
+      "bio": null,
+      "source_url": null,
+      "scraped_date": "2026-05-06"
+    }
+  }
+}

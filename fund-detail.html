@@ -2,14 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Centricity MF Screener — Fund Detail</title>
+<title>Centricity MF Screener — Fund Report</title>
 <meta name="viewport" content="width=1680">
 <link rel="icon" href="assets/logo.png">
 <link rel="stylesheet" href="css/centricity.css">
 <link rel="stylesheet" href="css/fund-detail.css">
 <script defer src="js/data-loader.js"></script>
 <script defer src="js/state.js"></script>
-<script defer src="js/exports.js"></script>
 <script defer src="js/fund-detail.js"></script>
 </head>
 <body>
@@ -31,95 +30,264 @@
   <div class="right">
     <label class="search">
       <span style="opacity:.6">⌕</span>
-      <input type="text" placeholder="Search funds…" aria-label="Search">
+      <input type="text" placeholder="Search funds, AMCs, managers…" aria-label="Search">
     </label>
   </div>
 </header>
 
+<!-- breadcrumb -->
+<div class="crumb">
+  <a href="index.html">Home</a>
+  <span class="sep">›</span>
+  <a href="screener.html">Screener</a>
+  <span class="sep">›</span>
+  <span id="crumbName">Fund Detail</span>
+</div>
+
 <main id="mainArea">
 
-<section class="fd-band">
-  <div class="fd-inner">
-    <div class="fd-header-row">
-      <div style="flex:1;">
-        <h1 id="fdFundName">Loading…</h1>
-        <p class="subtitle" id="fdSubtitle">—</p>
-      </div>
-      <div class="fd-action-row">
-        <button class="btn ghost" id="watchBtn">☆ Add to Watchlist</button>
-        <button class="btn primary" data-export-pdf="#mainArea" id="fdPdfBtn"
-                data-export-name="Centricity-Fund-Detail">Download PDF</button>
+<!-- HERO -->
+<section class="hero" aria-label="Fund header" id="heroSection">
+  <div class="hero-inner">
+    <div>
+      <span class="eyebrow" id="heroEyebrow">Fund Report Card · Loading…</span>
+      <h1 id="fundTitle">Loading…</h1>
+      <div class="meta" id="heroMeta"></div>
+      <div class="hero-actions">
+        <button class="btn primary deferred" id="downloadPdfBtn" disabled
+                title="Coming after web design lock-in">Download PDF Report</button>
+        <button class="btn ghost" id="addToCompareBtn">Add to Compare</button>
+        <button class="btn ghost" id="watchlistBtn">☆ Add to Watchlist</button>
+        <button class="btn ghost" id="shareLinkBtn">Share Link</button>
       </div>
     </div>
-
-    <div class="fd-meta-strip" id="fdMetaStrip"></div>
-
-    <div class="provenance" id="fdProvenance"></div>
+    <div class="score-card" id="scoreCard">
+      <div>
+        <span class="lbl">Centricity Score</span>
+        <div class="big" id="scoreBig">—<em>/ 10</em></div>
+        <div class="delta" id="scoreDelta">Cycle change · — (no prior cycle in archive)</div>
+        <div class="score-grid" id="scoreMiniGrid"></div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:10px">
+        <span class="verdict-pill" id="verdictPill">—</span>
+        <span class="conviction" id="convictionLabel"></span>
+      </div>
+    </div>
   </div>
 </section>
 
-<!-- 9-field risk strip + 4 trailing returns -->
-<section class="kpi-strip" id="kpiStrip"></section>
+<!-- MAIN -->
+<div class="report">
+  <div class="report-content">
 
-<section class="fd-sections">
+    <!-- 01 PERFORMANCE -->
+    <section class="block" id="performance">
+      <h2>Returns vs <em>Benchmark</em> & Category</h2>
+      <p class="h-sub" id="perfSubtitle">Annualised CAGR. Benchmark · — . Category · — . All values net of TER.</p>
 
-  <div class="fd-card full">
-    <h2>Centricity Score Breakdown</h2>
-    <div class="body" id="fdScoreBreakdown">—</div>
-  </div>
+      <div class="perf-table-wrap">
+        <table class="perf">
+          <thead>
+            <tr>
+              <th></th>
+              <th>YTD</th>
+              <th>1Y</th>
+              <th>3Y</th>
+              <th>5Y</th>
+              <th>SI</th>
+            </tr>
+          </thead>
+          <tbody id="perfTbody"></tbody>
+        </table>
+      </div>
 
-  <div class="fd-card">
-    <h2>Peer Comparison · Top 5 in category</h2>
-    <div class="body" id="fdPeers"></div>
-  </div>
+      <!-- NAV chart -->
+      <div class="nav-chart-wrap">
+        <div class="chart-head">
+          <div>
+            <div style="font-size:13px;font-weight:700">Growth of ₹ 1,00,000</div>
+            <div class="chart-caption" id="navChartCaption">Loading…</div>
+          </div>
+          <div class="legend">
+            <span><i style="background:var(--brown)"></i>Fund</span>
+            <span><i style="background:var(--grey-mid)"></i>Benchmark</span>
+          </div>
+          <div class="toggles" id="navToggles">
+            <button data-window="1Y">1Y</button>
+            <button data-window="3Y">3Y</button>
+            <button class="active" data-window="5Y">5Y</button>
+            <button data-window="SI">SI</button>
+          </div>
+        </div>
+        <div class="chart-canvas-wrap"><canvas id="navChart"></canvas></div>
+        <div class="chart-empty" id="navChartEmpty" hidden>
+          <div class="ring-motif"></div>
+          <p>NAV chart data pending.</p>
+        </div>
+      </div>
 
-  <div class="fd-card">
-    <h2>Fund Facts</h2>
-    <div class="body">
-      <div class="fact-list" id="fdFacts"></div>
+      <div class="rule"></div>
+
+      <!-- ROLLING -->
+      <h3 class="block-sub-h">Rolling Returns · 3-year window, daily roll</h3>
+      <div class="roll-grid" id="rollGrid"></div>
+    </section>
+
+    <!-- 02 RISK -->
+    <section class="block" id="risk">
+      <h2>Volatility, Drawdown & <em>Risk-Adjusted</em> Returns</h2>
+      <p class="h-sub" id="riskSubtitle">Trailing 3-year window. All ratios computed against the fund's benchmark.</p>
+
+      <div class="risk-grid" id="riskGrid"></div>
+
+      <h3 class="block-sub-h">Drawdown History · 5-year</h3>
+      <div class="dd-chart-wrap">
+        <div class="chart-canvas-wrap"><canvas id="ddChart"></canvas></div>
+        <div class="chart-empty" id="ddChartEmpty" hidden>
+          <div class="ring-motif"></div>
+          <p>Drawdown chart data pending.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 03 MANAGER -->
+    <section class="block" id="manager">
+      <h2>The People Behind the <em>Mandate</em></h2>
+      <p class="h-sub">Manager continuity is a primary driver of cycle-over-cycle stability. We weight tenure, prior track record, and stated investment philosophy.</p>
+
+      <div class="mgr-row">
+        <div class="mgr-avatar" id="mgrAvatar">—</div>
+        <div>
+          <div class="mgr-name" id="mgrName">—</div>
+          <div class="mgr-title" id="mgrTitle">—</div>
+          <p class="mgr-bio" id="mgrBio">—</p>
+          <div class="prior-funds">
+            <h4>Lead Manager</h4>
+            <table>
+              <tbody id="mgrLeadTbody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="mgr-stats" id="mgrStats"></div>
+      </div>
+    </section>
+
+    <!-- 04 PORTFOLIO -->
+    <section class="block" id="portfolio">
+      <h2>Sector Allocation, Top Holdings & <em>Market-Cap</em> Mix</h2>
+      <p class="h-sub" id="portfolioSubtitle">Market-cap allocation from the cycle JSON. Holdings & sector breakdown populates when the Analytics pipeline ships in v1.1.</p>
+
+      <div class="portfolio-grid">
+        <!-- LEFT — m-cap stack and (for hybrid) instrument mix -->
+        <div>
+          <div class="block-sub-h" style="margin-bottom:8px">Market-Cap Mix</div>
+          <div class="mc-bars" id="mcapBars"></div>
+          <div class="mc-legend">
+            <span><i style="background:#0E0E0E"></i>Large-cap</span>
+            <span><i style="background:var(--brown)"></i>Mid-cap</span>
+            <span><i style="background:var(--gold)"></i>Small-cap</span>
+            <span><i style="background:var(--grey-light)"></i>Others / Cash</span>
+          </div>
+
+          <div id="hybridMixWrap" hidden style="margin-top:18px">
+            <div class="block-sub-h" style="margin-bottom:8px">Equity / Debt / Others (Hybrid)</div>
+            <div class="mc-bars" id="hybridBars"></div>
+            <div class="mc-legend">
+              <span><i style="background:var(--brown)"></i>Equity</span>
+              <span><i style="background:#0E0E0E"></i>Debt</span>
+              <span><i style="background:var(--grey-light)"></i>Others</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT — analytics-pending placeholder (sector donut + top-10 holdings) -->
+        <div class="holdings-placeholder">
+          <div class="block-sub-h">Sector Allocation & Top 10 Holdings</div>
+          <div class="empty-state">
+            <div class="ring-motif" aria-hidden="true"></div>
+            <h3>Holdings & sector data — coming in v1.1</h3>
+            <p>Holdings, sector allocation, and full stock list populate when the Analytics pipeline (<code>scripts/excel_to_json_analytics.py</code>) ships. Joined to Screener funds via Scheme-Name → AMFI translation per ISSUE-0008.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 05 COST -->
+    <section class="block" id="cost">
+      <h2>What You Pay, & <em>What You Walk Away With</em></h2>
+      <p class="h-sub">All figures regular-growth plan. Direct plan TER lower by ~70 bps. Compare to category median for a like-for-like read.</p>
+
+      <div class="cost-grid" id="costGrid"></div>
+    </section>
+
+    <!-- 06 WHAT CHANGED -->
+    <section class="block" id="changed">
+      <h2>Cycle-over-cycle <em>Movement</em></h2>
+      <p class="h-sub">Cycle deltas activate when a second cycle is available in the archive.</p>
+
+      <div class="changed-grid" id="changedGrid">
+        <div class="empty-state" style="grid-column:1/-1">
+          <div class="ring-motif" aria-hidden="true"></div>
+          <h3>No prior cycle to compare against</h3>
+          <p>Cycle-over-cycle flags activate when a second cycle is available. They will populate automatically from the 30 Apr 2026 cycle onwards.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 07 VERDICT -->
+    <section class="block verdict-block" id="verdict">
+      <h2>The Final <em>Read</em></h2>
+      <p class="h-sub" id="verdictSubtitle">Updated — · Authored by the Centricity Investment Committee</p>
+
+      <div class="verdict-empty">
+        <div class="ring-motif gold" aria-hidden="true"></div>
+        <p>Centricity Investment Committee verdicts are auto-generated during the data pipeline run in Phase 5. They will appear here from the next cycle.</p>
+      </div>
+    </section>
+
+    <!-- DOWNLOAD STRIP -->
+    <div class="dl-strip">
+      <div class="meta">
+        <h3>Download the full <em>fund report</em></h3>
+        <p>Branded export — final design lock-in pending. Raw JSON link below opens the source cycle file in a new tab.</p>
+      </div>
+      <div class="dl-actions">
+        <button class="btn primary deferred" disabled
+                title="Coming after web design lock-in">PDF Report</button>
+        <button class="btn ghost deferred" disabled
+                title="Coming after web design lock-in">Pitch Deck (PPT)</button>
+        <a class="btn ghost" id="rawJsonLink" href="#" target="_blank" rel="noopener">Raw JSON</a>
+      </div>
     </div>
+
   </div>
 
-  <!-- Holdings — analytics_pending placeholder -->
-  <div class="fd-card empty full">
-    <h2>Holdings &amp; Sector Analysis</h2>
-    <div class="body">
-      <div class="ring-motif" aria-hidden="true"></div>
-      <p><b>Holdings data integration pending — coming in v1.1.</b><br>
-         Top-10 holdings, sector allocation, m-cap split, top-3 sector concentration, and full-stock list
-         all source from the monthly Analytics file pipeline (see <code>analytics_pending</code> on this fund's record). This section
-         will populate once <code>scripts/excel_to_json_analytics.py</code> ships.</p>
+  <!-- TOC -->
+  <aside class="toc" aria-label="Section navigation">
+    <h6>Sections</h6>
+    <ol>
+      <li><a href="#performance">Performance</a></li>
+      <li><a href="#risk">Risk Profile</a></li>
+      <li><a href="#manager">Fund Manager</a></li>
+      <li><a href="#portfolio">Portfolio</a></li>
+      <li><a href="#cost">Cost & Structure</a></li>
+      <li><a href="#changed">What Changed</a></li>
+      <li><a href="#verdict">Verdict</a></li>
+    </ol>
+    <div class="toc-disclaimer">
+      <b>Disclaimer</b>
+      For internal advisor use. Production reports are populated from validated fortnightly Whitelisting JSON. Edit Weights on Screener never propagate here — Fund Detail always reads the Excel-locked Centricity score.
     </div>
-  </div>
+  </aside>
+</div>
 
-  <!-- Movement panel — analytics_pending placeholder -->
-  <div class="fd-card empty">
-    <h2>Movement · Last 6 Cycles</h2>
-    <div class="body">
-      <div class="ring-motif" aria-hidden="true"></div>
-      <p>Rank history, AUM trend, TER trend, and manager change badges populate
-         from the Analytics + cycle archive pipelines in v1.1. With only one cycle currently
-         in the archive, there's nothing to plot.</p>
-    </div>
-  </div>
-
-  <!-- Active Flags for THIS fund — empty state when fund.cycle_flags null -->
-  <div class="fd-card" id="fdFlagsCard">
-    <h2>Active Flags</h2>
-    <div class="body" id="fdFlags"></div>
-  </div>
-
-  <!-- Analyst Note placeholder (Phase 5) -->
-  <div class="fd-card empty">
-    <h2>Auto-Generated Analyst Note</h2>
-    <div class="body">
-      <div class="ring-motif" aria-hidden="true"></div>
-      <p>Pre-baked Pros / Cons / Risk-flags / What-changed write-ups land in Phase 5 — generated
-         during the GitHub Action via a one-time Claude API call per fund per cycle, cached in JSON.</p>
-    </div>
-  </div>
-
-</section>
+<!-- error / not-found shell — hidden until needed -->
+<div class="not-found" id="notFound" hidden>
+  <div class="ring-motif" aria-hidden="true"></div>
+  <h3 id="notFoundHeading">Fund not found</h3>
+  <p id="notFoundBody">The scheme code requested isn't in this cycle.</p>
+  <p><a class="btn primary" href="screener.html">Back to Screener</a></p>
+</div>
 
 </main>
 
