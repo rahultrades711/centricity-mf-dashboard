@@ -298,11 +298,12 @@
     const cell = (v) => (v == null || isNaN(v))
       ? '<td>—</td>'
       : `<td class="${v < 0 ? 'neg' : ''}">${fmtPct(v, 2)}</td>`;
-    // Excess row uses signed format: positive in default colour, negative
-    // in --red. Both with explicit sign (Unicode minus/plus) — Fix-List 6 §2A.
+    // Excess row uses explicit colour: positive Deep Green (#0F5132),
+    // negative Dark Red (#931621), zero default. Sign always explicit
+    // via fmtPctSigned. Fix-List 7 §1A.
     const excessCell = (v) => {
       if (v == null || isNaN(v)) return '<td>—</td>';
-      const cls = v < 0 ? 'neg' : '';
+      const cls = v > 0 ? 'pos' : (v < 0 ? 'neg' : '');
       return `<td class="${cls}">${fmtPctSigned(v, 2)}</td>`;
     };
 
@@ -323,6 +324,14 @@
         <td><b>Excess Return</b></td>
         ${excessVals.map(excessCell).join('')}
       </tr>`;
+
+    // Fix-List 7 §1B — footnote below the returns table
+    const foot = document.getElementById('perfTableFoot');
+    if (foot) {
+      const dateStr = DataLoader.fmtDate(_cycle.cycle_meta.cycle_date);
+      foot.innerHTML =
+        `Excess Return = Fund return − Benchmark return (point-to-point, as on ${escapeHtml(dateStr)}).`;
+    }
   }
 
   function _renderReturnsBarChartWhenReady() {
@@ -344,6 +353,31 @@
     const colourBars = (vals, brandColor) => vals.map(v =>
       (v != null && v < 0) ? '#931621' : brandColor
     );
+
+    // Fix-List 7 §2 — Chart.js plugin that draws value labels above each
+    // bar (positive) or below it (negative). No external plugin dep —
+    // afterDatasetsDraw fires after Chart.js renders every dataset.
+    const barLabelsPlugin = {
+      id: 'barLabels',
+      afterDatasetsDraw(chart) {
+        const c = chart.ctx;
+        chart.data.datasets.forEach((ds, i) => {
+          const meta = chart.getDatasetMeta(i);
+          meta.data.forEach((bar, j) => {
+            const val = ds.data[j];
+            if (val == null) return;
+            c.save();
+            c.font = "bold 9px 'Cambria', Georgia, serif";
+            c.fillStyle = '#000';
+            c.textAlign = 'center';
+            c.textBaseline = val >= 0 ? 'bottom' : 'top';
+            const yOffset = val >= 0 ? -2 : 2;
+            c.fillText(fmtPct(val, 2), bar.x, bar.y + yOffset);
+            c.restore();
+          });
+        });
+      },
+    };
 
     _returnsBarChartInstance = new window.Chart(ctx, {
       type: 'bar',
@@ -370,6 +404,7 @@
           },
         ],
       },
+      plugins: [barLabelsPlugin],
       options: {
         responsive: true, maintainAspectRatio: false,
         animation: { duration: 200 },
@@ -574,6 +609,10 @@
     const catMaxDD    = catAvg(f => f.risk_metrics ? f.risk_metrics.max_drawdown_3y_pct : null);
     const catCapture  = (catUpCap != null && catDownCap != null && catDownCap !== 0)
       ? (catUpCap / catDownCap) : null;
+    // Fix-List 7 §7A — Portfolio Turnover joins the Risk grid as a behavioural
+    // proxy for manager activity. Sourced from the same Excel column as before.
+    const turnover    = fund.turnover_pct;
+    const catTurnover = catAvg(f => f.turnover_pct);
 
     const cards = [
       {
@@ -600,6 +639,10 @@
       {
         lbl: 'Beta', v: beta, fmt: v => DataLoader.fmtNum(v, 2),
         cmp: `Vs benchmark · 3Y daily<br>Cat avg · <b>${nullOrNum(catBeta, 2)}</b>`,
+      },
+      {
+        lbl: 'Portfolio Turnover', v: turnover, fmt: v => `${DataLoader.fmtNum(v, 1)}%`,
+        cmp: `Lower = longer holding period<br>Cat avg · <b>${nullOrPct(catTurnover, 1)}</b>`,
       },
     ];
     document.getElementById('riskGrid').innerHTML = cards.map(c => {
@@ -637,12 +680,14 @@
         <td>${escapeHtml(tenureStr)}</td>
       </tr>`;
 
-    // Stats grid — Fix-List 5 §C12 dropped 'Active Share' (no data source)
+    // Stats grid — Fix-List 5 §C12 dropped 'Active Share' (no data source).
+    // Fix-List 7 §6 dropped 'AMC Score' from this grid (kept on the fund
+    // record for ranking, but not surfaced here — the score-card already
+    // carries the fund-level read).
     const cells = [
       ['Tenure',         fund.manager_tenure_yrs != null ? `${DataLoader.fmtNum(fund.manager_tenure_yrs, 1)} yrs` : '—'],
       ['Fund AUM',       fund.aum_cr != null ? `₹ ${DataLoader.fmtINR(fund.aum_cr)} Cr` : '—'],
       ['No. of Stocks',  fund.no_of_stocks != null ? fund.no_of_stocks : '—'],
-      ['AMC Score',      fund.amc_score != null ? `${fund.amc_score} / 10` : '—'],
       ['Fund Tenure',    fund.fund_tenure_yrs != null ? `${DataLoader.fmtNum(fund.fund_tenure_yrs, 1)} yrs` : '—'],
     ];
     document.getElementById('mgrStats').innerHTML = cells
@@ -817,7 +862,22 @@
       terSub = 'Category median unavailable.';
     }
 
+    // Fix-List 7 §7B — Cost section grid:
+    //   • Portfolio Turnover MOVED to the Risk grid (§7A).
+    //   • Taxation row split into separate LTCG and STCG cards so each
+    //     headline rate sits in its own card. Equity-taxed funds: LTCG
+    //     12.5% (>1 yr, above ₹1.25L), STCG 20% (≤1 yr). Slab-taxed
+    //     funds: both cards show "Slab rate (any holding period)".
     const taxation = getTaxation(fund);
+    const isEquityTaxed = taxation.regime === 'Equity (LTCG / STCG)';
+    const ltcg = isEquityTaxed
+      ? { v: '12.5%', sub: 'On gains above ₹1.25 L (holding &gt; 1 yr).' }
+      : { v: 'Slab rate', sub: 'Taxed at slab rate (any holding period).' };
+    const stcg = isEquityTaxed
+      ? { v: '20%', sub: 'Holding ≤ 1 yr.' }
+      : { v: 'Slab rate', sub: 'Taxed at slab rate (any holding period).' };
+    const taxFootnote = '<span class="footnote">Surcharge &amp; cess applicable additionally. Consult your tax advisor.</span>';
+
     const cards = [
       {
         lbl: 'TER (Regular Plan)',
@@ -832,14 +892,14 @@
           : 'Exit-load data missing — check the offer document.',
       },
       {
-        lbl: 'Portfolio Turnover',
-        v: fund.turnover_pct != null ? `${DataLoader.fmtNum(fund.turnover_pct, 1)}%` : '—',
-        sub: 'Lower = longer holding period.',
+        lbl: 'LTCG (Long-Term Capital Gains)',
+        v: ltcg.v,
+        sub: ltcg.sub + ' ' + taxFootnote,
       },
       {
-        lbl: 'Taxation',
-        v: taxation.regime,
-        sub: taxation.detail + ' <span class="footnote">Surcharge & cess applicable. Consult your tax advisor.</span>',
+        lbl: 'STCG (Short-Term Capital Gains)',
+        v: stcg.v,
+        sub: stcg.sub + ' ' + taxFootnote,
       },
     ];
     document.getElementById('costGrid').innerHTML = cards.map(c => `
@@ -1003,15 +1063,28 @@
   }
 
   /* ============================================================
-   * NAV CHART (Performance)
+   * NAV CHART + DRAWDOWN CHART (Performance + Risk)
+   * Fix-List 7 — full reimplementation per spec.
+   *
+   * Module-level _navSeriesCache holds the FULL nav-series JSON document
+   * after the first fetch, so `loadNavSeries` for the current fund AND
+   * peer lookups for the Category Avg line all read from the same cache.
    * ============================================================ */
+  let _navSeriesCache = null;          // full document {cycle_date, series}
+
+  /**
+   * Resolve the full nav-series document (fetched once per page load),
+   * then return the entry for the requested scheme code or null.
+   */
   async function loadNavSeries(schemeCode) {
-    const cycleDate = _cycle.cycle_meta.cycle_date;
-    const url = `data/nav-series-${cycleDate}.json`;
-    const res = await fetch(url, { cache: 'default' });
-    if (!res.ok) throw new Error('nav-series HTTP ' + res.status);
-    const doc = await res.json();
-    const entry = doc.series && doc.series[String(schemeCode)];
+    if (!_navSeriesCache) {
+      const cycleDate = _cycle.cycle_meta.cycle_date;
+      const url = `data/nav-series-${cycleDate}.json`;
+      const res = await fetch(url, { cache: 'default' });
+      if (!res.ok) throw new Error('nav-series HTTP ' + res.status);
+      _navSeriesCache = await res.json();
+    }
+    const entry = _navSeriesCache.series && _navSeriesCache.series[String(schemeCode)];
     if (!entry) throw new Error('scheme not in nav-series');
     return entry;
   }
@@ -1030,122 +1103,275 @@
     return _chartJsLoadPromise;
   }
 
+  function showNavEmpty() {
+    const el = document.getElementById('navChartEmpty');
+    if (el) el.hidden = false;
+    const canvas = document.getElementById('navChart');
+    if (canvas) canvas.style.display = 'none';
+    const cap = document.getElementById('navChartCaption');
+    if (cap) cap.textContent = '—';
+  }
+  function showDdEmpty() {
+    const el = document.getElementById('ddChartEmpty');
+    if (el) el.hidden = false;
+    const canvas = document.getElementById('ddChart');
+    if (canvas) canvas.style.display = 'none';
+  }
+
+  /**
+   * Build the "Growth of ₹ 1,00,000" chart. Pre-computes which window
+   * toggles are available (3Y requires fund_tenure ≥ 3, 5Y requires ≥ 5),
+   * picks the longest available default, wires toggle clicks, and draws.
+   */
   function renderNavChart() {
     if (!_navSeries || !_navSeries.fund || _navSeries.fund.length === 0) {
       showNavEmpty();
       return;
     }
     ensureChartJs().then(() => {
-      doRenderNavChart();
-      // Wire toggles
-      document.querySelectorAll('#navToggles button').forEach(btn => {
-        btn.addEventListener('click', () => {
-          document.querySelectorAll('#navToggles button').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-          _navWindow = btn.getAttribute('data-window');
-          doRenderNavChart();
-        });
-      });
+      _setupNavToggles();
+      _drawNavChart();
     }).catch(showNavEmpty);
   }
 
-  function doRenderNavChart() {
-    const s = _navSeries;
-    const fund = s.fund || [];
-    const bench = s.bench || [];
+  function _setupNavToggles() {
+    const tenure = _fund && _fund.fund_tenure_yrs != null ? _fund.fund_tenure_yrs : 0;
+    const buttons = Array.from(document.querySelectorAll('#navToggles button'));
+    let firstAvailable = null;
+    let preferred = null;
+    buttons.forEach(btn => {
+      const w = btn.getAttribute('data-window');
+      const minYrs = w === '5Y' ? 5 : (w === '3Y' ? 3 : 1);
+      const enabled = w === '1Y' || tenure >= minYrs;
+      btn.classList.toggle('disabled', !enabled);
+      btn.style.pointerEvents = enabled ? 'auto' : 'none';
+      btn.style.opacity = enabled ? '' : '0.4';
+      if (enabled && firstAvailable == null) firstAvailable = w;
+      if (enabled && (w === '5Y' || (w === '3Y' && preferred !== '5Y'))) preferred = w;
+    });
+    // Default selection: 5Y if available, else 3Y if available, else 1Y
+    _navWindow = preferred || firstAvailable || '1Y';
+    buttons.forEach(b => b.classList.toggle('active', b.getAttribute('data-window') === _navWindow));
+    // Click handlers (re-wire on every render to handle re-init cases)
+    buttons.forEach(btn => {
+      btn.onclick = () => {
+        if (btn.classList.contains('disabled')) return;
+        buttons.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        _navWindow = btn.getAttribute('data-window');
+        _drawNavChart();
+      };
+    });
+  }
+
+  function _drawNavChart() {
+    const fund = _navSeries.fund || [];
+    const bench = _navSeries.bench || [];
     if (fund.length < 2) { showNavEmpty(); return; }
 
-    // Determine window start
-    const lastDate = parseYM(fund[fund.length - 1].d);
-    const windowStart = computeWindowStart(_navWindow, lastDate, parseYM(fund[0].d));
-    const slicedFund  = fund.filter(p => parseYM(p.d) >= windowStart);
-    const slicedBench = bench.filter(p => parseYM(p.d) >= windowStart);
-
+    // Window slicing
+    const cycleDate = _cycle.cycle_meta.cycle_date;
+    const cycleYM = cycleDate.slice(0, 7);
+    const cycleYear = parseInt(cycleDate.slice(0, 4), 10);
+    const yearsBack = _navWindow === '5Y' ? 5 : (_navWindow === '3Y' ? 3 : 1);
+    const anchorYM = `${cycleYear - yearsBack}-${cycleDate.slice(5, 7)}`;
+    const slicedFund  = fund.filter(p  => p.d >= anchorYM && p.d <= cycleYM);
+    const slicedBench = bench.filter(p => p.d >= anchorYM && p.d <= cycleYM);
     if (slicedFund.length < 2) { showNavEmpty(); return; }
 
-    // Normalise both series to ₹1,00,000 at the start of the window
+    // Normalise to ₹100,000 at window start
     const baseFund = slicedFund[0].v;
-    const baseBench = slicedBench.length ? slicedBench[0].v : null;
-    const normalisedFund  = slicedFund.map(p => ({ d: p.d, v: (p.v / baseFund) * 100000 }));
-    const normalisedBench = baseBench
-      ? slicedBench.map(p => ({ d: p.d, v: (p.v / baseBench) * 100000 }))
-      : [];
+    const fundData = slicedFund.map(p => 100000 * (p.v / baseFund));
+    const labels = slicedFund.map(p => p.d);
 
-    const labels = normalisedFund.map(p => p.d);
-    const fundData = normalisedFund.map(p => p.v);
-    // Align bench data to fund's labels by date key (so missing bench months render gaps)
-    const benchByMonth = new Map(normalisedBench.map(p => [p.d, p.v]));
-    const benchData = labels.map(d => benchByMonth.has(d) ? benchByMonth.get(d) : null);
+    let benchData = labels.map(_ => null);
+    if (slicedBench.length >= 2) {
+      const baseBench = slicedBench[0].v;
+      const benchByMonth = new Map(slicedBench.map(p => [p.d, 100000 * (p.v / baseBench)]));
+      benchData = labels.map(d => benchByMonth.has(d) ? benchByMonth.get(d) : null);
+    }
+
+    // Category Avg — peers' nav-series, normalised to anchor month, mean per date
+    const catData = _computeCategoryAvgSeries(labels, anchorYM);
 
     const cap = document.getElementById('navChartCaption');
-    const startStr  = formatYMShort(slicedFund[0].d);
-    const endStr    = formatYMShort(slicedFund[slicedFund.length - 1].d);
-    cap.textContent = `${startStr} → ${endStr} · normalised at window start to ₹ 1,00,000`;
+    if (cap) {
+      const finalFund  = fundData[fundData.length - 1];
+      const finalBench = benchData.filter(v => v != null).pop();
+      const anchorLabel = formatYMLong(slicedFund[0].d);
+      cap.innerHTML =
+        `₹ 1,00,000 invested on <b>${escapeHtml(anchorLabel)}</b> → ` +
+        `Fund: <b>₹ ${DataLoader.fmtINR(finalFund)}</b>` +
+        (finalBench != null
+          ? ` · Benchmark: <b>₹ ${DataLoader.fmtINR(finalBench)}</b>`
+          : '');
+    }
 
     const ctx = document.getElementById('navChart').getContext('2d');
     if (_navChartInstance) { _navChartInstance.destroy(); _navChartInstance = null; }
 
+    const datasets = [
+      {
+        label: 'Fund', data: fundData,
+        borderColor: '#BD9568', backgroundColor: 'rgba(189,149,104,.10)',
+        fill: false, tension: .25, pointRadius: 0, borderWidth: 2,
+        spanGaps: true,
+      },
+      {
+        label: 'Benchmark', data: benchData,
+        borderColor: '#BFBFBF', backgroundColor: 'transparent',
+        fill: false, tension: .25, pointRadius: 0, borderWidth: 1.5,
+        borderDash: [4, 3], spanGaps: true,
+      },
+    ];
+    if (catData) {
+      datasets.push({
+        label: 'Category Avg', data: catData,
+        borderColor: '#0E0E0E', backgroundColor: 'transparent',
+        fill: false, tension: .25, pointRadius: 0, borderWidth: 1,
+        borderDash: [2, 4], spanGaps: true,
+      });
+    }
+
     _navChartInstance = new window.Chart(ctx, {
       type: 'line',
-      data: {
-        labels,
-        datasets: [
-          {
-            label: 'Fund',
-            data: fundData,
-            borderColor: '#6B3F1A', backgroundColor: 'rgba(107,63,26,.10)',
-            fill: true, tension: .25, pointRadius: 0, borderWidth: 2.4,
-          },
-          {
-            label: 'Benchmark',
-            data: benchData,
-            borderColor: '#BFBFBF', backgroundColor: 'transparent',
-            fill: false, tension: .25, pointRadius: 0, borderWidth: 1.8, borderDash: [],
-            spanGaps: true,
-          },
-        ],
-      },
-      options: chartOpts({
-        yTickCallback: (v) => '₹ ' + DataLoader.fmtINR(v),
-        xMaxTicks: 6,
-      }),
+      data: { labels, datasets },
+      options: _navChartOptions(),
     });
-    document.getElementById('navChartEmpty').hidden = true;
+    const navEmpty = document.getElementById('navChartEmpty');
+    if (navEmpty) navEmpty.hidden = true;
     document.getElementById('navChart').style.display = '';
   }
 
-  function showNavEmpty() {
-    document.getElementById('navChart').style.display = 'none';
-    document.getElementById('navChartEmpty').hidden = false;
-    document.getElementById('navChartCaption').textContent = '—';
+  /**
+   * Returns an array (length = labels.length) of category-mean normalised
+   * NAV values, or null if fewer than 3 peers had coverage at the anchor.
+   * Implementation: walk every Ranked-or-otherwise peer in the same
+   * SEBI category, look up their entry in _navSeriesCache, find the
+   * normalisation anchor (first point with d >= anchorYM), forward-fill
+   * missing months, then average across peers per date.
+   */
+  function _computeCategoryAvgSeries(labels, anchorYM) {
+    if (!_navSeriesCache || !_navSeriesCache.series || !_fund) return null;
+    const peers = (_cycle.funds || []).filter(f =>
+      f.category === _fund.category && f.scheme_code !== _fund.scheme_code);
+    const peerNormalised = [];
+    for (const peer of peers) {
+      const entry = _navSeriesCache.series[String(peer.scheme_code)];
+      if (!entry || !entry.fund || entry.fund.length < 2) continue;
+      const series = entry.fund;
+      // Find the first point at or after anchorYM
+      const anchor = series.find(p => p.d >= anchorYM);
+      if (!anchor || anchor.d > anchorYM) {
+        // Need exact-or-earlier coverage; allow up to 1 month tolerance
+        if (!anchor || _monthsDiff(anchor.d, anchorYM) > 1) continue;
+      }
+      const baseV = anchor.v;
+      if (!(baseV > 0)) continue;
+      const byMonth = new Map();
+      for (const p of series) {
+        if (p.d < anchorYM) continue;
+        byMonth.set(p.d, 100000 * (p.v / baseV));
+      }
+      // Forward-fill missing months along the fund's label backbone
+      const filled = [];
+      let last = null;
+      for (const d of labels) {
+        if (byMonth.has(d)) last = byMonth.get(d);
+        filled.push(last);                         // null until first peer point
+      }
+      peerNormalised.push(filled);
+      if (peerNormalised.length >= 50) break;       // cap per spec
+    }
+    if (peerNormalised.length < 3) return null;
+    const out = labels.map((_, i) => {
+      const vals = peerNormalised.map(arr => arr[i]).filter(v => v != null);
+      if (vals.length === 0) return null;
+      return vals.reduce((s, v) => s + v, 0) / vals.length;
+    });
+    return out;
   }
-  function showDdEmpty() {
-    document.getElementById('ddChart').style.display = 'none';
-    document.getElementById('ddChartEmpty').hidden = false;
+
+  function _monthsDiff(ymA, ymB) {
+    const [aY, aM] = ymA.split('-').map(Number);
+    const [bY, bM] = ymB.split('-').map(Number);
+    return Math.abs((aY - bY) * 12 + (aM - bM));
+  }
+
+  /**
+   * NAV chart options — sparse x-axis (Jan + final), Indian-comma ₹
+   * y-ticks, three-series tooltip with date as "Mon YYYY".
+   */
+  function _navChartOptions() {
+    return {
+      responsive: true, maintainAspectRatio: false,
+      animation: { duration: 220 },
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#000', titleColor: '#BD9568', bodyColor: '#fff',
+          borderColor: '#6B3F1A', borderWidth: 1,
+          callbacks: {
+            title: (items) => items.length ? formatYMLong(items[0].label) : '',
+            label: (ctx) => `${ctx.dataset.label}: ${ctx.raw == null ? '—' : '₹ ' + DataLoader.fmtINR(ctx.raw)}`,
+          },
+        },
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: {
+            font: { family: "'Cambria', Georgia, serif", size: 10 },
+            color: '#666',
+            autoSkip: false,
+            callback: function (val, idx, all) {
+              const lbl = this.getLabelForValue(val);
+              const isJan = lbl && lbl.endsWith('-01');
+              const isLast = idx === all.length - 1;
+              if (isJan || isLast) return formatYMShort(lbl);
+              return '';
+            },
+          },
+        },
+        y: {
+          grid: { color: 'rgba(217, 217, 217, .55)', drawBorder: false },
+          ticks: {
+            font: { family: "'Cambria', Georgia, serif", size: 10 },
+            color: '#666',
+            callback: (v) => '₹ ' + DataLoader.fmtINR(v),
+          },
+        },
+      },
+    };
+  }
+
+  function formatYMLong(ym) {
+    if (!ym) return '—';
+    const d = parseYM(ym);
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${months[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
   }
 
   /* ============================================================
-   * DRAWDOWN CHART (Risk)
+   * DRAWDOWN CHART
    * ============================================================ */
   function renderDrawdownChart() {
     if (!_navSeries || !_navSeries.fund || _navSeries.fund.length < 2) {
       showDdEmpty(); return;
     }
-    ensureChartJs().then(doRenderDdChart).catch(showDdEmpty);
+    ensureChartJs().then(_drawDdChart).catch(showDdEmpty);
   }
 
-  function doRenderDdChart() {
+  function _drawDdChart() {
+    // Fix-List 7 — use ALL available history (not window-gated) so the
+    // running-peak drawdown captures the historical low, not just the
+    // 5Y slice.
     const fund = _navSeries.fund || [];
     if (fund.length < 12) { showDdEmpty(); return; }
-    // 5Y window
-    const lastDate = parseYM(fund[fund.length - 1].d);
-    const windowStart = computeWindowStart('5Y', lastDate, parseYM(fund[0].d));
-    const sliced = fund.filter(p => parseYM(p.d) >= windowStart);
-    if (sliced.length < 12) { showDdEmpty(); return; }
 
-    // Compute drawdown series: dd[t] = (nav[t] / running_peak) - 1
-    let peak = sliced[0].v;
-    const dd = sliced.map(p => {
+    let peak = fund[0].v;
+    const dd = fund.map(p => {
       if (p.v > peak) peak = p.v;
       const d = peak > 0 ? (p.v / peak - 1) : 0;
       return { d: p.d, dd: d * 100 };
@@ -1167,62 +1393,52 @@
           fill: true, tension: .15, pointRadius: 0, borderWidth: 1.8,
         }],
       },
-      options: chartOpts({
-        yMax: 0,
-        yTickCallback: (v) => `${DataLoader.fmtNum(v, 0)}%`,
-        xMaxTicks: 6,
-      }),
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        animation: { duration: 200 },
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#000', titleColor: '#BD9568', bodyColor: '#fff',
+            borderColor: '#6B3F1A', borderWidth: 1,
+            callbacks: {
+              label: (ctx) =>
+                `Drawdown: ${ctx.raw == null ? '—' : fmtPctSigned(ctx.raw, 2)} · ${formatYMLong(ctx.label)}`,
+            },
+          },
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: {
+              font: { family: "'Cambria', Georgia, serif", size: 10 },
+              color: '#666',
+              autoSkip: false,
+              callback: function (val, idx, all) {
+                const lbl = this.getLabelForValue(val);
+                const isJan = lbl && lbl.endsWith('-01');
+                const isLast = idx === all.length - 1;
+                if (isJan || isLast) return formatYMShort(lbl);
+                return '';
+              },
+            },
+          },
+          y: {
+            max: 0,
+            grid: { color: 'rgba(217, 217, 217, .55)', drawBorder: false },
+            ticks: {
+              font: { family: "'Cambria', Georgia, serif", size: 10 },
+              color: '#666',
+              callback: (v) => `${DataLoader.fmtNum(v, 0)}%`,
+            },
+          },
+        },
+      },
     });
-    document.getElementById('ddChartEmpty').hidden = true;
+    const ddEmpty = document.getElementById('ddChartEmpty');
+    if (ddEmpty) ddEmpty.hidden = true;
     document.getElementById('ddChart').style.display = '';
-  }
-
-  /* ---------- Chart.js shared options ---------- */
-  function chartOpts(extra) {
-    extra = extra || {};
-    return {
-      responsive: true,
-      maintainAspectRatio: false,
-      animation: { duration: 250 },
-      interaction: { mode: 'index', intersect: false },
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          backgroundColor: '#000', titleColor: '#BD9568', bodyColor: '#fff',
-          borderColor: '#6B3F1A', borderWidth: 1,
-          callbacks: {
-            label: (ctx) => `${ctx.dataset.label}: ${ctx.raw == null ? '—' :
-              (extra.yTickCallback ? extra.yTickCallback(ctx.raw) :
-                DataLoader.fmtNum(ctx.raw, 2))}`,
-          },
-        },
-      },
-      scales: {
-        x: {
-          grid: { display: false },
-          ticks: {
-            font: { family: "'Cambria', Georgia, serif", size: 10 },
-            color: '#666',
-            maxTicksLimit: extra.xMaxTicks || 8,
-            callback: function (val) {
-              const lbl = this.getLabelForValue(val);
-              return formatYMShort(lbl);
-            },
-          },
-        },
-        y: {
-          grid: { color: 'rgba(217, 217, 217, .55)', drawBorder: false },
-          ticks: {
-            font: { family: "'Cambria', Georgia, serif", size: 10 },
-            color: '#666',
-            callback: function (v) {
-              return extra.yTickCallback ? extra.yTickCallback(v) : DataLoader.fmtNum(v, 2);
-            },
-          },
-          max: extra.yMax,
-        },
-      },
-    };
   }
 
   /* ---------- date helpers (YYYY-MM keys) ---------- */
@@ -1234,14 +1450,6 @@
     const d = parseYM(ym);
     const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     return `${months[d.getUTCMonth()]} ${String(d.getUTCFullYear()).slice(2)}`;
-  }
-  function computeWindowStart(win, lastDate, seriesStart) {
-    const out = new Date(lastDate);
-    if (win === 'SI') return seriesStart;
-    if (win === '1Y') out.setUTCFullYear(out.getUTCFullYear() - 1);
-    if (win === '3Y') out.setUTCFullYear(out.getUTCFullYear() - 3);
-    if (win === '5Y') out.setUTCFullYear(out.getUTCFullYear() - 5);
-    return out < seriesStart ? seriesStart : out;
   }
 
   /* ============================================================
@@ -1294,6 +1502,29 @@
     const sectorData = sectorRows.map(s => ({ label: s.sector || '—', value: s.holding_pct }));
     _renderDonutWhenReady('sectorDonut', sectorData, SECTOR_PALETTE, null, 'sector');
 
+    // Fix-List 7 §3 — two-column legend below the sector donut.
+    // Odd ranks (1, 3, 5, ...) go left; even ranks (2, 4, 6, ...) go right.
+    // Sectors arrive sorted descending by allocation from the converter.
+    const legendEl = document.getElementById('sectorLegend');
+    if (legendEl) {
+      const colours = sectorData.map((_, i) => SECTOR_PALETTE[i % SECTOR_PALETTE.length]);
+      const left = [];
+      const right = [];
+      sectorData.forEach((d, i) => {
+        const row = `
+          <div class="dlegend-row">
+            <span class="dlegend-sw" style="background:${colours[i]}"></span>
+            <span class="dlegend-lbl">${escapeHtml(d.label)}</span>
+            <b class="dlegend-pct">${DataLoader.fmtNum(d.value, 2)}%</b>
+          </div>`;
+        // i is 0-based; rank = i+1. Odd ranks (i even) → left, even ranks (i odd) → right.
+        if (i % 2 === 0) left.push(row); else right.push(row);
+      });
+      legendEl.innerHTML = `
+        <div class="sector-legend-col">${left.join('')}</div>
+        <div class="sector-legend-col">${right.join('')}</div>`;
+    }
+
     // ---- Compact holdings table (right column) ----
     const mount = document.getElementById('holdingsTableMount');
     const holdingsTitle = document.getElementById('holdingsTitle');
@@ -1333,6 +1564,8 @@
     if (canvas) canvas.style.display = 'none';
     const empty = document.getElementById('sectorDonutEmpty');
     if (empty) empty.hidden = false;
+    const legendEl = document.getElementById('sectorLegend');
+    if (legendEl) legendEl.innerHTML = '';
   }
 
   /* ============================================================

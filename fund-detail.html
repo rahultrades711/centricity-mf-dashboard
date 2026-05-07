@@ -97,6 +97,7 @@
           <tbody id="perfTbody"></tbody>
         </table>
       </div>
+      <p class="perf-table-foot" id="perfTableFoot"></p>
 
       <!-- Returns grouped bar chart — Fund / Benchmark / Cat Avg across the 6 periods -->
       <div class="returns-chart-wrap" id="returnsChartWrap">
@@ -122,14 +123,14 @@
             <div class="chart-caption" id="navChartCaption">Loading…</div>
           </div>
           <div class="legend">
-            <span><i style="background:var(--brown)"></i>Fund</span>
-            <span><i style="background:var(--grey-mid)"></i>Benchmark</span>
+            <span><i style="background:var(--gold)"></i>Fund</span>
+            <span><i style="background:var(--grey-mid);border-style:dashed"></i>Benchmark</span>
+            <span><i style="background:#0E0E0E"></i>Category Avg</span>
           </div>
           <div class="toggles" id="navToggles">
             <button data-window="1Y">1Y</button>
             <button data-window="3Y">3Y</button>
             <button class="active" data-window="5Y">5Y</button>
-            <button data-window="SI">SI</button>
           </div>
         </div>
         <div class="chart-canvas-wrap"><canvas id="navChart"></canvas></div>
@@ -165,7 +166,7 @@
 
     <!-- 03 MANAGER -->
     <section class="block" id="manager">
-      <h2>The People Behind the <em>Mandate</em></h2>
+      <h2>The People Behind the <em>Fund</em></h2>
       <p class="h-sub">Manager continuity is a primary driver of cycle-over-cycle stability. We weight tenure, prior track record, and stated investment philosophy.</p>
 
       <div class="mgr-row">
@@ -208,6 +209,7 @@
           <div class="port-card" id="sectorDonutCard">
             <div class="port-card-h" id="sectorDonutTitle">Sector Allocation</div>
             <div class="donut-wrap"><canvas id="sectorDonut"></canvas></div>
+            <div class="sector-legend" id="sectorLegend"></div>
             <div class="donut-empty" id="sectorDonutEmpty" hidden>
               <div class="ring-motif"></div>
               <p>Sector data pending. Analytics pipeline v1.1.</p>

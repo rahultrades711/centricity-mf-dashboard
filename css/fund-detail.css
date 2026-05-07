@@ -249,6 +249,18 @@ table.perf .row-cat td { color: var(--text-mid); font-style: italic; }
 table.perf .row-excess { border-top: 2px solid var(--gold); }
 table.perf .row-excess td:first-child { color: var(--black); font-weight: 700; font-style: normal; }
 table.perf .row-excess td { font-weight: 700; }
+/* Fix-List 7 §1A — explicit colour rules pinned with !important so the
+ * Excess Return cells override the table-default colour cascade. */
+table.perf .row-excess .pos,
+.row-excess .pos { color: #0F5132 !important; font-weight: 700; }
+table.perf .row-excess .neg,
+.row-excess .neg { color: #931621 !important; font-weight: 700; }
+
+/* Fix-List 7 §1B — footnote below the returns table */
+.perf-table-foot {
+  margin: 8px 0 0; font-size: 11px;
+  color: #666; font-style: italic; line-height: 1.4;
+}
 table.perf .delta-pos { color: var(--green); font-weight: 700; }
 table.perf .delta-neg { color: var(--red); font-weight: 700; }
 table.perf .neg { color: var(--red); }
@@ -335,20 +347,22 @@ table.perf .neg { color: var(--red); }
 .roll-bar i { display: block; height: 100%; background: var(--gold); }
 .roll-bar i.neg { background: var(--red); }
 
-/* ============ RISK GRID ============ */
+/* ============ RISK GRID ============
+ * Fix-List 7 §7A — 7 cards now (Sharpe, Down/Up/Capture, MaxDD, Beta,
+ * Portfolio Turnover). Slight font-size trim on .v to keep each card legible. */
 .risk-grid {
-  display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 18px;
+  display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; margin-bottom: 18px;
 }
 .risk-card {
-  border: 1px solid var(--rule); border-radius: 4px; padding: 16px 16px;
+  border: 1px solid var(--rule); border-radius: 4px; padding: 14px 14px;
   background: #fafaf7; display: flex; flex-direction: column; gap: 6px;
 }
 .risk-card .lbl {
-  font-size: 10px; letter-spacing: .18em; text-transform: uppercase;
+  font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase;
   color: var(--gold); font-weight: 700;
 }
 .risk-card .v {
-  font-size: 22px; font-weight: 700; letter-spacing: -.01em;
+  font-size: 19px; font-weight: 700; letter-spacing: -.01em;
 }
 .risk-card .v.neg { color: var(--red); }
 .risk-card .sub { font-size: 11.5px; color: var(--text-mid); }
@@ -458,6 +472,19 @@ table.perf .neg { color: var(--red); }
   font-variant-numeric: tabular-nums;
   color: var(--black); font-weight: 700;
 }
+
+/* Fix-List 7 §3 — two-column sector legend below the donut.
+ * Odd ranks (1, 3, 5...) sit in the left column, even ranks (2, 4, 6...)
+ * in the right. Sector list arrives sorted descending. */
+.sector-legend {
+  margin-top: 14px;
+  display: grid; grid-template-columns: 1fr 1fr;
+  column-gap: 18px;
+}
+.sector-legend-col {
+  display: flex; flex-direction: column; gap: 2px;
+}
+.sector-legend .dlegend-row { font-size: 11.5px; padding: 2px 0; }
 
 /* Compact holdings table (right column) */
 .holdings-pending {
@@ -662,30 +689,19 @@ table.holdings-tbl tbody tr:hover td { background: var(--tan-soft); }
   background: #fafaf7;
 }
 
-/* ============ VERDICT ============ */
-.verdict-block {
-  background: #000; color: #fff; border-radius: 6px;
-  padding: 32px 34px; border: 1px solid var(--brown);
+/* ============ VERDICT — Fix-List 7 §5 white / black + gold theme ============
+ * Reverts the dark v6 treatment. White card, black text, gold accent
+ * (h2 em, column headings, bullets). All selectors lead with `section.`
+ * so they win the cascade against `section.block` without !important. */
+section.verdict-block {
+  background: #fff; color: #000; border-radius: 6px;
+  padding: 32px 34px; border: 2px solid var(--gold);
 }
-/* Fix-List 6 §4A — definitive text-visibility fix.
- * Every text node inside the verdict-block defaults to white. !important
- * to override any global cascade that sneaks in (e.g., section.block h2,
- * cost .sub .neg, etc.). h2 em keeps the Warm Gold accent. */
-section.verdict-block,
-section.verdict-block * { color: #fff !important; }
-section.verdict-block h2,
-section.verdict-block h2 em,
-section.verdict-block .h-sub,
-section.verdict-block .verdict-foot,
-section.verdict-block .v-col h4,
-section.verdict-block .v-col li,
-section.verdict-block .v-empty { color: #fff !important; }
-section.verdict-block h2 em { color: var(--gold) !important; }
-section.verdict-block .h-sub { color: rgba(255, 255, 255, .70) !important; }
-section.verdict-block .v-col h4 { color: var(--gold) !important; }
-section.verdict-block .v-col li b { color: #fff !important; font-weight: 700; }
-section.verdict-block .verdict-foot { color: rgba(255, 255, 255, .55) !important; }
-/* Verdict insights — Fix-List 5 §C11 */
+section.verdict-block h2 { color: #000; }
+section.verdict-block h2 em { color: var(--gold); }
+section.verdict-block .h-sub { color: #444; }
+
+/* Verdict insights grid */
 .verdict-grid {
   display: grid; grid-template-columns: 1fr 1fr; gap: 28px;
   margin-top: 8px;
@@ -693,14 +709,15 @@ section.verdict-block .verdict-foot { color: rgba(255, 255, 255, .55) !important
 .verdict-grid .v-col h4 {
   font-size: 11.5px; letter-spacing: .18em; text-transform: uppercase;
   color: var(--gold); margin: 0 0 12px; font-weight: 700;
+  padding-bottom: 6px; border-bottom: 1px solid var(--gold);
 }
 .verdict-grid .v-col ul {
   margin: 0; padding: 0; list-style: none;
 }
 .verdict-grid .v-col li {
   font-size: 13.5px; padding: 10px 0; line-height: 1.55;
-  border-bottom: 1px solid rgba(255, 255, 255, .08);
-  color: rgba(255, 255, 255, .88);
+  border-bottom: 1px solid var(--rule);
+  color: #000;
   display: flex; gap: 12px;
 }
 .verdict-grid .v-col li:last-child { border-bottom: 0; }
@@ -708,14 +725,14 @@ section.verdict-block .verdict-foot { color: rgba(255, 255, 255, .55) !important
   content: ''; flex: 0 0 6px; width: 6px; height: 6px; border-radius: 99px;
   background: var(--gold); margin-top: 8px;
 }
-.verdict-grid .v-col.cons li::before { background: #FF8B95; }
-.verdict-grid .v-col li b { color: #fff; font-weight: 700; }
+.verdict-grid .v-col.cons li::before { background: var(--red); }
+.verdict-grid .v-col li b { color: #000; font-weight: 700; }
 .verdict-grid .v-col .v-empty {
-  font-style: italic; color: rgba(255, 255, 255, .6);
+  font-style: italic; color: var(--text-mid);
   font-size: 12.5px; margin: 0;
 }
 .verdict-foot {
-  margin: 22px 0 0; font-size: 11.5px; color: rgba(255, 255, 255, .5);
+  margin: 22px 0 0; font-size: 11.5px; color: #666;
   letter-spacing: .04em;
 }
 
@@ -726,13 +743,13 @@ section.verdict-block .verdict-foot { color: rgba(255, 255, 255, .55) !important
 }
 .verdict-empty .ring-motif {
   width: 120px; height: 120px;
-  background: rgba(189, 149, 104, .12);
+  background: rgba(189, 149, 104, .10);
 }
 .verdict-empty .ring-motif::before { background: rgba(189, 149, 104, .18); }
 .verdict-empty .ring-motif::after { border-color: var(--gold); }
 .verdict-empty p {
   font-size: 14px; line-height: 1.6;
-  color: rgba(255, 255, 255, .80); max-width: 56ch; margin: 0;
+  color: #444; max-width: 56ch; margin: 0;
 }
 
 /* ============ DOWNLOAD STRIP ============ */
