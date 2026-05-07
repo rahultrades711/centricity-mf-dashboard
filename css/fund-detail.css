@@ -290,6 +290,15 @@ table.perf .neg { color: var(--red); }
 .chart-head .legend i {
   display: inline-block; width: 14px; height: 2px; vertical-align: middle; margin-right: 6px;
 }
+/* Fix-List 8 §2 — legend now uses solid horizontal line swatches that
+ * mirror the chart's three datasets. No dashes, no dots. */
+.chart-head .legend .lswatch {
+  display: inline-block; width: 24px; height: 0; vertical-align: middle;
+  margin-right: 6px; background: transparent; border-top: 3px solid #BD9568;
+}
+.chart-head .legend .lswatch-fund  { border-top: 3px solid #BD9568; }
+.chart-head .legend .lswatch-bench { border-top: 1.5px solid #5B8DB8; }
+.chart-head .legend .lswatch-cat   { border-top: 1.5px solid #7D7D7D; }
 .chart-head .toggles {
   display: flex; gap: 0; border: 1px solid var(--grey-light);
   border-radius: 3px; overflow: hidden; background: #fff;
@@ -396,6 +405,12 @@ table.perf .neg { color: var(--red); }
   font-size: 13.5px; margin-top: 10px; line-height: 1.6; color: var(--ink);
 }
 .mgr-bio.placeholder { color: var(--text-mid); font-style: italic; }
+/* Fix-List 8 Feature 1 — co-managers line. Sits between mgr-title and
+ * mgr-bio when the fund has multiple current managers. */
+.mgr-co {
+  margin-top: 6px; font-size: 12.5px; color: var(--text-mid);
+}
+.mgr-co b { color: var(--ink); font-weight: 600; }
 .mgr-stats {
   display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
 }
@@ -409,6 +424,69 @@ table.perf .neg { color: var(--red); }
 }
 .mgr-stats .cell .v {
   font-size: 16px; font-weight: 700; margin-top: 3px;
+}
+
+/* Fix-List 8 Feature 1 — Manager history timeline.
+ * Renders all historical managers (from Morningstar) as proportional
+ * coloured segments on a horizontal track. Co-management overlaps stack
+ * into a second row so segments don't fight for the same band. */
+.manager-timeline {
+  margin: 22px 0 0;
+  padding: 18px 18px 14px;
+  border: 1px solid var(--rule); border-radius: 4px;
+  background: #fafaf7;
+}
+.manager-timeline[hidden] { display: none; }
+.manager-timeline .timeline-h {
+  font-size: 11.5px; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--gold); margin: 0 0 10px; font-weight: 700;
+}
+.timeline-track {
+  position: relative; height: 28px;
+  background: #f0eee9; border-radius: 4px;
+  overflow: visible;
+}
+.timeline-track.two-row { height: 60px; }
+.timeline-segment {
+  position: absolute; height: 26px;
+  border-radius: 3px; cursor: pointer;
+  transition: opacity .15s ease, transform .15s ease;
+  display: flex; align-items: center; justify-content: flex-start;
+  padding: 0 6px; font-size: 10px; color: #fff;
+  white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis;
+}
+.timeline-segment:hover { opacity: .85; z-index: 10; }
+.timeline-segment.is-row-1 { top: 1px; }
+.timeline-segment.is-row-2 { top: 32px; }
+.timeline-segment.is-main      { background: #BD9568; color: #fff; }
+.timeline-segment.is-co        { background: #DBC8B2; color: #1a1a1a; border: 1px solid #BD9568; }
+.timeline-segment.is-past      { background: #BFBFBF; color: #1a1a1a; }
+.timeline-segment.is-past-alt  { background: #D9D9D9; color: #1a1a1a; }
+.timeline-axis {
+  position: relative; height: 18px; margin-top: 6px;
+  border-top: 1px dashed var(--rule);
+}
+.timeline-year {
+  position: absolute; top: 4px;
+  font-size: 10px; color: #888; transform: translateX(-50%);
+  font-family: 'Cambria', Georgia, serif;
+  font-variant-numeric: tabular-nums;
+}
+.timeline-tooltip {
+  position: absolute; bottom: calc(100% + 8px); left: 50%;
+  transform: translateX(-50%);
+  background: #000; color: #fff;
+  padding: 7px 11px; border-radius: 4px; font-size: 11px;
+  white-space: nowrap; pointer-events: none; z-index: 100;
+  display: none;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .25);
+}
+.timeline-tooltip b { color: var(--gold); font-weight: 700; }
+.timeline-segment:hover .timeline-tooltip { display: block; }
+.timeline-foot {
+  margin: 10px 0 0; font-size: 11px; color: var(--text-mid);
+  font-style: italic; line-height: 1.4;
 }
 
 .prior-funds { margin-top: 18px; }
@@ -473,18 +551,35 @@ table.perf .neg { color: var(--red); }
   color: var(--black); font-weight: 700;
 }
 
-/* Fix-List 7 §3 — two-column sector legend below the donut.
- * Odd ranks (1, 3, 5...) sit in the left column, even ranks (2, 4, 6...)
- * in the right. Sector list arrives sorted descending. */
-.sector-legend {
-  margin-top: 14px;
-  display: grid; grid-template-columns: 1fr 1fr;
-  column-gap: 18px;
+/* Fix-List 8 §3 — sector donut + two-column legend retired. Sector
+ * allocation is now a ranked bar list: rank, sector name, percentage,
+ * proportional bar. Top 10 sectors by allocation; remainder rolled up
+ * into "Others (N sectors)" as the always-last 11th row. */
+.sector-list { width: 100%; margin-top: 4px; }
+.sector-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 3px 0; font-size: 12px;
+  font-family: 'Cambria', Georgia, serif;
 }
-.sector-legend-col {
-  display: flex; flex-direction: column; gap: 2px;
+.sector-rank {
+  width: 18px; color: #888; text-align: right; flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
 }
-.sector-legend .dlegend-row { font-size: 11.5px; padding: 2px 0; }
+.sector-name {
+  flex: 1; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; color: #000;
+}
+.sector-pct {
+  width: 46px; text-align: right; font-variant-numeric: tabular-nums;
+  flex-shrink: 0; color: #000;
+}
+.sector-bar-wrap {
+  width: 80px; height: 6px; background: #DBC8B2;
+  border-radius: 3px; flex-shrink: 0; overflow: hidden;
+}
+.sector-bar-fill {
+  height: 100%; background: #BD9568; border-radius: 3px;
+}
 
 /* Compact holdings table (right column) */
 .holdings-pending {
@@ -523,6 +618,57 @@ table.holdings-tbl-v2 tbody tr:hover td { background: var(--tan-soft); }
 }
 .holdings-callout-v2 b { font-weight: 700; }
 .holdings-callout-v2[hidden] { display: none; }
+
+/* Fix-List 8 Feature 3 — Similar Funds by Holdings card.
+ * Sits below the holdings table in the right column of the Portfolio
+ * grid; renders a 5-row mini-table with name, category, overlap %, and
+ * a proportional bar (same gold-on-tan visual as the sector list). */
+.similar-funds-card { margin-top: 16px; }
+.similar-funds-card[hidden] { display: none; }
+.similar-funds-list { display: flex; flex-direction: column; gap: 4px; }
+.similar-row {
+  display: grid;
+  grid-template-columns: 1fr 130px 56px 80px;
+  gap: 10px; align-items: center;
+  padding: 5px 0; border-bottom: 1px solid var(--rule);
+  font-size: 12px;
+}
+.similar-row:last-child { border-bottom: 0; }
+.similar-name {
+  color: var(--gold); font-weight: 600;
+  text-decoration: none; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.similar-name:hover { text-decoration: underline; }
+.similar-cat {
+  color: var(--text-mid); font-size: 11.5px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.similar-pct {
+  color: var(--ink); font-weight: 700; text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.similar-bar-wrap {
+  width: 80px; height: 6px; background: #DBC8B2;
+  border-radius: 3px; overflow: hidden;
+}
+.similar-bar-fill {
+  height: 100%; background: #BD9568; border-radius: 3px;
+}
+.similar-funds-foot {
+  margin: 10px 0 0; font-size: 11px; color: var(--text-mid);
+  font-style: italic; line-height: 1.4;
+}
+.similar-funds-link {
+  display: inline-block; margin-top: 6px;
+  font-size: 12px; color: var(--gold); text-decoration: none;
+  font-weight: 600;
+}
+.similar-funds-link:hover { text-decoration: underline; }
+.similar-funds-pending {
+  font-size: 12.5px; color: var(--text-mid);
+  font-style: italic; padding: 8px 0;
+}
 
 @media (max-width: 1280px) {
   .portfolio-grid-v2 { grid-template-columns: 1fr; }
@@ -727,6 +873,42 @@ section.verdict-block .h-sub { color: #444; }
 }
 .verdict-grid .v-col.cons li::before { background: var(--red); }
 .verdict-grid .v-col li b { color: #000; font-weight: 700; }
+
+/* Fix-List 8 §4 — Areas to Watch word-gap fix.
+ * The default `.v-col li { display: flex; gap: 12px }` rule treats the
+ * bullet ::before as one flex item and the text content as another;
+ * inside that text item, inline `<b>` tags pick up subtle white-space
+ * artefacts on certain Chromium widths (the gold-bullet column doesn't
+ * exhibit it because its phrases rarely contain mid-sentence <b>).
+ * Switch the concerns column to standard list-item flow + absolute-
+ * positioned bullet so the prose renders as plain left-aligned text. */
+.verdict-grid .v-col.cons li,
+.concerns-list li {
+  display: list-item;
+  list-style: none;
+  position: relative;
+  padding: 10px 0 10px 18px;
+  text-align: left;
+  line-height: 1.55;
+  gap: 0;
+}
+.verdict-grid .v-col.cons li::before,
+.concerns-list li::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 18px;
+  flex: none;
+  width: 6px; height: 6px; border-radius: 99px;
+  background: var(--red);
+  margin-top: 0;
+}
+.verdict-grid .v-col.cons li b,
+.verdict-grid .v-col.cons li strong,
+.concerns-list li b,
+.concerns-list li strong {
+  display: inline;
+  font-weight: 600;
+}
 .verdict-grid .v-col .v-empty {
   font-style: italic; color: var(--text-mid);
   font-size: 12.5px; margin: 0;

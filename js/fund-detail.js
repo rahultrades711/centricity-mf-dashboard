@@ -110,10 +110,25 @@
     // Analytics JSON for the Portfolio section (Fix-List 5 §C9 + Fix-List 6 §3)
     loadAnalyticsForFund(fund.scheme_code).then(entry => {
       renderAnalyticsHoldings(entry);
+      // Fix-List 8 Feature 3 — once we know our top-20 holdings, compute
+      // top-5 most-similar funds across the analytics file and render the
+      // "Similar Funds by Holdings" widget at the bottom of Portfolio.
+      renderSimilarFunds(fund, entry);
     }).catch((e) => {
       console.warn('[fund-detail] analytics JSON unavailable', e);
       showSectorDonutEmpty();
+      renderSimilarFunds(fund, null);
       // Compact holdings table mount stays at "Holdings data pending."
+    });
+    // Fix-List 8 Feature 1 — manager-history JSON for the timeline + main
+    // manager resolution.  Independent failure mode: if this 404s, the
+    // manager section degrades to screener-only data (as before).
+    loadManagerHistory(fund.scheme_code).then(entry => {
+      renderManagerTimeline(fund, entry);
+    }).catch((e) => {
+      console.warn('[fund-detail] manager-history JSON unavailable', e);
+      // Timeline div stays hidden (default state); manager card already
+      // rendered from screener data by renderManager() above.
     });
   }
 
@@ -706,6 +721,241 @@
     }
   }
 
+  /* ============================================================
+   * Fix-List 8 Feature 1 — Manager history (Morningstar)
+   *
+   * Lazy-loaded once per page from data/manager-history-YYYY-MM-DD.json.
+   * Cached at module level so any future per-fund render reads the same
+   * document.  The JSON is keyed by AMFI scheme code (string).
+   * ============================================================ */
+  let _managerHistoryCache = null;
+  let _managerHistoryFile = null;
+
+  function _resolveManagerHistoryUrl() {
+    // Match the screener cycle date for now — Products will refresh both
+    // pipelines on the same cadence in v1.x.
+    const cycleDate = _cycle && _cycle.cycle_meta ? _cycle.cycle_meta.cycle_date : null;
+    if (!cycleDate) return null;
+    // Manager history is monthly month-end aligned (Morningstar cadence).
+    // Dashboard ships with manager-history-YYYY-MM-DD.json — file picks
+    // the most recent month-end ≤ cycle_date by glob; for v1 we hard-pin
+    // the filename until a manifest exists.
+    return 'data/manager-history-2026-04-30.json';
+  }
+
+  async function loadManagerHistory(schemeCode) {
+    if (!_managerHistoryCache) {
+      const url = _resolveManagerHistoryUrl();
+      if (!url) throw new Error('manager-history url unresolved');
+      _managerHistoryFile = url;
+      const res = await fetch(url, { cache: 'default' });
+      if (!res.ok) throw new Error('manager-history HTTP ' + res.status);
+      _managerHistoryCache = await res.json();
+    }
+    const entry = _managerHistoryCache.funds && _managerHistoryCache.funds[String(schemeCode)];
+    if (!entry) throw new Error('scheme not in manager-history');
+    return entry;
+  }
+
+  /**
+   * Pick the "main" manager when multiple records carry is_current=true.
+   *
+   * Resolution order:
+   *   1. If only one current → that's it.
+   *   2. If multiple current → fuzzy-match against the screener's
+   *      manager_name (case-insensitive substring either way) so we
+   *      surface whoever the upstream Whitelisting Excel chose.
+   *   3. Fallback when no match → longest tenure among current managers.
+   *   4. No current at all → last entry by start date (covers the rare
+   *      case where Morningstar's history ends before today).
+   */
+  function resolveMainManager(managers, screenerManagerName) {
+    if (!managers || managers.length === 0) return null;
+    const current = managers.filter(m => m.is_current);
+    if (current.length === 0) return managers[managers.length - 1];
+    if (current.length === 1) return current[0];
+    const screener = (screenerManagerName || '').toLowerCase();
+    if (screener) {
+      const match = current.find(m => {
+        const nameLower = m.name.toLowerCase();
+        if (nameLower.includes(screener)) return true;
+        // Try last-name match too (Whitelisting often shortens to last name)
+        const screenerSurname = screener.split(/\s+/).pop();
+        return screenerSurname && nameLower.includes(screenerSurname);
+      });
+      if (match) return match;
+    }
+    // Fallback: longest tenure
+    return current.reduce((a, b) => (a.tenure_years > b.tenure_years ? a : b));
+  }
+
+  function _formatTenureYM(years) {
+    if (years == null || isNaN(years)) return '—';
+    const totalMonths = Math.max(0, Math.round(years * 12));
+    const yrs = Math.floor(totalMonths / 12);
+    const mos = totalMonths % 12;
+    if (yrs === 0) return `${mos} mo`;
+    if (mos === 0) return `${yrs} yr`;
+    return `${yrs} yr ${mos} mo`;
+  }
+
+  function _formatLongDate(iso) {
+    if (!iso) return '—';
+    const [y, m, d] = iso.split('-').map(Number);
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    if (!y || !m || !d) return iso;
+    return `${String(d).padStart(2, '0')} ${months[m - 1]} ${y}`;
+  }
+
+  /**
+   * Render the manager timeline + co-managers strip.  Called only when
+   * the manager-history JSON has an entry for this scheme; otherwise
+   * the timeline div stays hidden and the page falls back to whatever
+   * renderManager() drew from screener data.
+   */
+  function renderManagerTimeline(fund, entry) {
+    const wrap = document.getElementById('managerTimeline');
+    if (!wrap || !entry || !entry.managers || entry.managers.length === 0) {
+      if (wrap) wrap.hidden = true;
+      return;
+    }
+    const managers = entry.managers;
+    const main = resolveMainManager(managers, fund.manager_name);
+
+    // Override the manager card with Morningstar-derived values where
+    // they're available — name, tenure, start date.  Screener stays the
+    // fallback if Morningstar's main is missing.
+    if (main) {
+      const nameEl  = document.getElementById('mgrName');
+      const titleEl = document.getElementById('mgrTitle');
+      const avatar  = document.getElementById('mgrAvatar');
+      if (nameEl)  nameEl.textContent  = main.name;
+      if (avatar)  avatar.textContent  = managerInitials(main.name);
+      if (titleEl) {
+        const tenureStr = _formatTenureYM(main.tenure_years);
+        const startStr  = _formatLongDate(main.start);
+        titleEl.textContent =
+          `${fund.amc || '—'} · Lead Manager · Tenure ${tenureStr} · Since ${startStr}`;
+      }
+    }
+
+    // Co-managers strip
+    const others = managers.filter(m => m.is_current && (!main || m.name !== main.name));
+    const coEl = document.getElementById('mgrCoManagers');
+    if (coEl) {
+      if (others.length > 0) {
+        coEl.hidden = false;
+        coEl.innerHTML = `Co-managed with: ${others.map(m => `<b>${escapeHtml(m.name)}</b>`).join(', ')}`;
+      } else {
+        coEl.hidden = true;
+        coEl.innerHTML = '';
+      }
+    }
+
+    // Bump the Tenure stat to the main manager's actual Morningstar tenure
+    // (Whitelisting tenure is sometimes stale; Morningstar is the source
+    // of truth for start dates).
+    if (main) {
+      const cells = document.querySelectorAll('#mgrStats .cell');
+      cells.forEach(c => {
+        const k = c.querySelector('.k');
+        if (k && k.textContent === 'Tenure') {
+          const v = c.querySelector('.v');
+          if (v) v.textContent = _formatTenureYM(main.tenure_years);
+        }
+      });
+    }
+
+    // ---- Timeline track ----
+    const track = document.getElementById('timelineTrack');
+    const axis  = document.getElementById('timelineAxis');
+    if (!track || !axis) return;
+
+    const today = new Date();
+    const startDates = managers.map(m => new Date(m.start));
+    const earliest = new Date(Math.min(...startDates.map(d => d.getTime())));
+    const latest = today;
+    const totalMs = latest.getTime() - earliest.getTime();
+    if (totalMs <= 0) { wrap.hidden = true; return; }
+
+    // Stack overlapping segments into 2 rows so co-management periods
+    // don't visually fight for the same band.  Greedy assignment: walk
+    // managers sorted by start; place each one in row 0 if it doesn't
+    // overlap any segment already there, else row 1.  Any third-row
+    // overflow falls back to row 1 too (rare in real data).
+    const sorted = managers.slice().sort((a, b) => new Date(a.start) - new Date(b.start));
+    const rows = [[], []];
+    const placements = sorted.map(m => {
+      const ms = new Date(m.start).getTime();
+      const me = m.end ? new Date(m.end).getTime() : latest.getTime();
+      let row = 0;
+      const overlaps = (existing) => existing.some(seg => {
+        const es = new Date(seg.start).getTime();
+        const ee = seg.end ? new Date(seg.end).getTime() : latest.getTime();
+        return ms < ee && me > es;
+      });
+      if (overlaps(rows[0])) {
+        row = 1;
+      }
+      rows[row].push(m);
+      return { m, row, ms, me };
+    });
+
+    const useTwoRows = rows[1].length > 0;
+    track.classList.toggle('two-row', useTwoRows);
+
+    // Build segment HTML
+    let pastIdx = 0;
+    track.innerHTML = placements.map(p => {
+      const m = p.m;
+      const left = Math.max(0, ((p.ms - earliest.getTime()) / totalMs) * 100);
+      let width = ((p.me - p.ms) / totalMs) * 100;
+      // Cap so we never spill past 100% (Morningstar end dates can be
+      // slightly in the future for very recent transitions)
+      if (left + width > 100) width = Math.max(0.5, 100 - left);
+      let cls = 'is-past';
+      if (m.is_current) {
+        cls = (main && m.name === main.name) ? 'is-main' : 'is-co';
+      } else {
+        cls = (pastIdx % 2 === 0) ? 'is-past' : 'is-past-alt';
+        pastIdx += 1;
+      }
+      const rowCls = useTwoRows ? (p.row === 0 ? 'is-row-1' : 'is-row-2') : '';
+      const tenureStr = _formatTenureYM(m.tenure_years);
+      const startStr = _formatLongDate(m.start);
+      const endStr   = m.end ? _formatLongDate(m.end) : 'Present';
+      const tooltip = `<b>${escapeHtml(m.name)}</b><br>${startStr} – ${endStr} · ${tenureStr}`;
+      return `
+        <div class="timeline-segment ${cls} ${rowCls}"
+             style="left:${left.toFixed(2)}%;width:${Math.max(width, 0.5).toFixed(2)}%"
+             aria-label="${escapeHtml(m.name)} ${startStr} to ${endStr}">
+          <span class="seg-name">${escapeHtml(m.name.split(' ')[0])}</span>
+          <span class="timeline-tooltip">${tooltip}</span>
+        </div>`;
+    }).join('');
+
+    // ---- Year-marker axis ----
+    const startYear = earliest.getUTCFullYear();
+    const endYear   = today.getUTCFullYear();
+    const yearMarkers = [];
+    for (let y = startYear + 1; y <= endYear; y++) {
+      const yMs = Date.UTC(y, 0, 1);
+      const left = ((yMs - earliest.getTime()) / totalMs) * 100;
+      if (left < 0 || left > 100) continue;
+      yearMarkers.push(`<span class="timeline-year" style="left:${left.toFixed(2)}%">${y}</span>`);
+    }
+    axis.innerHTML = yearMarkers.join('');
+
+    const foot = document.getElementById('timelineFoot');
+    if (foot) {
+      foot.textContent =
+        `Source: Morningstar manager records as of ${_managerHistoryCache.as_of_date}. ` +
+        `${managers.length} manager${managers.length === 1 ? '' : 's'} on record.`;
+    }
+
+    wrap.hidden = false;
+  }
+
   function managerInitials(name) {
     if (!name) return '—';
     const cleaned = String(name).replace(/[^A-Za-z\s]/g, '').trim();
@@ -717,14 +967,10 @@
 
   /* ============================================================
    * 04 — PORTFOLIO
-   * Fix-List 6 §3 rebuild: m-cap donut + (hybrid donut) + sector donut on
-   * the left; compact top-holdings table on the right. Bar charts retired.
+   * Fix-List 8 §3 rebuild: m-cap donut + (hybrid donut) on the left
+   * with a sector ranked-bar list (was a donut + 2-column legend in
+   * Fix-List 7); compact top-holdings table on the right.
    * ============================================================ */
-  // Sector palette — exact rotation order specified by §3
-  const SECTOR_PALETTE = [
-    '#BD9568', '#DBC8B2', '#0E0E0E', '#BFBFBF', '#6B4F2A',
-    '#A07850', '#D4B896', '#8C7B6B', '#4A3728', '#E8D5C0',
-  ];
   // M-cap mix palette — fixed assignment (Large = black; Mid = gold;
   // Small = light tan; Others = mid grey)
   const MCAP_PALETTE = ['#0E0E0E', '#BD9568', '#DBC8B2', '#BFBFBF'];
@@ -733,7 +979,6 @@
 
   let _mcapDonutInstance = null;
   let _hybridDonutInstance = null;
-  let _sectorDonutInstance = null;
 
   function renderPortfolio(fund) {
     const m = fund.mcap_split || {};
@@ -785,7 +1030,7 @@
     const ctx = canvas.getContext('2d');
     const oldInstance = key === 'mcap'   ? _mcapDonutInstance
                       : key === 'hybrid' ? _hybridDonutInstance
-                      : _sectorDonutInstance;
+                      : null;
     if (oldInstance) oldInstance.destroy();
 
     const config = {
@@ -814,7 +1059,6 @@
     const inst = new window.Chart(ctx, config);
     if (key === 'mcap')   _mcapDonutInstance   = inst;
     if (key === 'hybrid') _hybridDonutInstance = inst;
-    if (key === 'sector') _sectorDonutInstance = inst;
 
     // Custom legend for m-cap / hybrid (sector chart uses tooltip-only)
     if (legendId) {
@@ -1210,33 +1454,36 @@
     const ctx = document.getElementById('navChart').getContext('2d');
     if (_navChartInstance) { _navChartInstance.destroy(); _navChartInstance = null; }
 
+    // Fix-List 8 §2 — three solid colored lines, fund dominant.
+    // No borderDash on any series; widths 3 / 1.5 / 1.5; matching legend
+    // swatches in fund-detail.html.
     const datasets = [
       {
         label: 'Fund', data: fundData,
         borderColor: '#BD9568', backgroundColor: 'rgba(189,149,104,.10)',
-        fill: false, tension: .25, pointRadius: 0, borderWidth: 2,
+        fill: false, tension: .25, pointRadius: 0, borderWidth: 3,
         spanGaps: true,
       },
       {
         label: 'Benchmark', data: benchData,
-        borderColor: '#BFBFBF', backgroundColor: 'transparent',
+        borderColor: '#5B8DB8', backgroundColor: 'transparent',
         fill: false, tension: .25, pointRadius: 0, borderWidth: 1.5,
-        borderDash: [4, 3], spanGaps: true,
+        spanGaps: true,
       },
     ];
     if (catData) {
       datasets.push({
         label: 'Category Avg', data: catData,
-        borderColor: '#0E0E0E', backgroundColor: 'transparent',
-        fill: false, tension: .25, pointRadius: 0, borderWidth: 1,
-        borderDash: [2, 4], spanGaps: true,
+        borderColor: '#7D7D7D', backgroundColor: 'transparent',
+        fill: false, tension: .25, pointRadius: 0, borderWidth: 1.5,
+        spanGaps: true,
       });
     }
 
     _navChartInstance = new window.Chart(ctx, {
       type: 'line',
       data: { labels, datasets },
-      options: _navChartOptions(),
+      options: _navChartOptions(_navWindow),
     });
     const navEmpty = document.getElementById('navChartEmpty');
     if (navEmpty) navEmpty.hidden = true;
@@ -1299,10 +1546,13 @@
   }
 
   /**
-   * NAV chart options — sparse x-axis (Jan + final), Indian-comma ₹
-   * y-ticks, three-series tooltip with date as "Mon YYYY".
+   * NAV chart options — Fix-List 8 §1: window-aware tick frequency.
+   *   1Y → one label per month, format "Jan '26"
+   *   3Y → one label per quarter (Jan / Apr / Jul / Oct)
+   *   5Y → same quarterly cadence
+   * Indian-comma ₹ y-ticks, three-series tooltip with date as "Mon YYYY".
    */
-  function _navChartOptions() {
+  function _navChartOptions(navWindow) {
     return {
       responsive: true, maintainAspectRatio: false,
       animation: { duration: 220 },
@@ -1325,12 +1575,10 @@
             font: { family: "'Cambria', Georgia, serif", size: 10 },
             color: '#666',
             autoSkip: false,
+            maxRotation: 0,
             callback: function (val, idx, all) {
               const lbl = this.getLabelForValue(val);
-              const isJan = lbl && lbl.endsWith('-01');
-              const isLast = idx === all.length - 1;
-              if (isJan || isLast) return formatYMShort(lbl);
-              return '';
+              return fmtAxisDate(lbl, navWindow, idx === all.length - 1);
             },
           },
         },
@@ -1452,6 +1700,29 @@
     return `${months[d.getUTCMonth()]} ${String(d.getUTCFullYear()).slice(2)}`;
   }
 
+  /**
+   * Fix-List 8 §1 — window-aware axis tick formatter.
+   *   1Y → every month, "Jan '26"
+   *   3Y / 5Y → only Jan / Apr / Jul / Oct, "Jan '24"
+   * Returns '' for months that shouldn't carry a tick. The final-index
+   * tick always renders so the right-edge anchor stays labelled.
+   */
+  function fmtAxisDate(ym, navWindow, isLast) {
+    if (!ym) return '';
+    const d = parseYM(ym);
+    const month = d.getUTCMonth();             // 0-based
+    const year2 = String(d.getUTCFullYear()).slice(2);
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const label = `${months[month]} '${year2}`;
+    if (navWindow === '1Y') {
+      // Every month gets a label; final index also forced.
+      return label;
+    }
+    // 3Y / 5Y → quarterly cadence (Jan / Apr / Jul / Oct = month 0/3/6/9)
+    if (month % 3 === 0 || isLast) return label;
+    return '';
+  }
+
   /* ============================================================
    * ANALYTICS LOADER (Fund Detail Fix-List 5 §C9)
    *
@@ -1461,17 +1732,20 @@
    * data-driven (not hardcoded).
    * ============================================================ */
   let _analyticsDate = null;
+  let _analyticsCache = null;          // full doc — Fix-List 8 Feature 3 reads peers from it
 
   async function loadAnalyticsForFund(schemeCode) {
     // Discover the latest analytics file in data/. Right now there's
     // exactly one (analytics-2026-03-31.json); when v1.x ships monthly,
     // pick the latest by filename sort.
-    const url = `data/analytics-2026-03-31.json`;
-    const res = await fetch(url, { cache: 'default' });
-    if (!res.ok) throw new Error('analytics HTTP ' + res.status);
-    const doc = await res.json();
-    _analyticsDate = doc.analytics_date || null;
-    const entry = doc.funds && doc.funds[String(schemeCode)];
+    if (!_analyticsCache) {
+      const url = `data/analytics-2026-03-31.json`;
+      const res = await fetch(url, { cache: 'default' });
+      if (!res.ok) throw new Error('analytics HTTP ' + res.status);
+      _analyticsCache = await res.json();
+      _analyticsDate = _analyticsCache.analytics_date || null;
+    }
+    const entry = _analyticsCache.funds && _analyticsCache.funds[String(schemeCode)];
     if (!entry) throw new Error('scheme not in analytics');
     return entry;
   }
@@ -1487,43 +1761,15 @@
     const top10Concentration = entry.top_10_concentration_pct;
     const dateStr = _analyticsDate ? DataLoader.fmtDate(_analyticsDate) : '—';
 
-    // ---- Sector donut (left column, 3rd card) ----
-    let sectorRows = sectors;
-    if (sectorRows.length > 10) {
-      const head = sectorRows.slice(0, 10);
-      const tail = sectorRows.slice(10);
-      const tailSum = tail.reduce((s, x) => s + (x.holding_pct || 0), 0);
-      sectorRows = head.concat([{ sector: `Others (${tail.length})`, holding_pct: Math.round(tailSum * 100) / 100 }]);
-    }
+    // ---- Sector ranked-bar list (Fix-List 8 §3) ----
+    // Sectors arrive sorted desc by holding_pct. Take top 10 as positions
+    // 1–10; sum the remainder into a single "Others (N sectors)" row that
+    // is always rendered last regardless of its own value.
     const sectorTitle = document.getElementById('sectorDonutTitle');
     if (sectorTitle) sectorTitle.textContent = `Sector Allocation · as on ${dateStr}`;
     const sectorEmpty = document.getElementById('sectorDonutEmpty');
     if (sectorEmpty) sectorEmpty.hidden = true;
-    const sectorData = sectorRows.map(s => ({ label: s.sector || '—', value: s.holding_pct }));
-    _renderDonutWhenReady('sectorDonut', sectorData, SECTOR_PALETTE, null, 'sector');
-
-    // Fix-List 7 §3 — two-column legend below the sector donut.
-    // Odd ranks (1, 3, 5, ...) go left; even ranks (2, 4, 6, ...) go right.
-    // Sectors arrive sorted descending by allocation from the converter.
-    const legendEl = document.getElementById('sectorLegend');
-    if (legendEl) {
-      const colours = sectorData.map((_, i) => SECTOR_PALETTE[i % SECTOR_PALETTE.length]);
-      const left = [];
-      const right = [];
-      sectorData.forEach((d, i) => {
-        const row = `
-          <div class="dlegend-row">
-            <span class="dlegend-sw" style="background:${colours[i]}"></span>
-            <span class="dlegend-lbl">${escapeHtml(d.label)}</span>
-            <b class="dlegend-pct">${DataLoader.fmtNum(d.value, 2)}%</b>
-          </div>`;
-        // i is 0-based; rank = i+1. Odd ranks (i even) → left, even ranks (i odd) → right.
-        if (i % 2 === 0) left.push(row); else right.push(row);
-      });
-      legendEl.innerHTML = `
-        <div class="sector-legend-col">${left.join('')}</div>
-        <div class="sector-legend-col">${right.join('')}</div>`;
-    }
+    renderSectorList(sectors);
 
     // ---- Compact holdings table (right column) ----
     const mount = document.getElementById('holdingsTableMount');
@@ -1557,15 +1803,166 @@
     }
   }
 
+  /**
+   * Fix-List 8 §3 — render the sector allocation as a ranked bar list.
+   *   • Sectors are pre-sorted desc by holding_pct in the analytics file.
+   *   • Top 10 occupy positions 1–10.
+   *   • All remaining sectors collapse into a single "Others (N sectors)"
+   *     row that is ALWAYS rendered last (position 11), regardless of
+   *     its summed value (it might be larger than position 10's, but
+   *     spec mandates Others-last for visual consistency).
+   *   • Bar fill width is scaled against the maximum value within the
+   *     top 10 (Others is excluded from the max calc so it doesn't
+   *     dominate when N is large).
+   */
+  function renderSectorList(sectors) {
+    const mount = document.getElementById('sectorList');
+    if (!mount) return;
+    if (!sectors || sectors.length === 0) {
+      // Render 11 em-dash placeholder rows so the card height stays stable
+      const rows = [];
+      for (let i = 1; i <= 11; i++) {
+        rows.push(`
+          <div class="sector-row">
+            <span class="sector-rank">${i}.</span>
+            <span class="sector-name">—</span>
+            <span class="sector-pct">—</span>
+            <div class="sector-bar-wrap"><div class="sector-bar-fill" style="width:0%"></div></div>
+          </div>`);
+      }
+      mount.innerHTML = rows.join('');
+      return;
+    }
+    const top10 = sectors.slice(0, 10);
+    const tail  = sectors.slice(10);
+    const maxPct = Math.max(...top10.map(s => Number(s.holding_pct) || 0), 0.01);
+    const rowsHtml = top10.map((s, i) => {
+      const pct = Number(s.holding_pct) || 0;
+      const barWidth = Math.max(0, Math.min(100, (pct / maxPct) * 100));
+      return `
+        <div class="sector-row">
+          <span class="sector-rank">${i + 1}.</span>
+          <span class="sector-name">${escapeHtml(s.sector || '—')}</span>
+          <span class="sector-pct">${DataLoader.fmtNum(pct, 2)}%</span>
+          <div class="sector-bar-wrap"><div class="sector-bar-fill" style="width:${barWidth}%"></div></div>
+        </div>`;
+    });
+    if (tail.length > 0) {
+      const othersSum = tail.reduce((acc, s) => acc + (Number(s.holding_pct) || 0), 0);
+      const othersWidth = Math.max(0, Math.min(100, (othersSum / maxPct) * 100));
+      rowsHtml.push(`
+        <div class="sector-row">
+          <span class="sector-rank">${top10.length + 1}.</span>
+          <span class="sector-name">Others (${tail.length} sectors)</span>
+          <span class="sector-pct">${DataLoader.fmtNum(othersSum, 2)}%</span>
+          <div class="sector-bar-wrap"><div class="sector-bar-fill" style="width:${othersWidth}%"></div></div>
+        </div>`);
+    }
+    mount.innerHTML = rowsHtml.join('');
+  }
+
   /** When analytics-load fails we still want to mark the sector card as
-   *  empty (donut canvas hidden, ring-motif placeholder shown). */
+   *  empty (ring-motif placeholder shown, list cleared). */
   function showSectorDonutEmpty() {
-    const canvas = document.getElementById('sectorDonut');
-    if (canvas) canvas.style.display = 'none';
     const empty = document.getElementById('sectorDonutEmpty');
     if (empty) empty.hidden = false;
-    const legendEl = document.getElementById('sectorLegend');
-    if (legendEl) legendEl.innerHTML = '';
+    const list = document.getElementById('sectorList');
+    if (list) list.innerHTML = '';
+  }
+
+  /* ============================================================
+   * Fix-List 8 Feature 3 — Similar Funds by Holdings
+   *
+   * Compute pairwise overlap between the current fund's top-20
+   * holdings and every other fund in the analytics file. Surface
+   * the top-5 by overlap%. Disclaimer: this is a top-20 sample, not
+   * full-portfolio overlap.
+   * ============================================================ */
+  function computeTopOverlapPeers(currentSchemeCode, fundsData, currentFundHoldings, topN) {
+    if (!currentFundHoldings || currentFundHoldings.length === 0) return [];
+    const results = [];
+    const currentMap = new Map(
+      currentFundHoldings.map(h => [h.company, Number(h.holding_pct) || 0])
+    );
+    for (const code in fundsData) {
+      if (code === String(currentSchemeCode)) continue;
+      const fund = fundsData[code];
+      if (!fund || !fund.top_20_holdings || fund.top_20_holdings.length === 0) continue;
+      let overlap = 0;
+      for (const h of fund.top_20_holdings) {
+        const w1 = currentMap.get(h.company);
+        if (w1 !== undefined) overlap += Math.min(w1, Number(h.holding_pct) || 0);
+      }
+      if (overlap > 0) {
+        results.push({ code, overlap: Math.round(overlap * 100) / 100 });
+      }
+    }
+    results.sort((a, b) => b.overlap - a.overlap);
+    return results.slice(0, topN || 5);
+  }
+
+  function renderSimilarFunds(fund, analyticsEntry) {
+    const card  = document.getElementById('similarFundsCard');
+    const mount = document.getElementById('similarFundsMount');
+    const foot  = document.getElementById('similarFundsFoot');
+    const link  = document.getElementById('similarFundsLink');
+    if (!card || !mount) return;
+
+    if (!analyticsEntry || !analyticsEntry.top_20_holdings || !_analyticsCache) {
+      card.hidden = false;
+      mount.innerHTML = `<p class="similar-funds-pending">Holdings data not available for overlap analysis.</p>`;
+      if (foot) foot.textContent = '';
+      if (link) link.style.display = 'none';
+      return;
+    }
+
+    const peers = computeTopOverlapPeers(
+      fund.scheme_code,
+      _analyticsCache.funds,
+      analyticsEntry.top_20_holdings,
+      5
+    );
+    if (peers.length === 0) {
+      card.hidden = false;
+      mount.innerHTML = `<p class="similar-funds-pending">No overlapping funds found for this analysis.</p>`;
+      if (foot) foot.textContent = '';
+      if (link) link.style.display = 'none';
+      return;
+    }
+
+    // Map analytics scheme codes back to the screener cycle to grab the
+    // full fund name + category for display.
+    const screenerByCode = new Map((_cycle.funds || []).map(f => [String(f.scheme_code), f]));
+    const maxOverlap = peers[0].overlap;
+    const rowsHtml = peers.map(p => {
+      const sf = screenerByCode.get(String(p.code));
+      const fundName = sf ? sf.fund_name : (_analyticsCache.funds[p.code]?.fund_name || `Scheme ${p.code}`);
+      const cat = sf ? sf.category : '—';
+      const barWidth = Math.max(0, Math.min(100, (p.overlap / maxOverlap) * 100));
+      const href = `fund-detail.html?scheme=${encodeURIComponent(p.code)}`;
+      return `
+        <div class="similar-row">
+          <a class="similar-name" href="${href}">${escapeHtml(fundName)}</a>
+          <span class="similar-cat">${escapeHtml(cat)}</span>
+          <span class="similar-pct">${DataLoader.fmtNum(p.overlap, 2)}%</span>
+          <div class="similar-bar-wrap"><div class="similar-bar-fill" style="width:${barWidth}%"></div></div>
+        </div>`;
+    }).join('');
+    mount.innerHTML = `<div class="similar-funds-list">${rowsHtml}</div>`;
+
+    const dateStr = _analyticsDate ? DataLoader.fmtDate(_analyticsDate) : '—';
+    if (foot) {
+      foot.innerHTML =
+        `Based on top-20 holdings as on ${escapeHtml(dateStr)}. ` +
+        `Overlap = Σ min(weight<sub>A</sub>, weight<sub>B</sub>) for common stocks.`;
+    }
+    if (link) {
+      link.style.display = '';
+      const codes = [String(fund.scheme_code), ...peers.map(p => String(p.code))].join(',');
+      link.href = `overlap.html?schemes=${encodeURIComponent(codes)}`;
+    }
+
+    card.hidden = false;
   }
 
   /* ============================================================

@@ -1,0 +1,297 @@
+/* ============================================================
+ * Portfolio Overlap page — Fix-List 8 Feature 2
+ *
+ * Black header / white body / Cambria everywhere / negative-only red.
+ * Two-pane layout: 300px fund picker on the left + flex-grow matrix on
+ * the right.  All colour values inherit from `centricity.css` brand
+ * variables (--gold, --tan, --rule, --text-mid, …) — only the matrix
+ * gradient bins are page-specific.
+ * ============================================================ */
+
+.overlap-main {
+  max-width: 1680px; margin: 0 auto;
+  padding: 18px 36px 36px;
+}
+
+.overlap-head { margin-bottom: 18px; }
+.overlap-head .eyebrow {
+  display: inline-block; font-size: 11px;
+  letter-spacing: .18em; text-transform: uppercase;
+  color: var(--gold); font-weight: 700; margin-bottom: 6px;
+}
+.overlap-head h1 {
+  font-size: 28px; font-weight: 700; letter-spacing: -.01em;
+  margin: 0 0 6px; color: #000;
+}
+.overlap-head h1 em {
+  font-style: italic; font-weight: 400; color: var(--gold-deep);
+}
+.overlap-head .h-sub {
+  font-size: 13.5px; color: var(--text-mid); margin: 0;
+  max-width: 92ch; line-height: 1.55;
+}
+.overlap-head .h-sub code {
+  font-family: 'Consolas', 'Menlo', monospace;
+  font-size: 12px; padding: 1px 5px; background: #f5f3ee;
+  border-radius: 3px;
+}
+
+/* ---------- two-pane layout ---------- */
+.overlap-layout {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 22px;
+  align-items: flex-start;
+}
+
+@media (max-width: 1280px) {
+  .overlap-layout { grid-template-columns: 260px 1fr; gap: 16px; }
+}
+
+/* ---------- left picker pane ---------- */
+.overlap-picker {
+  background: #fff; border: 1px solid var(--rule); border-radius: 4px;
+  padding: 14px 14px 8px;
+  position: sticky; top: 84px;
+  max-height: calc(100vh - 110px);
+  display: flex; flex-direction: column;
+}
+.overlap-picker .picker-head { padding-bottom: 10px; border-bottom: 1px solid var(--rule); }
+.overlap-picker .picker-title-row {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 8px;
+}
+.overlap-picker h3 {
+  margin: 0; font-size: 15px; font-weight: 700; color: #000;
+}
+.overlap-picker .picker-counter {
+  font-size: 11.5px; color: var(--gold); font-weight: 700;
+}
+.overlap-picker .picker-search {
+  width: 100%; box-sizing: border-box;
+  padding: 7px 10px; font-size: 12.5px;
+  font-family: inherit;
+  border: 1px solid var(--rule); border-radius: 3px;
+  background: #fafaf7; color: #000;
+}
+.overlap-picker .picker-search:focus {
+  outline: 2px solid var(--gold); outline-offset: 0;
+}
+
+.overlap-picker .picker-cat-wrap { position: relative; margin-top: 8px; }
+.overlap-picker .picker-cat-btn {
+  width: 100%; padding: 7px 10px; font-size: 12px;
+  font-family: inherit; text-align: left;
+  border: 1px solid var(--rule); border-radius: 3px;
+  background: #fff; color: var(--ink); cursor: pointer;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.overlap-picker .picker-cat-btn .caret { color: var(--gold); }
+.overlap-picker .picker-cat-panel {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+  background: #fff; border: 1px solid var(--rule); border-radius: 4px;
+  max-height: 280px; overflow-y: auto; z-index: 20;
+  padding: 6px 4px; box-shadow: 0 4px 10px rgba(0, 0, 0, .08);
+}
+.overlap-picker .picker-cat-panel[hidden] { display: none; }
+.overlap-picker .picker-cat-panel label {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 8px; font-size: 12px; cursor: pointer;
+}
+.overlap-picker .picker-cat-panel label:hover { background: #fafaf7; }
+
+.overlap-picker .picker-actions {
+  display: flex; gap: 6px; margin-top: 8px;
+}
+.overlap-picker .picker-actions .btn { flex: 1; }
+.overlap-picker .picker-cap-note {
+  margin: 8px 0 0; padding: 6px 8px;
+  background: rgba(147, 22, 33, .08); color: var(--red);
+  border-left: 3px solid var(--red); font-size: 11.5px;
+  font-style: italic; border-radius: 0 3px 3px 0;
+}
+.overlap-picker .picker-cap-note[hidden] { display: none; }
+
+.overlap-picker .picker-list {
+  flex: 1; overflow-y: auto;
+  margin-top: 8px;
+}
+.overlap-picker .picker-pending {
+  font-size: 12.5px; color: var(--text-mid);
+  font-style: italic; padding: 14px 8px;
+}
+.overlap-picker .picker-row {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 8px;
+  align-items: center;
+  padding: 5px 4px;
+  border-bottom: 1px solid var(--rule);
+  font-size: 12px;
+  cursor: pointer;
+}
+.overlap-picker .picker-row:hover { background: #fafaf7; }
+.overlap-picker .picker-row.selected { background: rgba(189, 149, 104, .12); }
+.overlap-picker .picker-row.disabled { opacity: .4; cursor: not-allowed; }
+.overlap-picker .picker-row input[type="checkbox"] {
+  margin: 0; accent-color: var(--gold);
+}
+.overlap-picker .picker-row .pr-name {
+  display: block; color: #000; line-height: 1.2;
+  font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.overlap-picker .picker-row .pr-cat {
+  display: block; color: var(--text-mid); font-size: 10.5px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ---------- right matrix pane ---------- */
+.overlap-matrix-wrap {
+  background: #fff; border: 1px solid var(--rule); border-radius: 4px;
+  padding: 16px 18px 22px;
+  min-height: 540px;
+}
+
+.matrix-toolbar {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 16px; margin-bottom: 14px; flex-wrap: wrap;
+}
+.matrix-toolbar .toolbar-left,
+.matrix-toolbar .toolbar-right {
+  display: flex; align-items: center; gap: 10px;
+}
+.threshold-label {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 12.5px; color: var(--ink);
+}
+.threshold-label input[type="range"] {
+  width: 180px; accent-color: var(--gold);
+}
+.threshold-label .threshold-value {
+  font-weight: 700; color: var(--gold);
+  font-variant-numeric: tabular-nums; min-width: 36px;
+}
+
+/* The .btn xs modifier — small variant */
+.btn.xs {
+  padding: 5px 12px; font-size: 11px; letter-spacing: .08em;
+}
+
+/* matrix empty / area */
+.matrix-empty {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 14px;
+  padding: 70px 32px; text-align: center;
+}
+.matrix-empty .ring-motif { width: 120px; height: 120px; }
+.matrix-empty h3 { margin: 0; font-size: 18px; font-weight: 700; color: #000; }
+.matrix-empty p {
+  margin: 0; font-size: 13px; color: var(--text-mid);
+  max-width: 56ch; line-height: 1.55;
+}
+
+.matrix-area[hidden] { display: none; }
+
+.matrix-legend {
+  display: flex; gap: 14px; flex-wrap: wrap; align-items: center;
+  font-size: 11.5px; color: var(--text-mid);
+  margin-bottom: 14px;
+}
+.matrix-legend .ml-title {
+  font-weight: 700; color: var(--ink); letter-spacing: .04em;
+}
+.matrix-legend .ml-bin {
+  display: inline-flex; align-items: center; gap: 5px;
+}
+.matrix-legend .ml-bin i {
+  display: inline-block; width: 14px; height: 14px;
+  border-radius: 2px;
+}
+
+/* matrix mount */
+.matrix-mount {
+  overflow: auto;
+  max-width: 100%;
+}
+table.overlap-matrix {
+  border-collapse: collapse;
+  font-family: 'Cambria', Georgia, serif;
+  font-variant-numeric: tabular-nums;
+}
+table.overlap-matrix th,
+table.overlap-matrix td {
+  border: 1px solid var(--rule);
+  padding: 0;
+  text-align: center;
+}
+table.overlap-matrix thead th {
+  background: #000; color: #fff;
+  font-size: 11px; font-weight: 700;
+  padding: 8px 6px; min-width: 36px;
+  letter-spacing: .04em;
+}
+table.overlap-matrix thead th.row-label-corner {
+  background: #fff; border-color: transparent;
+  min-width: 240px;
+}
+table.overlap-matrix tbody th.row-label {
+  background: #fafaf7; color: #000;
+  font-size: 12px; font-weight: 600;
+  padding: 6px 10px; text-align: left;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 240px; min-width: 240px;
+}
+table.overlap-matrix tbody th.row-label .rl-num {
+  display: inline-block; width: 22px; color: var(--text-mid);
+  margin-right: 6px;
+}
+table.overlap-matrix td.cell {
+  width: 36px; height: 30px;
+  font-size: 11.5px; font-weight: 700;
+  cursor: pointer; transition: filter .15s;
+  color: #000;
+}
+table.overlap-matrix td.cell:hover { filter: brightness(.92); }
+table.overlap-matrix td.cell.below-threshold {
+  opacity: .25; cursor: default;
+}
+table.overlap-matrix td.cell.bin-self {
+  background: #000; color: #fff; cursor: default;
+}
+table.overlap-matrix td.cell.bin-0   { background: #ffffff; color: #000; }
+table.overlap-matrix td.cell.bin-20  { background: #DBC8B2; color: #000; }
+table.overlap-matrix td.cell.bin-40  { background: #BD9568; color: #fff; }
+table.overlap-matrix td.cell.bin-60  { background: #8B6B40; color: #fff; }
+table.overlap-matrix td.cell.bin-80  { background: #5C3D11; color: #fff; }
+
+.matrix-foot {
+  margin: 14px 0 0; font-size: 11.5px; color: var(--text-mid);
+  font-style: italic; line-height: 1.4;
+}
+
+/* Cell tooltip — positioned absolutely by JS */
+.cell-tooltip {
+  position: fixed; z-index: 100;
+  background: #000; color: #fff;
+  padding: 10px 12px; border-radius: 4px;
+  font-size: 11.5px; font-family: 'Cambria', Georgia, serif;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .25);
+  max-width: 320px;
+}
+.cell-tooltip[hidden] { display: none; }
+.cell-tooltip .ct-h {
+  font-weight: 700; color: var(--gold); margin-bottom: 6px;
+}
+.cell-tooltip table { border-collapse: collapse; width: 100%; }
+.cell-tooltip table th,
+.cell-tooltip table td {
+  padding: 2px 6px; font-size: 11px;
+  border-bottom: 1px solid rgba(255, 255, 255, .12);
+}
+.cell-tooltip table th {
+  text-align: left; font-weight: 600; color: rgba(255, 255, 255, .8);
+}
+.cell-tooltip table td { text-align: right; font-variant-numeric: tabular-nums; }
+.cell-tooltip table td:first-child { text-align: left; color: #fff; }

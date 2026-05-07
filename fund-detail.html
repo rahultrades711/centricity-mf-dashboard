@@ -23,6 +23,7 @@
     <a class="active" href="fund-detail.html">Fund One Pagers</a>
     <a href="portfolio-builder.html">Portfolio Builder</a>
     <a href="compare.html">Compare</a>
+    <a href="overlap.html">Overlap</a>
     <a href="archive.html">Archive</a>
     <a href="alerts.html">Alerts</a>
     <a href="watchlist.html">Watchlist</a>
@@ -123,9 +124,9 @@
             <div class="chart-caption" id="navChartCaption">Loading…</div>
           </div>
           <div class="legend">
-            <span><i style="background:var(--gold)"></i>Fund</span>
-            <span><i style="background:var(--grey-mid);border-style:dashed"></i>Benchmark</span>
-            <span><i style="background:#0E0E0E"></i>Category Avg</span>
+            <span><i class="lswatch lswatch-fund"></i>Fund</span>
+            <span><i class="lswatch lswatch-bench"></i>Benchmark</span>
+            <span><i class="lswatch lswatch-cat"></i>Category Avg</span>
           </div>
           <div class="toggles" id="navToggles">
             <button data-window="1Y">1Y</button>
@@ -174,6 +175,7 @@
         <div>
           <div class="mgr-name" id="mgrName">—</div>
           <div class="mgr-title" id="mgrTitle">—</div>
+          <div class="mgr-co" id="mgrCoManagers" hidden></div>
           <p class="mgr-bio" id="mgrBio">—</p>
           <div class="prior-funds">
             <h4>Lead Manager</h4>
@@ -183,6 +185,14 @@
           </div>
         </div>
         <div class="mgr-stats" id="mgrStats"></div>
+      </div>
+
+      <!-- Fix-List 8 Feature 1 — Manager history timeline -->
+      <div class="manager-timeline" id="managerTimeline" hidden>
+        <h4 class="timeline-h">Manager History · Morningstar</h4>
+        <div class="timeline-track" id="timelineTrack"></div>
+        <div class="timeline-axis" id="timelineAxis"></div>
+        <p class="timeline-foot" id="timelineFoot"></p>
       </div>
     </section>
 
@@ -208,8 +218,7 @@
 
           <div class="port-card" id="sectorDonutCard">
             <div class="port-card-h" id="sectorDonutTitle">Sector Allocation</div>
-            <div class="donut-wrap"><canvas id="sectorDonut"></canvas></div>
-            <div class="sector-legend" id="sectorLegend"></div>
+            <div id="sectorList" class="sector-list"></div>
             <div class="donut-empty" id="sectorDonutEmpty" hidden>
               <div class="ring-motif"></div>
               <p>Sector data pending. Analytics pipeline v1.1.</p>
@@ -225,6 +234,13 @@
               <p class="holdings-pending">Holdings data pending. Analytics pipeline v1.1.</p>
             </div>
             <div class="holdings-callout-v2" id="holdingsCallout" hidden></div>
+          </div>
+          <!-- Fix-List 8 Feature 3 — Similar Funds by Holdings -->
+          <div class="port-card similar-funds-card" id="similarFundsCard" hidden>
+            <div class="port-card-h" id="similarFundsTitle">Most Similar Funds by Holdings</div>
+            <div id="similarFundsMount"></div>
+            <p class="similar-funds-foot" id="similarFundsFoot"></p>
+            <a class="similar-funds-link" id="similarFundsLink" href="#">View full overlap analysis →</a>
           </div>
         </div>
       </div>

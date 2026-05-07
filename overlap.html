@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Centricity MF Screener — Portfolio Overlap</title>
+<meta name="viewport" content="width=1680">
+<link rel="icon" href="assets/logo.png">
+<link rel="stylesheet" href="css/centricity.css">
+<link rel="stylesheet" href="css/overlap.css">
+<script defer src="js/data-loader.js"></script>
+<script defer src="js/state.js"></script>
+<script defer src="js/multi-select.js"></script>
+<script defer src="js/overlap.js"></script>
+</head>
+<body>
+
+<header class="appbar" role="banner">
+  <div class="left">
+    <div class="logo-cell"><img src="assets/logo.png" alt="Centricity WealthTech"></div>
+  </div>
+  <nav aria-label="primary">
+    <a href="index.html">Home</a>
+    <a href="screener.html">Screener</a>
+    <a href="fund-detail.html">Fund One Pagers</a>
+    <a href="portfolio-builder.html">Portfolio Builder</a>
+    <a href="compare.html">Compare</a>
+    <a class="active" href="overlap.html">Overlap</a>
+    <a href="archive.html">Archive</a>
+    <a href="alerts.html">Alerts</a>
+    <a href="watchlist.html">Watchlist</a>
+  </nav>
+  <div class="right">
+    <label class="search">
+      <span style="opacity:.6">⌕</span>
+      <input type="text" placeholder="Search funds, AMCs, managers…" aria-label="Search">
+    </label>
+  </div>
+</header>
+
+<div class="crumb">
+  <a href="index.html">Home</a>
+  <span class="sep">›</span>
+  <span>Portfolio Overlap</span>
+</div>
+
+<main class="overlap-main" id="overlapMain">
+
+  <section class="overlap-head">
+    <span class="eyebrow" id="overlapEyebrow">Portfolio Overlap · As on —</span>
+    <h1>Portfolio <em>Overlap</em></h1>
+    <p class="h-sub">
+      Pick two or more funds (max 40). Overlap is computed as
+      <code>Σ min(weight<sub>A</sub>, weight<sub>B</sub>)</code> across each
+      fund's top-20 holdings — common stocks contribute the smaller of the
+      two weights. <b>Overlap on top-20 holdings only;</b> full-portfolio
+      overlap may differ.
+    </p>
+  </section>
+
+  <div class="overlap-layout">
+
+    <!-- LEFT: fund picker -->
+    <aside class="overlap-picker">
+      <div class="picker-head">
+        <div class="picker-title-row">
+          <h3>Select funds</h3>
+          <span class="picker-counter" id="pickerCounter">Selected: 0</span>
+        </div>
+        <div class="picker-search-wrap">
+          <input type="text" id="pickerSearch" class="picker-search"
+                 placeholder="Search by fund name…" aria-label="Search funds">
+        </div>
+        <div class="picker-cat-wrap">
+          <button type="button" class="picker-cat-btn" id="pickerCatBtn">
+            All categories <span class="caret">▾</span>
+          </button>
+          <div class="picker-cat-panel" id="pickerCatPanel" hidden></div>
+        </div>
+        <div class="picker-actions">
+          <button type="button" class="btn ghost xs" id="pickerSelectVisible">Select Visible</button>
+          <button type="button" class="btn ghost xs" id="pickerClear">Clear All</button>
+        </div>
+        <p class="picker-cap-note" id="pickerCapNote" hidden>Max 40 funds for the overlap matrix.</p>
+      </div>
+      <div class="picker-list" id="pickerList">
+        <p class="picker-pending">Loading analytics file…</p>
+      </div>
+    </aside>
+
+    <!-- RIGHT: matrix -->
+    <section class="overlap-matrix-wrap">
+
+      <div class="matrix-toolbar">
+        <div class="toolbar-left">
+          <label class="threshold-label">
+            Minimum overlap:
+            <input type="range" id="thresholdSlider" min="0" max="80" value="0" step="5">
+            <span class="threshold-value" id="thresholdValue">0%</span>
+          </label>
+        </div>
+        <div class="toolbar-right">
+          <button class="btn primary xs deferred" id="downloadPngBtn"
+                  disabled title="Available once at least 2 funds are selected">
+            Export as PNG
+          </button>
+        </div>
+      </div>
+
+      <div class="matrix-empty" id="matrixEmpty">
+        <div class="ring-motif" aria-hidden="true"></div>
+        <h3>Select at least 2 funds from the left panel</h3>
+        <p>Pick funds whose portfolios you want to compare. The matrix renders the moment a second fund is selected. Hover any cell for the top-5 common holdings.</p>
+      </div>
+
+      <div class="matrix-area" id="matrixArea" hidden>
+        <div class="matrix-legend">
+          <span class="ml-title">Overlap %</span>
+          <span class="ml-bin"><i style="background:#ffffff;border:1px solid var(--rule)"></i>0–20</span>
+          <span class="ml-bin"><i style="background:#DBC8B2"></i>20–40</span>
+          <span class="ml-bin"><i style="background:#BD9568"></i>40–60</span>
+          <span class="ml-bin"><i style="background:#8B6B40;color:#fff"></i>60–80</span>
+          <span class="ml-bin"><i style="background:#5C3D11;color:#fff"></i>80+</span>
+          <span class="ml-bin self"><i style="background:#000000"></i>Self</span>
+        </div>
+        <div id="matrixMount" class="matrix-mount"></div>
+        <p class="matrix-foot" id="matrixFoot"></p>
+      </div>
+
+    </section>
+  </div>
+
+</main>
+
+<!-- Cell tooltip (positioned by JS) -->
+<div id="cellTooltip" class="cell-tooltip" hidden></div>
+
+<footer class="appfoot" role="contentinfo">
+  <div class="left">
+    <span class="gold">CENTRICITY WEALTHTECH</span>
+    <span>·</span>
+    <span>Products Team</span>
+    <span>·</span>
+    <span>Confidential</span>
+  </div>
+  <div class="right" id="footUpdated">Last updated · —</div>
+</footer>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+</body>
+</html>
