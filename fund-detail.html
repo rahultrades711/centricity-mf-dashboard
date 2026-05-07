@@ -184,38 +184,30 @@
           <div class="mgr-co" id="mgrCoManagers" hidden></div>
           <div class="mgr-also-managing" id="mgrAlsoManaging" hidden></div>
           <p class="mgr-bio" id="mgrBio">—</p>
-          <!-- Fix-List 10 §3 — All-managers history table.
-               Replaces the Fix-List 9 "Lead Manager" sub-table that
-               surfaced manager_tenure_longest from screener (a stale,
-               wrong number for current managers — same data the §2
-               LEAD MANAGER bar was reading). The new table lists every
-               manager from manager-history JSON, newest first, with
-               clear Lead / Co badges. -->
+          <!-- Fix-List 11 §1 — Manager History table is now collapsible
+               (closed by default). Click the summary to expand the
+               full table; the count badge in the summary surfaces the
+               record count without forcing the full table open. -->
           <div class="mgr-history-table-wrap">
-            <h4 class="mgr-history-title">Manager History</h4>
-            <table class="mgr-history-table" id="mgrHistoryTable">
-              <thead>
-                <tr><th>Manager</th><th>From</th><th>To</th><th>Tenure</th></tr>
-              </thead>
-              <tbody></tbody>
-            </table>
+            <details class="mgr-history-details">
+              <summary class="mgr-history-summary">Manager History
+                <span class="mgr-count" id="mgrHistoryCount"></span>
+              </summary>
+              <table class="mgr-history-table" id="mgrHistoryTable">
+                <thead>
+                  <tr><th>Manager</th><th>From</th><th>To</th><th>Tenure</th></tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </details>
           </div>
         </div>
         <div class="mgr-stats" id="mgrStats"></div>
       </div>
 
-      <!-- Fix-List 10 §4 — Manager timeline redesigned as a single
-           horizontal line from inception with name annotations
-           alternating above / below.  Replaces the Fix-List 9 dual-row
-           bar layout. -->
-      <div class="manager-timeline" id="managerTimeline" hidden>
-        <div class="tl-wrap">
-          <div class="tl-annotations" id="timelineTrack"></div>
-          <div class="tl-line"></div>
-          <div class="tl-axis" id="timelineAxis"></div>
-        </div>
-        <p class="tl-foot" id="timelineFoot"></p>
-      </div>
+      <!-- Fix-List 11 §2 — Manager timeline removed. The collapsible
+           Manager History table (above) now carries every record the
+           timeline previously visualised. -->
     </section>
 
     <!-- 04 PORTFOLIO — Fix-List 6 §3 rebuild: donut charts (left) + compact holdings table (right) -->

@@ -482,6 +482,25 @@ table.perf .neg { color: var(--red); }
   font-size: 11px; font-weight: 600; letter-spacing: .08em;
   text-transform: uppercase; color: #888; margin-bottom: 6px;
 }
+/* Fix-List 11 §1 — wrap the table in <details>; closed by default.
+ * The summary carries the title plus a "(N)" count badge so partners
+ * see record count without expanding. Hides the default ▶ marker and
+ * uses a styled gold-coloured one. */
+.mgr-history-details { margin: 12px 0 4px; }
+.mgr-history-summary {
+  cursor: pointer; list-style: none;
+  font-size: 12px; font-weight: 600;
+  letter-spacing: .06em; text-transform: uppercase; color: #555;
+  padding: 6px 0;
+  border-top: 1px solid #e8e8e8;
+  user-select: none;
+}
+.mgr-history-summary::-webkit-details-marker { display: none; }
+.mgr-history-summary::before { content: '▶ '; font-size: 9px; color: #BD9568; }
+details.mgr-history-details[open] .mgr-history-summary::before { content: '▼ '; }
+.mgr-count { color: #aaa; font-weight: 400; margin-left: 4px; }
+details.mgr-history-details .mgr-history-table { margin-top: 6px; }
+
 .mgr-history-table {
   width: 100%; border-collapse: collapse;
   font-size: 12px; font-family: 'Cambria', Georgia, serif;
@@ -517,70 +536,12 @@ table.perf .neg { color: var(--red); }
 }
 .curr-tag { color: #2E7D32; font-weight: 600; }
 
-/* ============ MANAGER TIMELINE — Fix-List 10 §4 redesign =========
- * Single horizontal gold line from fund inception to today. Manager
- * names render as annotations stemming above / below the line,
- * alternating to avoid collisions. The label inside each annotation
- * is a 3-letter initials prefix + the manager's last name (so even a
- * dense run of co-management stays readable), with the tenure
- * appended in muted grey. Hover-tooltip carries the full date range. */
-.manager-timeline { margin: 20px 0 8px; }
-.manager-timeline[hidden] { display: none; }
-.tl-wrap {
-  position: relative; height: 80px;     /* annotations + line + axis */
-}
-.tl-line {
-  position: absolute; top: 50%; left: 0; right: 0;
-  height: 2px; background: #BD9568;
-  transform: translateY(-50%);
-}
-.tl-annotations {
-  position: absolute; inset: 0;
-  pointer-events: none;
-}
-.tl-ann {
-  position: absolute; pointer-events: all; cursor: default;
-}
-.tl-ann-stem {
-  position: absolute; left: 0; width: 1px; background: #ccc;
-}
-.tl-ann.tl-above .tl-ann-stem { bottom: 50%; height: 16px; }
-.tl-ann.tl-below .tl-ann-stem { top: 50%; height: 16px; }
-.tl-ann-label {
-  position: absolute; left: 2px;
-  white-space: nowrap;
-  font-size: 10px; font-family: 'Cambria', Georgia, serif;
-}
-.tl-ann.tl-above .tl-ann-label { bottom: calc(50% + 16px); }
-.tl-ann.tl-below .tl-ann-label { top:    calc(50% + 16px); }
-.tl-name { font-weight: 600; }
-.tl-dur  { color: #888; margin-left: 3px; }
-
-/* Current main manager — gold, slightly larger, gold stem */
-.tl-ann.ann-main .tl-name      { color: #BD9568; font-size: 11px; }
-.tl-ann.ann-main .tl-ann-stem  { background: #BD9568; width: 2px; }
-/* Current co-managers — gold-deep, half-opacity gold stem */
-.tl-ann.ann-curr .tl-name      { color: #5C3D11; }
-.tl-ann.ann-curr .tl-ann-stem  { background: #BD9568; opacity: .5; }
-/* Past managers — muted */
-.tl-ann.ann-past .tl-name      { color: #888; }
-.tl-ann.ann-past .tl-ann-stem  { background: #ccc; }
-
-/* Year axis */
-.tl-axis {
-  position: absolute; bottom: 0; left: 0; right: 0;
-  height: 18px;
-}
-.tl-year {
-  position: absolute; bottom: 0;
-  font-size: 10px; color: #aaa;
-  transform: translateX(-50%);
-  font-family: 'Cambria', Georgia, serif;
-}
-.tl-foot {
-  font-size: 10px; color: #aaa;
-  margin-top: 4px; font-style: italic;
-}
+/* Fix-List 11 §2 — manager timeline removed entirely. The collapsible
+ * Manager History table above (§1) replaces it. Removed rules:
+ * .manager-timeline, .tl-wrap, .tl-line, .tl-annotations, .tl-ann (and
+ * .tl-above / .tl-below variants), .tl-ann-stem, .tl-ann-label,
+ * .tl-name, .tl-dur, .ann-main / .ann-curr / .ann-past, .tl-axis,
+ * .tl-year, .tl-foot. */
 
 /* ============ PORTFOLIO — Fix-List 6 §3 rebuild ============ */
 .portfolio-grid-v2 {
@@ -770,29 +731,14 @@ table.holdings-tbl-v2 tbody tr:hover td { background: var(--tan-soft); }
   padding: 1px 5px; border-radius: 2px; font-size: 11.5px;
 }
 
-/* Sector allocation horizontal-bars list — Fix-List 5 §C9 */
-.sector-list { margin-top: 4px; }
-.sector-row {
-  display: grid; grid-template-columns: 140px 1fr 60px;
-  gap: 12px; align-items: center;
-  padding: 6px 0; border-bottom: 1px dashed var(--rule);
-}
-.sector-row:last-child { border-bottom: 0; }
-.sector-label {
-  font-size: 12.5px; color: var(--black); font-weight: 700;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.sector-bar {
-  display: block; height: 8px;
-  background: var(--grey-light); border-radius: 99px; overflow: hidden;
-}
-.sector-bar i {
-  display: block; height: 100%; background: var(--gold);
-}
-.sector-pct {
-  font-size: 12px; text-align: right;
-  font-variant-numeric: tabular-nums; font-weight: 700;
-}
+/* Fix-List 11 §5 — Fix-List 5 §C9 sector horizontal-bars block deleted.
+ * It was overriding the Fix-List 10 text-only flex layout (defined
+ * earlier in this file under .sector-row at L598) with a 3-column
+ * grid that reserved a 1fr middle column for a `.sector-bar` element
+ * that no longer exists in the markup, leaving residual blank space
+ * to the right of the percentage. The .sector-label / .sector-bar /
+ * .sector-bar i rules are gone too — none of those classes appear
+ * anywhere in the rendered HTML since Fix-List 8 §3. */
 
 /* Top-N holdings table — Fix-List 5 §C9 */
 .holdings-table-wrap { overflow-x: auto; }

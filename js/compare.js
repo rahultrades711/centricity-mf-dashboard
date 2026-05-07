@@ -66,13 +66,39 @@
       if (!res.ok) return;
       const doc = await res.json();
       const idx = Object.create(null);
+      // Fix-List 11 §4 — same fuzzy-match-against-screener-name
+      // resolution as fund-detail and the screener overlay. Without
+      // it, ICICI Pru E&D would surface Manish Banthia (12.7 yr)
+      // over Sankaran Naren (10.4 yr) — wrong, because Naren is the
+      // lead per the screener record.
+      const screenerByCode = new Map();
+      if (_cycle && _cycle.funds) {
+        for (const f of _cycle.funds) screenerByCode.set(String(f.scheme_code), f);
+      }
       for (const code in doc.funds) {
         const entry = doc.funds[code];
         if (!entry || !entry.managers) continue;
         const current = entry.managers.filter(m => m.is_current);
         if (current.length === 0) continue;
-        const main = current.reduce((a, b) =>
-          (Number(a.tenure_years) || 0) > (Number(b.tenure_years) || 0) ? a : b);
+        let main;
+        if (current.length === 1) {
+          main = current[0];
+        } else {
+          const screenerFund = screenerByCode.get(String(code));
+          const screenerName = (screenerFund && screenerFund.manager_name || '')
+            .toLowerCase().trim();
+          let matched = null;
+          if (screenerName) {
+            matched = current.find(m => {
+              const nl = m.name.toLowerCase();
+              if (nl.includes(screenerName)) return true;
+              const surname = screenerName.split(/\s+/).pop();
+              return surname && surname.length > 2 && nl.includes(surname);
+            });
+          }
+          main = matched || current.reduce((a, b) =>
+            (Number(a.tenure_years) || 0) > (Number(b.tenure_years) || 0) ? a : b);
+        }
         idx[String(code)] = { name: main.name, tenure_years: main.tenure_years };
       }
       _mgrByScheme = idx;

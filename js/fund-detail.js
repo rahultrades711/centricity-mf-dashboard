@@ -847,9 +847,10 @@
    * div stays hidden by default).
    */
   function renderManagerTimeline(fund, entry) {
-    const wrap = document.getElementById('managerTimeline');
-    if (!wrap || !entry || !entry.managers || entry.managers.length === 0) {
-      if (wrap) wrap.hidden = true;
+    // Fix-List 11 §2 — the timeline DOM mount is gone, so the early-
+    // return guard now only checks entry. The function still owns the
+    // tenure/co-managers/also-managing/history-table renders.
+    if (!entry || !entry.managers || entry.managers.length === 0) {
       return;
     }
     const managers = entry.managers;
@@ -935,10 +936,13 @@
     // ---- Fix-List 9 §5 — "Also Managing" row ----
     _renderAlsoManaging(fund, main);
 
-    // ---- Fix-List 10 §3 — All-managers history table ----
+    // ---- Fix-List 10 §3 + Fix-List 11 §1 — All-managers history table.
     // Newest first. Lead badge on the resolved main; Co badge on every
     // other current; bare row for past. Tenure column reads
     // _formatTenureYM (matches every other tenure surface on the page).
+    // Fix-List 11 §1 — the table is wrapped in <details>; we also write
+    // a "(N)" count badge into the summary so partners can see the
+    // record count without expanding.
     const tbody = document.querySelector('#mgrHistoryTable tbody');
     if (tbody) {
       const rows = managers.slice().sort(
@@ -961,11 +965,14 @@
           <td>${escapeHtml(_formatTenureYM(m.tenure_years))}</td>
         </tr>`;
       }).join('');
+      const countEl = document.getElementById('mgrHistoryCount');
+      if (countEl) countEl.textContent = `(${rows.length})`;
     }
 
-    // ---- Fix-List 10 §4 — Single-line annotated timeline ----
-    _drawManagerTimelineV9(managers, main);
-    wrap.hidden = false;
+    // ---- Fix-List 11 §2 — manager timeline removed. The collapsible
+    // Manager History table above now carries every record the
+    // single-line annotated timeline (and earlier two-row bar layout)
+    // surfaced. Removed: _drawManagerTimelineV9 call + wrap.hidden flip.
   }
 
   /**
@@ -997,14 +1004,16 @@
     const SHOW = 5;
     const visible = codes.slice(0, SHOW);
     const overflow = Math.max(0, codes.length - SHOW);
+    // Fix-List 11 §3 — funds stacked one per line (<br> separator)
+    // instead of comma-joined; same pattern as the co-managers strip.
     const linksHtml = visible.map(c => {
       const sf = screenerByCode.get(String(c));
       const name = sf ? sf.fund_name : `Scheme ${c}`;
       const href = `fund-detail.html?scheme=${encodeURIComponent(c)}`;
       return `<a class="manager-link" href="${href}">${escapeHtml(name)}</a>`;
-    }).join(', ');
+    }).join('<br>');
     const overflowHtml = overflow > 0
-      ? `<span class="also-overflow">, + ${overflow} more</span>`
+      ? `<br><span class="also-overflow">+ ${overflow} more</span>`
       : '';
     row.hidden = false;
     row.innerHTML =
@@ -1012,114 +1021,11 @@
       `<span class="co-body">${linksHtml}${overflowHtml}</span>`;
   }
 
-  /**
-   * Fix-List 9 §1 — Redesigned manager timeline.
-   *
-   *   Zone A: last-10-years window only — pruned by intersecting each
-   *           manager's [start, end] range against `[today − 10y, today]`
-   *           and dropping segments that fall entirely outside it.
-   *   Zone B: a "+ N earlier managers" pill rendered to the left of the
-   *           track when the fund's history extends pre-window. Click
-   *           toggles a scrollable expanded panel showing every segment
-   *           with explicit dates.
-   *
-   *   Layout: main row (28px) carries the resolved main + every past
-   *           manager. Co-manager row (20px) below the main row carries
-   *           current co-managers ONLY (past co-management overlaps are
-   *           absorbed into the main row to keep the visual quiet).
-   *
-   *   Width floor: each segment renders at min 6 % width so 3-month
-   *           tenures stay clickable. Real date range shown in the
-   *           tooltip — the rendered width is intentionally a hint,
-   *           not a measurement.
-   */
-  function _drawManagerTimelineV9(managers, main) {
-    // Fix-List 10 §4 — single annotated line from inception.
-    //
-    // Layout: a single horizontal gold line spans the full width of the
-    // timeline area. Each manager is a stem rising above (even-indexed)
-    // or falling below (odd-indexed) the line at their start date, with
-    // a label "<initials>. <Last>" + muted tenure suffix. The line itself
-    // implicitly carries the fund's lifetime (earliest manager start →
-    // today). Past managers are muted grey; current main is gold +
-    // bigger; current co-managers are gold-deep with half-opacity stem.
-    const track = document.getElementById('timelineTrack');
-    const axis  = document.getElementById('timelineAxis');
-    const foot  = document.getElementById('timelineFoot');
-    if (!track || !axis || !managers || managers.length === 0) return;
-
-    const today = new Date();
-    const sorted = managers.slice().sort(
-      (a, b) => new Date(a.start) - new Date(b.start)
-    );
-    const tStart = new Date(sorted[0].start);
-    const tEnd   = today;
-    const totalMs = tEnd - tStart;
-    if (totalMs <= 0) return;
-
-    const pct = (d) =>
-      Math.max(0, Math.min(100, ((new Date(d) - tStart) / totalMs) * 100));
-
-    function fmtShort(d) {
-      const dt = new Date(d);
-      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-      return `${months[dt.getUTCMonth()]} '${String(dt.getUTCFullYear()).slice(2)}`;
-    }
-
-    function makeInitials(name) {
-      // 1-3 capital letter prefix from the name's word starts
-      return (name || '')
-        .split(/\s+/)
-        .filter(Boolean)
-        .map(w => w[0])
-        .join('')
-        .slice(0, 3)
-        .toUpperCase();
-    }
-
-    // Build annotation HTML — alternate above / below to avoid collisions.
-    track.innerHTML = sorted.map((m, i) => {
-      const left   = pct(m.start).toFixed(2);
-      const isMain = main && m.name === main.name;
-      const isCurr = m.is_current;
-      const tenure = _formatTenureYM(m.tenure_years);
-      const side   = i % 2 === 0 ? 'above' : 'below';
-      const cls    = isMain ? 'ann-main' : (isCurr ? 'ann-curr' : 'ann-past');
-      const initials = makeInitials(m.name);
-      const last     = (m.name || '').split(/\s+/).pop();
-      const range    = `${fmtShort(m.start)} – ${m.end ? fmtShort(m.end) : 'present'}`;
-      const titleAttr = `${m.name} · ${range} · ${tenure}`;
-      return `
-        <div class="tl-ann ${cls} tl-${side}"
-             style="left:${left}%"
-             title="${escapeHtml(titleAttr)}">
-          <div class="tl-ann-stem"></div>
-          <div class="tl-ann-label">
-            <span class="tl-name">${escapeHtml(initials)}. ${escapeHtml(last)}</span>
-            <span class="tl-dur">${escapeHtml(tenure)}</span>
-          </div>
-        </div>`;
-    }).join('');
-
-    // Year axis (Jan 1 of each year strictly between inception and today).
-    const startYear = tStart.getUTCFullYear();
-    const endYear   = today.getUTCFullYear();
-    const axHtml = [];
-    for (let y = startYear + 1; y <= endYear; y++) {
-      const lp = pct(`${y}-01-01`).toFixed(2);
-      axHtml.push(`<span class="tl-year" style="left:${lp}%">${y}</span>`);
-    }
-    axis.innerHTML = axHtml.join('');
-
-    if (foot) {
-      const spanYrs = (totalMs / (365.25 * 24 * 3600 * 1000)).toFixed(1);
-      const asOf = _managerHistoryCache && _managerHistoryCache.as_of_date
-        ? _managerHistoryCache.as_of_date : '—';
-      foot.textContent =
-        `Since inception (${spanYrs} yr span · ${sorted.length} managers shown). ` +
-        `Source: Morningstar as of ${asOf}.`;
-    }
-  }
+  // Fix-List 11 §2 — _drawManagerTimelineV9 removed entirely. The
+  // single-line annotated timeline (Fix-List 10 §4) and its earlier
+  // dual-row 10-year-window bar layout (Fix-List 9 §1) are both gone;
+  // every record they surfaced is now in the collapsible Manager
+  // History table populated by renderManagerTimeline().
 
   function managerInitials(name) {
     if (!name) return '—';

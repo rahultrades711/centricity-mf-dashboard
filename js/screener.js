@@ -312,15 +312,40 @@
       if (!res.ok) return;
       _mgrHistoryCache = await res.json();
       const idx = Object.create(null);
+      // Fix-List 11 §4 — resolve the MAIN manager via the same logic
+      // fund-detail uses (resolveMainManager): cross-reference each
+      // fund's screener `manager_name` and fuzzy-match against the
+      // current managers in manager-history. Falls back to longest-
+      // tenure-current only when no name match exists. Picks
+      // Sankaran Naren over Manish Banthia for ICICI Pru E&D, etc.
+      const screenerByCode = new Map();
+      if (_allFunds && _allFunds.length) {
+        for (const f of _allFunds) screenerByCode.set(String(f.scheme_code), f);
+      }
       for (const code in _mgrHistoryCache.funds) {
         const entry = _mgrHistoryCache.funds[code];
         if (!entry || !entry.managers) continue;
         const current = entry.managers.filter(m => m.is_current);
         if (current.length === 0) continue;
-        // Resolved main = longest current tenure (matches fund-detail's
-        // fallback when the screener manager_name doesn't fuzzy-match).
-        const main = current.reduce((a, b) =>
-          (Number(a.tenure_years) || 0) > (Number(b.tenure_years) || 0) ? a : b);
+        let main;
+        if (current.length === 1) {
+          main = current[0];
+        } else {
+          const screenerFund = screenerByCode.get(String(code));
+          const screenerName = (screenerFund && screenerFund.manager_name || '')
+            .toLowerCase().trim();
+          let matched = null;
+          if (screenerName) {
+            matched = current.find(m => {
+              const nl = m.name.toLowerCase();
+              if (nl.includes(screenerName)) return true;
+              const surname = screenerName.split(/\s+/).pop();
+              return surname && surname.length > 2 && nl.includes(surname);
+            });
+          }
+          main = matched || current.reduce((a, b) =>
+            (Number(a.tenure_years) || 0) > (Number(b.tenure_years) || 0) ? a : b);
+        }
         idx[String(code)] = { name: main.name, tenure_years: main.tenure_years };
       }
       _mgrByScheme = idx;
