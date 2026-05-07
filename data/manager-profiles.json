@@ -1,5 +1,12 @@
 {
-  "scraped_at": null,
-  "source": "scripts/scrape_manager_profiles.py — pending first run",
-  "managers": {}
+  "scraped_at": "2026-05-07",
+  "source": "scrape_manager_profiles.py v1",
+  "managers": {
+    "Sudip Suresh More": {
+      "bio": "Mirae AssetAbout Us GlobalAbout Us IndiaMirae Asset FoundationGIFT CitySIFAIFContact UsLocate UsCareers\nFund in FocusMirae Asset Balanced Advantage Fund(An open ended dynamic asset allocation fund)Know More",
+      "source_url": "https://miraeassetmf.co.in/about-us/investment-team",
+      "source_name": "Mirae Asset Website",
+      "scraped_at": "2026-05-07"
+    }
+  }
 }
