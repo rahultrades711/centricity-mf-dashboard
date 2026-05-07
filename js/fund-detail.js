@@ -201,12 +201,19 @@
     const stocks = fund.no_of_stocks;
     const mgrTen = fund.manager_tenure_yrs;
     const aum = fund.aum_cr;
+    // Fix-List 9 §3 — score card's Manager Tenure cell is given an id so
+    // renderManagerTimeline() can swap in the resolved-main-manager tenure
+    // once manager-history loads. Falls back to screener tenure if we
+    // never get there (independent failure mode).
     grid.innerHTML = [
-      ['Rolling Returns', rolling != null ? `${DataLoader.fmtNum(rolling, 2)}%` : '—'],
-      ['No. of Stocks',   stocks != null ? stocks : '—'],
-      ['Manager Tenure',  mgrTen != null ? `${DataLoader.fmtNum(mgrTen, 1)} yrs` : '—'],
-      ['Fund AUM',        aum != null ? `₹ ${DataLoader.fmtINR(aum)} Cr` : '—'],
-    ].map(([k, v]) => `<div class="cell"><span class="k">${escapeHtml(k)}</span><span class="v">${escapeHtml(String(v))}</span></div>`).join('');
+      ['Rolling Returns', rolling != null ? `${DataLoader.fmtNum(rolling, 2)}%` : '—', null],
+      ['No. of Stocks',   stocks != null ? stocks : '—', null],
+      ['Manager Tenure',  mgrTen != null ? `${DataLoader.fmtNum(mgrTen, 1)} yrs` : '—', 'statManagerTenure'],
+      ['Fund AUM',        aum != null ? `₹ ${DataLoader.fmtINR(aum)} Cr` : '—', null],
+    ].map(([k, v, id]) =>
+      `<div class="cell"><span class="k">${escapeHtml(k)}</span>` +
+      `<span class="v"${id ? ` id="${id}"` : ''}>${escapeHtml(String(v))}</span></div>`
+    ).join('');
   }
 
   /* ============================================================
@@ -730,6 +737,10 @@
    * ============================================================ */
   let _managerHistoryCache = null;
   let _managerHistoryFile = null;
+  // Fix-List 9 §5 — inverted index { managerName: [scheme_codes] } built
+  // once when manager-history-cache lands. Powers the "Also Managing"
+  // row + Manager Profiles page cross-references.
+  let _managerFundsIndex = null;
 
   function _resolveManagerHistoryUrl() {
     // Match the screener cycle date for now — Products will refresh both
@@ -751,10 +762,32 @@
       const res = await fetch(url, { cache: 'default' });
       if (!res.ok) throw new Error('manager-history HTTP ' + res.status);
       _managerHistoryCache = await res.json();
+      _buildManagerFundsIndex();
     }
     const entry = _managerHistoryCache.funds && _managerHistoryCache.funds[String(schemeCode)];
     if (!entry) throw new Error('scheme not in manager-history');
     return entry;
+  }
+
+  /**
+   * Fix-List 9 §5 — build an inverted index { managerName: [scheme_codes] }
+   * keyed by exact manager name string. Includes only `is_current: true`
+   * records so the index reflects "who actively manages what right now."
+   * Built once per page load when the manager-history cache resolves.
+   */
+  function _buildManagerFundsIndex() {
+    if (_managerFundsIndex || !_managerHistoryCache || !_managerHistoryCache.funds) return;
+    const idx = Object.create(null);
+    for (const code in _managerHistoryCache.funds) {
+      const entry = _managerHistoryCache.funds[code];
+      if (!entry || !entry.managers) continue;
+      for (const m of entry.managers) {
+        if (!m.is_current) continue;
+        if (!idx[m.name]) idx[m.name] = [];
+        idx[m.name].push(code);
+      }
+    }
+    _managerFundsIndex = idx;
   }
 
   /**
@@ -808,10 +841,13 @@
   }
 
   /**
-   * Render the manager timeline + co-managers strip.  Called only when
-   * the manager-history JSON has an entry for this scheme; otherwise
-   * the timeline div stays hidden and the page falls back to whatever
-   * renderManager() drew from screener data.
+   * Render the manager card overrides + co-managers strip + Also Managing
+   * row + the redesigned timeline (Fix-List 9 §1, §2, §3, §5).
+   *
+   * Called only when the manager-history JSON has an entry for this
+   * scheme. If it doesn't, every override is skipped and the page
+   * remains in its renderManager()-from-screener state (the timeline
+   * div stays hidden by default).
    */
   function renderManagerTimeline(fund, entry) {
     const wrap = document.getElementById('managerTimeline');
@@ -822,138 +858,312 @@
     const managers = entry.managers;
     const main = resolveMainManager(managers, fund.manager_name);
 
-    // Override the manager card with Morningstar-derived values where
-    // they're available — name, tenure, start date.  Screener stays the
-    // fallback if Morningstar's main is missing.
+    // ---- Card overrides (name + title + avatar) ----
     if (main) {
       const nameEl  = document.getElementById('mgrName');
       const titleEl = document.getElementById('mgrTitle');
       const avatar  = document.getElementById('mgrAvatar');
-      if (nameEl)  nameEl.textContent  = main.name;
-      if (avatar)  avatar.textContent  = managerInitials(main.name);
+      // Fix-List 9 Feature B — name is an anchor to the manager-profiles
+      // page so partners can drill into a manager's full universe.
+      if (nameEl) {
+        const href = `manager-profiles.html?manager=${encodeURIComponent(main.name)}`;
+        nameEl.innerHTML = `<a class="manager-link" href="${href}">${escapeHtml(main.name)}</a>`;
+      }
+      if (avatar)  avatar.textContent = managerInitials(main.name);
       if (titleEl) {
         const tenureStr = _formatTenureYM(main.tenure_years);
         const startStr  = _formatLongDate(main.start);
+        // Fix-List 9 §3 — only ONE tenure number visible in the manager
+        // section: the resolved main manager's. The "Tenure" word that
+        // used to appear here is dropped; we just say the value.
         titleEl.textContent =
-          `${fund.amc || '—'} · Lead Manager · Tenure ${tenureStr} · Since ${startStr}`;
+          `${fund.amc || '—'} · Lead Manager · ${tenureStr} · Since ${startStr}`;
       }
     }
 
-    // Co-managers strip
-    const others = managers.filter(m => m.is_current && (!main || m.name !== main.name));
-    const coEl = document.getElementById('mgrCoManagers');
-    if (coEl) {
-      if (others.length > 0) {
-        coEl.hidden = false;
-        coEl.innerHTML = `Co-managed with: ${others.map(m => `<b>${escapeHtml(m.name)}</b>`).join(', ')}`;
-      } else {
-        coEl.hidden = true;
-        coEl.innerHTML = '';
-      }
+    // ---- Fix-List 9 §3 — score-card "Manager Tenure" cell override ----
+    // Source of truth: resolved main manager's tenure_years from
+    // Morningstar. Falls back to screener's manager_tenure_yrs when
+    // manager-history is unavailable (the cell already shows that on
+    // first render).
+    const scoreCell = document.getElementById('statManagerTenure');
+    if (scoreCell && main) {
+      // Match the score-card formatting convention: "X.X yrs" for >= 5
+      // years (we trust the year count); "X yr Y mo" for shorter runs
+      // where months matter.
+      const display = main.tenure_years >= 5
+        ? `${DataLoader.fmtNum(main.tenure_years, 1)} yrs`
+        : _formatTenureYM(main.tenure_years);
+      scoreCell.textContent = display;
     }
 
-    // Bump the Tenure stat to the main manager's actual Morningstar tenure
-    // (Whitelisting tenure is sometimes stale; Morningstar is the source
-    // of truth for start dates).
+    // ---- Fix-List 9 §3 — manager-stats Tenure cell override ----
+    // Replace the single "Tenure" cell with the resolved main manager's
+    // value (formatted same way as the score card).
     if (main) {
       const cells = document.querySelectorAll('#mgrStats .cell');
       cells.forEach(c => {
         const k = c.querySelector('.k');
         if (k && k.textContent === 'Tenure') {
           const v = c.querySelector('.v');
-          if (v) v.textContent = _formatTenureYM(main.tenure_years);
+          if (v) {
+            v.textContent = main.tenure_years >= 5
+              ? `${DataLoader.fmtNum(main.tenure_years, 1)} yrs`
+              : _formatTenureYM(main.tenure_years);
+          }
         }
       });
     }
 
-    // ---- Timeline track ----
+    // ---- Fix-List 9 §2 — Co-managers strip (prominent, with tenure) ----
+    const coManagers = managers.filter(m => m.is_current && (!main || m.name !== main.name));
+    const coEl = document.getElementById('mgrCoManagers');
+    if (coEl) {
+      if (coManagers.length > 0) {
+        coEl.hidden = false;
+        const list = coManagers.map(m => {
+          const href = `manager-profiles.html?manager=${encodeURIComponent(m.name)}`;
+          const tenureStr = _formatTenureYM(m.tenure_years);
+          return `<a class="manager-link" href="${href}">${escapeHtml(m.name)}</a> · ${escapeHtml(tenureStr)}`;
+        }).join('<br>');
+        coEl.innerHTML =
+          `<span class="co-label">Co-managed with</span>` +
+          `<span class="co-body">${list}</span>`;
+      } else {
+        coEl.hidden = true;
+        coEl.innerHTML = '';
+      }
+    }
+
+    // ---- Fix-List 9 §5 — "Also Managing" row ----
+    _renderAlsoManaging(fund, main);
+
+    // ---- Fix-List 9 §1 — Redesigned timeline (10-year window) ----
+    _drawManagerTimelineV9(managers, main);
+    wrap.hidden = false;
+  }
+
+  /**
+   * Fix-List 9 §5 — render the "Also Managing" row in the manager block.
+   * Reads `_managerFundsIndex` (built on first manager-history load) for
+   * fellow funds the resolved main manager runs in our universe.
+   *   • cap at 5 surfaced fund links; surplus collapses to "+ N more"
+   *   • em-dash if the manager runs nothing else
+   *   • row hidden entirely if `_managerFundsIndex` isn't built yet
+   *     (manager-history unavailable)
+   */
+  function _renderAlsoManaging(fund, main) {
+    const row = document.getElementById('mgrAlsoManaging');
+    if (!row) return;
+    if (!_managerFundsIndex || !main) {
+      row.hidden = true;
+      row.innerHTML = '';
+      return;
+    }
+    const codes = (_managerFundsIndex[main.name] || []).filter(c => String(c) !== String(fund.scheme_code));
+    if (codes.length === 0) {
+      row.hidden = false;
+      row.innerHTML =
+        `<span class="co-label">Also managing</span>` +
+        `<span class="co-body">—</span>`;
+      return;
+    }
+    const screenerByCode = new Map((_cycle.funds || []).map(f => [String(f.scheme_code), f]));
+    const SHOW = 5;
+    const visible = codes.slice(0, SHOW);
+    const overflow = Math.max(0, codes.length - SHOW);
+    const linksHtml = visible.map(c => {
+      const sf = screenerByCode.get(String(c));
+      const name = sf ? sf.fund_name : `Scheme ${c}`;
+      const href = `fund-detail.html?scheme=${encodeURIComponent(c)}`;
+      return `<a class="manager-link" href="${href}">${escapeHtml(name)}</a>`;
+    }).join(', ');
+    const overflowHtml = overflow > 0
+      ? `<span class="also-overflow">, + ${overflow} more</span>`
+      : '';
+    row.hidden = false;
+    row.innerHTML =
+      `<span class="co-label">Also managing</span>` +
+      `<span class="co-body">${linksHtml}${overflowHtml}</span>`;
+  }
+
+  /**
+   * Fix-List 9 §1 — Redesigned manager timeline.
+   *
+   *   Zone A: last-10-years window only — pruned by intersecting each
+   *           manager's [start, end] range against `[today − 10y, today]`
+   *           and dropping segments that fall entirely outside it.
+   *   Zone B: a "+ N earlier managers" pill rendered to the left of the
+   *           track when the fund's history extends pre-window. Click
+   *           toggles a scrollable expanded panel showing every segment
+   *           with explicit dates.
+   *
+   *   Layout: main row (28px) carries the resolved main + every past
+   *           manager. Co-manager row (20px) below the main row carries
+   *           current co-managers ONLY (past co-management overlaps are
+   *           absorbed into the main row to keep the visual quiet).
+   *
+   *   Width floor: each segment renders at min 6 % width so 3-month
+   *           tenures stay clickable. Real date range shown in the
+   *           tooltip — the rendered width is intentionally a hint,
+   *           not a measurement.
+   */
+  function _drawManagerTimelineV9(managers, main) {
     const track = document.getElementById('timelineTrack');
     const axis  = document.getElementById('timelineAxis');
+    const coRow = document.getElementById('timelineCoRow');
+    const preLabel = document.getElementById('timelinePreLabel');
+    const expandPanel = document.getElementById('timelineExpand');
+    const expandBtn = document.getElementById('timelineExpandBtn');
     if (!track || !axis) return;
 
+    const MIN_WIDTH_PCT = 6;
+    const SHOW_LABEL_THRESHOLD_PCT = 12;
+
     const today = new Date();
-    const startDates = managers.map(m => new Date(m.start));
-    const earliest = new Date(Math.min(...startDates.map(d => d.getTime())));
-    const latest = today;
-    const totalMs = latest.getTime() - earliest.getTime();
-    if (totalMs <= 0) { wrap.hidden = true; return; }
+    const windowStart = new Date(today);
+    windowStart.setUTCFullYear(today.getUTCFullYear() - 10);
+    const windowStartMs = windowStart.getTime();
+    const todayMs = today.getTime();
+    const totalMs = todayMs - windowStartMs;
+    if (totalMs <= 0) return;
 
-    // Stack overlapping segments into 2 rows so co-management periods
-    // don't visually fight for the same band.  Greedy assignment: walk
-    // managers sorted by start; place each one in row 0 if it doesn't
-    // overlap any segment already there, else row 1.  Any third-row
-    // overflow falls back to row 1 too (rare in real data).
-    const sorted = managers.slice().sort((a, b) => new Date(a.start) - new Date(b.start));
-    const rows = [[], []];
-    const placements = sorted.map(m => {
+    // Helpers that clamp a manager's [start, end] to the window
+    function clampToWindow(m) {
       const ms = new Date(m.start).getTime();
-      const me = m.end ? new Date(m.end).getTime() : latest.getTime();
-      let row = 0;
-      const overlaps = (existing) => existing.some(seg => {
-        const es = new Date(seg.start).getTime();
-        const ee = seg.end ? new Date(seg.end).getTime() : latest.getTime();
-        return ms < ee && me > es;
-      });
-      if (overlaps(rows[0])) {
-        row = 1;
-      }
-      rows[row].push(m);
-      return { m, row, ms, me };
-    });
+      const me = m.end ? new Date(m.end).getTime() : todayMs;
+      const cms = Math.max(ms, windowStartMs);
+      const cme = Math.min(me, todayMs);
+      return { ms, me, cms, cme, in: cme > windowStartMs && cms < todayMs };
+    }
 
-    const useTwoRows = rows[1].length > 0;
-    track.classList.toggle('two-row', useTwoRows);
+    // Partition managers by window membership
+    const inWindow = [];
+    const preWindow = [];
+    for (const m of managers) {
+      const c = clampToWindow(m);
+      if (c.in) inWindow.push({ m, ...c });
+      else preWindow.push(m);
+    }
 
-    // Build segment HTML
-    let pastIdx = 0;
-    track.innerHTML = placements.map(p => {
-      const m = p.m;
-      const left = Math.max(0, ((p.ms - earliest.getTime()) / totalMs) * 100);
-      let width = ((p.me - p.ms) / totalMs) * 100;
-      // Cap so we never spill past 100% (Morningstar end dates can be
-      // slightly in the future for very recent transitions)
-      if (left + width > 100) width = Math.max(0.5, 100 - left);
-      let cls = 'is-past';
-      if (m.is_current) {
-        cls = (main && m.name === main.name) ? 'is-main' : 'is-co';
+    // ---- Pre-history pill ----
+    if (preLabel) {
+      if (preWindow.length > 0) {
+        preLabel.hidden = false;
+        preLabel.textContent = `+ ${preWindow.length} earlier ${preWindow.length === 1 ? 'manager' : 'managers'}`;
+        preLabel.title = preWindow.map(m =>
+          `${m.name} (${_formatLongDate(m.start)} – ${m.end ? _formatLongDate(m.end) : 'Present'})`
+        ).join('\n');
       } else {
-        cls = (pastIdx % 2 === 0) ? 'is-past' : 'is-past-alt';
-        pastIdx += 1;
+        preLabel.hidden = true;
       }
-      const rowCls = useTwoRows ? (p.row === 0 ? 'is-row-1' : 'is-row-2') : '';
+    }
+
+    // ---- Main row segments ----
+    // Past managers and the resolved main manager all share row 0;
+    // current co-managers move to row 1 (their own track).
+    const mainRowEntries = [];
+    const coRowEntries   = [];
+    for (const e of inWindow) {
+      const isCurrent = e.m.is_current;
+      const isMain = main && e.m.name === main.name;
+      if (isCurrent && !isMain) {
+        coRowEntries.push(e);
+      } else {
+        mainRowEntries.push(e);
+      }
+    }
+
+    function buildSegmentHtml(e, rowKind) {
+      const m = e.m;
+      const leftPct = ((e.cms - windowStartMs) / totalMs) * 100;
+      let widthPct = ((e.cme - e.cms) / totalMs) * 100;
+      if (widthPct < MIN_WIDTH_PCT) widthPct = MIN_WIDTH_PCT;
+      // Don't let the floor push past the right edge
+      if (leftPct + widthPct > 100) widthPct = Math.max(MIN_WIDTH_PCT, 100 - leftPct);
+      let cls;
+      if (m.is_current && main && m.name === main.name) cls = 'is-main';
+      else if (m.is_current) cls = 'is-co';
+      else cls = 'is-past';
+      const rowCls = rowKind === 'co' ? 'in-co-row' : 'in-main-row';
       const tenureStr = _formatTenureYM(m.tenure_years);
       const startStr = _formatLongDate(m.start);
       const endStr   = m.end ? _formatLongDate(m.end) : 'Present';
-      const tooltip = `<b>${escapeHtml(m.name)}</b><br>${startStr} – ${endStr} · ${tenureStr}`;
+      const tooltip = `<b>${escapeHtml(m.name)}</b><br>${startStr} – ${endStr}<br>Tenure: ${tenureStr}`;
+      // First name + last initial when the segment is wide enough
+      const parts = m.name.split(/\s+/);
+      const initialLabel = parts.length > 1
+        ? `${parts[0]} ${parts[parts.length - 1][0]}.`
+        : parts[0];
+      const showLabel = widthPct >= SHOW_LABEL_THRESHOLD_PCT;
+      const inner = showLabel ? `<span class="seg-name">${escapeHtml(initialLabel)}</span>` : '';
       return `
         <div class="timeline-segment ${cls} ${rowCls}"
-             style="left:${left.toFixed(2)}%;width:${Math.max(width, 0.5).toFixed(2)}%"
+             style="left:${leftPct.toFixed(2)}%;width:${widthPct.toFixed(2)}%"
              aria-label="${escapeHtml(m.name)} ${startStr} to ${endStr}">
-          <span class="seg-name">${escapeHtml(m.name.split(' ')[0])}</span>
+          ${inner}
           <span class="timeline-tooltip">${tooltip}</span>
         </div>`;
-    }).join('');
+    }
 
-    // ---- Year-marker axis ----
-    const startYear = earliest.getUTCFullYear();
-    const endYear   = today.getUTCFullYear();
+    track.innerHTML = mainRowEntries.map(e => buildSegmentHtml(e, 'main')).join('');
+
+    if (coRow) {
+      if (coRowEntries.length > 0) {
+        coRow.hidden = false;
+        coRow.innerHTML = coRowEntries.map(e => buildSegmentHtml(e, 'co')).join('');
+      } else {
+        coRow.hidden = true;
+        coRow.innerHTML = '';
+      }
+    }
+
+    // ---- Year-marker axis (Jan 1 of each year in the window) ----
     const yearMarkers = [];
-    for (let y = startYear + 1; y <= endYear; y++) {
+    const startYear = windowStart.getUTCFullYear();
+    const endYear   = today.getUTCFullYear();
+    for (let y = startYear; y <= endYear; y++) {
       const yMs = Date.UTC(y, 0, 1);
-      const left = ((yMs - earliest.getTime()) / totalMs) * 100;
-      if (left < 0 || left > 100) continue;
+      if (yMs < windowStartMs || yMs > todayMs) continue;
+      const left = ((yMs - windowStartMs) / totalMs) * 100;
       yearMarkers.push(`<span class="timeline-year" style="left:${left.toFixed(2)}%">${y}</span>`);
     }
     axis.innerHTML = yearMarkers.join('');
 
-    const foot = document.getElementById('timelineFoot');
-    if (foot) {
-      foot.textContent =
-        `Source: Morningstar manager records as of ${_managerHistoryCache.as_of_date}. ` +
-        `${managers.length} manager${managers.length === 1 ? '' : 's'} on record.`;
+    // ---- Expand panel: full chronological history with explicit dates
+    if (expandBtn && expandPanel) {
+      expandBtn.onclick = (e) => {
+        e.preventDefault();
+        const isOpen = !expandPanel.hidden;
+        expandPanel.hidden = isOpen;
+        expandBtn.textContent = isOpen ? 'Show full history ▾' : 'Hide full history ▴';
+      };
+      const sorted = managers.slice().sort((a, b) => new Date(a.start) - new Date(b.start));
+      expandPanel.innerHTML = sorted.map(m => {
+        const startStr = _formatLongDate(m.start);
+        const endStr   = m.end ? _formatLongDate(m.end) : 'Present';
+        const tenureStr = _formatTenureYM(m.tenure_years);
+        const cls = m.is_current
+          ? (main && m.name === main.name ? 'eh-main' : 'eh-co')
+          : 'eh-past';
+        return `
+          <div class="exp-row ${cls}">
+            <span class="exp-name">${escapeHtml(m.name)}</span>
+            <span class="exp-dates">${startStr} – ${endStr}</span>
+            <span class="exp-tenure">${escapeHtml(tenureStr)}</span>
+          </div>`;
+      }).join('');
     }
 
-    wrap.hidden = false;
+    const foot = document.getElementById('timelineFoot');
+    if (foot) {
+      const inWin = inWindow.length;
+      const pre = preWindow.length;
+      foot.textContent =
+        `Last 10 years · ${inWin} ${inWin === 1 ? 'manager' : 'managers'} shown` +
+        (pre > 0 ? ` (${pre} earlier omitted — click "Show full history" for the full record)` : '') +
+        `. Source: Morningstar as of ${_managerHistoryCache.as_of_date}.`;
+    }
   }
 
   function managerInitials(name) {
@@ -1473,8 +1683,11 @@
     ];
     if (catData) {
       datasets.push({
+        // Fix-List 9 §4 — Cat Avg switched from #7D7D7D grey to #2E7D32
+        // deep green so the three nav-chart lines (gold / blue / green)
+        // are clearly distinguishable at small sizes.
         label: 'Category Avg', data: catData,
-        borderColor: '#7D7D7D', backgroundColor: 'transparent',
+        borderColor: '#2E7D32', backgroundColor: 'transparent',
         fill: false, tension: .25, pointRadius: 0, borderWidth: 1.5,
         spanGaps: true,
       });

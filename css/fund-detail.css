@@ -290,15 +290,21 @@ table.perf .neg { color: var(--red); }
 .chart-head .legend i {
   display: inline-block; width: 14px; height: 2px; vertical-align: middle; margin-right: 6px;
 }
-/* Fix-List 8 §2 — legend now uses solid horizontal line swatches that
- * mirror the chart's three datasets. No dashes, no dots. */
+/* Fix-List 8 §2 + Fix-List 9 §4 — legend uses solid horizontal line
+ * swatches mirroring the chart's three datasets. Swatches widened from
+ * 24 → 32 px and the fund label gains font-weight: 600 so partners can
+ * read "Fund" as the dominant series at a glance. Cat Avg recolored
+ * grey → deep green for clearer distinction from Benchmark blue. */
+.chart-head .legend { font-size: 13px; }
+.chart-head .legend span { display: inline-flex; align-items: center; }
+.chart-head .legend span:first-child { font-weight: 600; }
 .chart-head .legend .lswatch {
-  display: inline-block; width: 24px; height: 0; vertical-align: middle;
-  margin-right: 6px; background: transparent; border-top: 3px solid #BD9568;
+  display: inline-block; width: 32px; height: 0; vertical-align: middle;
+  margin-right: 7px; background: transparent; border-top: 3px solid #BD9568;
 }
 .chart-head .legend .lswatch-fund  { border-top: 3px solid #BD9568; }
-.chart-head .legend .lswatch-bench { border-top: 1.5px solid #5B8DB8; }
-.chart-head .legend .lswatch-cat   { border-top: 1.5px solid #7D7D7D; }
+.chart-head .legend .lswatch-bench { border-top: 2px solid #5B8DB8; }
+.chart-head .legend .lswatch-cat   { border-top: 2px solid #2E7D32; }
 .chart-head .toggles {
   display: flex; gap: 0; border: 1px solid var(--grey-light);
   border-radius: 3px; overflow: hidden; background: #fff;
@@ -405,12 +411,38 @@ table.perf .neg { color: var(--red); }
   font-size: 13.5px; margin-top: 10px; line-height: 1.6; color: var(--ink);
 }
 .mgr-bio.placeholder { color: var(--text-mid); font-style: italic; }
-/* Fix-List 8 Feature 1 — co-managers line. Sits between mgr-title and
- * mgr-bio when the fund has multiple current managers. */
-.mgr-co {
-  margin-top: 6px; font-size: 12.5px; color: var(--text-mid);
+/* Fix-List 9 §2 — co-manager + "Also managing" rows below the lead
+ * manager card. Each row carries a small grey separator above. Names
+ * render as gold links to manager-profiles.html; tenures sit beside
+ * each name in 13px Cambria. */
+.mgr-co,
+.mgr-also-managing {
+  display: grid; grid-template-columns: 130px 1fr; gap: 14px;
+  align-items: baseline;
+  margin-top: 10px; padding-top: 10px;
+  border-top: 1px solid var(--rule);
+  font-family: 'Cambria', Georgia, serif;
+  font-size: 13px;
 }
-.mgr-co b { color: var(--ink); font-weight: 600; }
+.mgr-co .co-label,
+.mgr-also-managing .co-label {
+  font-size: 10px; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--gold); font-weight: 700;
+}
+.mgr-co .co-body,
+.mgr-also-managing .co-body {
+  color: #000; line-height: 1.55;
+}
+.mgr-also-managing .also-overflow {
+  color: var(--text-mid); font-style: italic;
+}
+/* Fix-List 9 Feature B — the gold link style applied to every manager
+ * name and "Also managing" fund name. No underline at rest, underline
+ * on hover. */
+.manager-link {
+  color: var(--gold); font-weight: 600; text-decoration: none;
+}
+.manager-link:hover { text-decoration: underline; }
 .mgr-stats {
   display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
 }
@@ -426,10 +458,19 @@ table.perf .neg { color: var(--red); }
   font-size: 16px; font-weight: 700; margin-top: 3px;
 }
 
-/* Fix-List 8 Feature 1 — Manager history timeline.
- * Renders all historical managers (from Morningstar) as proportional
- * coloured segments on a horizontal track. Co-management overlaps stack
- * into a second row so segments don't fight for the same band. */
+/* Fix-List 9 §1 — Manager history timeline (redesigned).
+ *
+ * Two-zone layout:
+ *   • Pre-history pill (left of the title row) labels the "+ N earlier
+ *     managers" the 10-year window omits.
+ *   • The track itself shows only the last 10 years, so short-tenure
+ *     managers stay legible. Each segment has a 6 % minimum width so
+ *     a 3-month tenure stays clickable.
+ *   • Optional co-manager row sits below the main row when current
+ *     co-managers exist, on the same time axis.
+ *
+ * "Show full history" expand panel reveals every segment with explicit
+ * date labels for partners who want the complete record. */
 .manager-timeline {
   margin: 22px 0 0;
   padding: 18px 18px 14px;
@@ -437,32 +478,55 @@ table.perf .neg { color: var(--red); }
   background: #fafaf7;
 }
 .manager-timeline[hidden] { display: none; }
+.timeline-head-row {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin: 0 0 10px; gap: 12px; flex-wrap: wrap;
+}
 .manager-timeline .timeline-h {
   font-size: 11.5px; letter-spacing: .14em; text-transform: uppercase;
-  color: var(--gold); margin: 0 0 10px; font-weight: 700;
+  color: var(--gold); margin: 0; font-weight: 700;
 }
-.timeline-track {
-  position: relative; height: 28px;
+.timeline-pre-label {
+  display: inline-block; padding: 3px 10px;
+  background: #fff; border: 1px solid var(--rule); border-radius: 99px;
+  font-size: 11px; color: var(--text-mid); font-style: italic;
+  cursor: help;
+}
+.timeline-pre-label[hidden] { display: none; }
+.timeline-expand-btn {
+  background: transparent; border: 0;
+  font-size: 11.5px; color: var(--gold); font-weight: 600;
+  cursor: pointer; padding: 0;
+  font-family: inherit;
+}
+.timeline-expand-btn:hover { text-decoration: underline; }
+
+.timeline-track,
+.timeline-co-row {
+  position: relative;
   background: #f0eee9; border-radius: 4px;
   overflow: visible;
 }
-.timeline-track.two-row { height: 60px; }
+.timeline-track     { height: 28px; }
+.timeline-co-row    { height: 20px; margin-top: 6px; background: #f6f1eb; }
+.timeline-co-row[hidden] { display: none; }
+
 .timeline-segment {
-  position: absolute; height: 26px;
+  position: absolute; top: 1px; height: 26px;
   border-radius: 3px; cursor: pointer;
-  transition: opacity .15s ease, transform .15s ease;
+  transition: opacity .15s ease;
   display: flex; align-items: center; justify-content: flex-start;
-  padding: 0 6px; font-size: 10px; color: #fff;
+  padding: 0 6px; font-size: 10.5px;
   white-space: nowrap; overflow: hidden;
   text-overflow: ellipsis;
 }
+.timeline-co-row .timeline-segment { height: 18px; top: 1px; font-size: 10px; }
 .timeline-segment:hover { opacity: .85; z-index: 10; }
-.timeline-segment.is-row-1 { top: 1px; }
-.timeline-segment.is-row-2 { top: 32px; }
-.timeline-segment.is-main      { background: #BD9568; color: #fff; }
-.timeline-segment.is-co        { background: #DBC8B2; color: #1a1a1a; border: 1px solid #BD9568; }
-.timeline-segment.is-past      { background: #BFBFBF; color: #1a1a1a; }
-.timeline-segment.is-past-alt  { background: #D9D9D9; color: #1a1a1a; }
+
+.timeline-segment.is-main { background: #BD9568; color: #fff; font-weight: 700; }
+.timeline-segment.is-co   { background: #DBC8B2; color: #1a1a1a; border: 1px solid #BD9568; }
+.timeline-segment.is-past { background: #E8E8E8; color: #555; }
+
 .timeline-axis {
   position: relative; height: 18px; margin-top: 6px;
   border-top: 1px dashed var(--rule);
@@ -488,6 +552,29 @@ table.perf .neg { color: var(--red); }
   margin: 10px 0 0; font-size: 11px; color: var(--text-mid);
   font-style: italic; line-height: 1.4;
 }
+
+/* Expand panel — full chronological history with explicit dates */
+.timeline-expand {
+  margin-top: 12px; padding-top: 12px;
+  border-top: 1px solid var(--rule);
+  max-height: 240px; overflow-y: auto;
+}
+.timeline-expand[hidden] { display: none; }
+.timeline-expand .exp-row {
+  display: grid;
+  grid-template-columns: 1fr 200px 100px;
+  gap: 10px; align-items: baseline;
+  padding: 5px 0; font-size: 12px;
+  border-bottom: 1px solid var(--rule);
+  font-variant-numeric: tabular-nums;
+}
+.timeline-expand .exp-row:last-child { border-bottom: 0; }
+.timeline-expand .exp-name { color: #000; font-weight: 600; }
+.timeline-expand .exp-dates { color: var(--text-mid); }
+.timeline-expand .exp-tenure { color: #000; text-align: right; }
+.timeline-expand .eh-main .exp-name { color: var(--gold-deep); }
+.timeline-expand .eh-co .exp-name { color: var(--gold-deep); }
+.timeline-expand .eh-past .exp-name { color: #555; font-weight: 500; }
 
 .prior-funds { margin-top: 18px; }
 .prior-funds h4 {
