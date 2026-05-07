@@ -82,8 +82,13 @@ def _is_cash_equiv(company_name: str | None) -> bool:
 
 def _stream_analytics(xlsx_path: Path):
     """
-    Yield (scheme_name, company_name, holding_pct, sector, mcap_type) tuples
-    for every holding row in Sheet1 of the file.
+    Yield (scheme_name, company_name, holding_pct, sector, mcap_type, asset)
+    tuples for every holding row in Sheet1 of the file.
+
+    `asset` is the col-9 ("Asset") categorical: in the 31-Mar-2026 files
+    it carries one of {Equity, Debt, Others}. The Fix-List 9 Feature A
+    full-holdings extractor uses it to keep equity-only positions when
+    emitting the holdings-full JSON.
     """
     wb = openpyxl.load_workbook(xlsx_path, read_only=True, data_only=True)
     ws = wb["Sheet1"] if "Sheet1" in wb.sheetnames else wb[wb.sheetnames[0]]
@@ -98,8 +103,9 @@ def _stream_analytics(xlsx_path: Path):
         company  = _safe_str(row[1])  if len(row) > 1  else None
         holding  = _safe_float(row[3]) if len(row) > 3  else None
         sector   = _safe_str(row[8])  if len(row) > 8  else None
+        asset    = _safe_str(row[9])  if len(row) > 9  else None
         mcap     = _safe_str(row[18]) if len(row) > 18 else None
-        yield scheme, company, holding, sector, mcap
+        yield scheme, company, holding, sector, mcap, asset
     wb.close()
 
 
@@ -150,6 +156,50 @@ def _build_per_fund(rows_by_scheme: dict[str, list[dict]]) -> dict[str, dict]:
             ("top_3_sector_concentration_pct", top_3_sector_concentration_pct),
             ("cash_and_equiv_pct", cash_pct),
         ])
+    return out
+
+
+def _build_full_holdings(rows_by_scheme: dict[str, list[dict]],
+                         max_per_fund: int = 200) -> dict[str, list[dict]]:
+    """
+    Fix-List 9 Feature A — full equity-only holdings per fund.
+
+    For each scheme:
+      • Keep rows where Asset == 'Equity' (covers Domestic Equities,
+        Overseas Equities, ADRs & GDRs in the source file).
+      • Drop holdings with null / zero Holding(%).
+      • Sort desc by Holding(%) and cap at `max_per_fund` (default 200 —
+        covers every active equity fund in the universe; the only
+        portfolios that exceed 200 lines are NIFTY-500 / Total-Market
+        index funds where weight contribution beyond rank-200 is
+        negligible).
+      • Emit a flat list of {company, holding_pct, sector} dicts. The
+        overlap calculator and Similar Funds widget read this list
+        directly; no rank field is needed because order is implicit.
+
+    Returns { scheme_name: [holdings] }; the convert() function re-keys
+    to scheme_code at emit time.
+    """
+    out: dict[str, list[dict]] = {}
+    for scheme, holdings in rows_by_scheme.items():
+        equity = []
+        for h in holdings:
+            asset = (h.get("asset") or "").strip()
+            if asset != "Equity":
+                continue
+            pct = h.get("holding_pct")
+            if pct is None or pct <= 0:
+                continue
+            equity.append(OrderedDict([
+                ("company", h.get("company") or "—"),
+                ("holding_pct", round(pct, 4)),
+                ("sector", h.get("sector") or "—"),
+            ]))
+        equity.sort(key=lambda h: -(h["holding_pct"] or 0))
+        if len(equity) > max_per_fund:
+            equity = equity[:max_per_fund]
+        if equity:
+            out[scheme] = equity
     return out
 
 
@@ -210,10 +260,10 @@ def convert(
         sources.append(path.name)
         print(f"[analytics] streaming {path.name}", file=sys.stderr)
         n = 0
-        for scheme, company, holding, sector, mcap in _stream_analytics(path):
+        for scheme, company, holding, sector, mcap, asset in _stream_analytics(path):
             rows_by_scheme[scheme].append({
                 "company": company, "holding_pct": holding,
-                "sector": sector, "mcap": mcap,
+                "sector": sector, "mcap": mcap, "asset": asset,
             })
             n += 1
         print(f"[analytics]   {n:,} holdings rows from {path.name}", file=sys.stderr)
@@ -251,6 +301,41 @@ def convert(
     print(
         f"[analytics] wrote {out_path} ({out_path.stat().st_size:,} bytes; "
         f"screener cycle {screener_cycle_date})",
+        file=sys.stderr,
+    )
+
+    # ----- Fix-List 9 Feature A — emit holdings-full-YYYY-MM-DD.json -----
+    # Same scheme-name → scheme-code lookup; same per-fund matching rule.
+    # Output is a flat list per fund (no rank, no concentration roll-up;
+    # those are still in the analytics file). Powers the overlap matrix
+    # and Similar Funds widget on Fund Detail.
+    full_per_fund_by_name = _build_full_holdings(rows_by_scheme, max_per_fund=200)
+    matched_full: dict[str, list[dict]] = {}
+    unmatched_full = 0
+    total_holdings = 0
+    for scheme_name, holdings in full_per_fund_by_name.items():
+        code = name_to_scheme.get(scheme_name)
+        if code is None:
+            unmatched_full += 1
+            continue
+        matched_full[str(code)] = holdings
+        total_holdings += len(holdings)
+    full_payload = OrderedDict([
+        ("holdings_date", analytics_date),
+        ("source", " + ".join(sources)),
+        ("matched_funds", len(matched_full)),
+        ("unmatched_count", unmatched_full),
+        ("total_holdings_rows", total_holdings),
+        ("max_per_fund", 200),
+        ("filter", "Asset == 'Equity'"),
+        ("funds", matched_full),
+    ])
+    full_out_path = DATA_DIR / f"holdings-full-{analytics_date}.json"
+    with open(full_out_path, "w", encoding="utf-8") as f:
+        json.dump(full_payload, f, ensure_ascii=False, separators=(",", ":"))
+    print(
+        f"[analytics] wrote {full_out_path} ({full_out_path.stat().st_size:,} bytes; "
+        f"{len(matched_full)} funds, {total_holdings:,} equity holdings)",
         file=sys.stderr,
     )
     return out_path

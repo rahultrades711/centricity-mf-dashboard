@@ -1946,21 +1946,60 @@
    * ============================================================ */
   let _analyticsDate = null;
   let _analyticsCache = null;          // full doc — Fix-List 8 Feature 3 reads peers from it
+  // Fix-List 9 Feature A — full equity-only holdings (up to 200 lines per
+  // fund). Lazy-loaded once when the Portfolio section asks for analytics.
+  // When present, overrides the analytics top-20 for the Similar Funds
+  // calculation. When absent (404), the calculation falls back to top-20.
+  let _holdingsFullCache = null;
+  let _holdingsFullSource = 'top20';   // 'full' once the full file lands
 
   async function loadAnalyticsForFund(schemeCode) {
     // Discover the latest analytics file in data/. Right now there's
     // exactly one (analytics-2026-03-31.json); when v1.x ships monthly,
     // pick the latest by filename sort.
-    if (!_analyticsCache) {
-      const url = `data/analytics-2026-03-31.json`;
-      const res = await fetch(url, { cache: 'default' });
-      if (!res.ok) throw new Error('analytics HTTP ' + res.status);
-      _analyticsCache = await res.json();
-      _analyticsDate = _analyticsCache.analytics_date || null;
+    // Fix-List 9 Feature A — load both the analytics top-20 file (sector
+    // donut + concentration metrics) and the full-equity-holdings file
+    // (Similar Funds widget). Both fetches run in parallel; the full
+    // file is best-effort — if it 404s, _holdingsFullCache stays null
+    // and the widget falls back to top-20.
+    if (!_analyticsCache || _holdingsFullCache === null) {
+      const aPromise = _analyticsCache
+        ? Promise.resolve(_analyticsCache)
+        : fetch('data/analytics-2026-03-31.json', { cache: 'default' })
+            .then(r => (r.ok ? r.json() : Promise.reject(new Error('analytics HTTP ' + r.status))));
+      const fPromise = (_holdingsFullCache && typeof _holdingsFullCache === 'object')
+        ? Promise.resolve(_holdingsFullCache)
+        : fetch('data/holdings-full-2026-03-31.json', { cache: 'default' })
+            .then(r => (r.ok ? r.json() : Promise.reject(new Error('holdings-full HTTP ' + r.status))))
+            .catch(e => {
+              console.warn('[fund-detail] holdings-full unavailable; falling back to top-20', e);
+              return null;
+            });
+      const [aDoc, fDoc] = await Promise.all([aPromise, fPromise]);
+      _analyticsCache = aDoc;
+      _analyticsDate = aDoc.analytics_date || null;
+      _holdingsFullCache = fDoc;
+      _holdingsFullSource = fDoc ? 'full' : 'top20';
     }
     const entry = _analyticsCache.funds && _analyticsCache.funds[String(schemeCode)];
     if (!entry) throw new Error('scheme not in analytics');
     return entry;
+  }
+
+  /** Pull the per-fund holdings list, preferring the full file when it has
+   *  resolved; falls back to the analytics top-20 otherwise. Returns
+   *  `{holdings, source}` where source ∈ {'full','top20','none'}. */
+  function _peerHoldings(code) {
+    const codeStr = String(code);
+    if (_holdingsFullCache && typeof _holdingsFullCache === 'object'
+        && _holdingsFullCache.funds && _holdingsFullCache.funds[codeStr]) {
+      return { holdings: _holdingsFullCache.funds[codeStr], source: 'full' };
+    }
+    const a = _analyticsCache && _analyticsCache.funds && _analyticsCache.funds[codeStr];
+    if (a && a.top_20_holdings && a.top_20_holdings.length > 0) {
+      return { holdings: a.top_20_holdings, source: 'top20' };
+    }
+    return { holdings: [], source: 'none' };
   }
 
   /**
@@ -2091,23 +2130,29 @@
    * the top-5 by overlap%. Disclaimer: this is a top-20 sample, not
    * full-portfolio overlap.
    * ============================================================ */
-  function computeTopOverlapPeers(currentSchemeCode, fundsData, currentFundHoldings, topN) {
+  /** Walk every fund with holdings and compute overlap = Σ min(wA, wB).
+   *  `peerHoldingsLookup(code)` returns {holdings, source} so callers can
+   *  prefer the full-holdings file when it's loaded and fall back to the
+   *  top-20 analytics list when it isn't. Returns top-N peers sorted desc.
+   */
+  function computeTopOverlapPeers(currentSchemeCode, peerCodes, currentFundHoldings,
+                                  peerHoldingsLookup, topN) {
     if (!currentFundHoldings || currentFundHoldings.length === 0) return [];
     const results = [];
     const currentMap = new Map(
       currentFundHoldings.map(h => [h.company, Number(h.holding_pct) || 0])
     );
-    for (const code in fundsData) {
-      if (code === String(currentSchemeCode)) continue;
-      const fund = fundsData[code];
-      if (!fund || !fund.top_20_holdings || fund.top_20_holdings.length === 0) continue;
+    for (const code of peerCodes) {
+      if (String(code) === String(currentSchemeCode)) continue;
+      const peer = peerHoldingsLookup(code);
+      if (!peer.holdings || peer.holdings.length === 0) continue;
       let overlap = 0;
-      for (const h of fund.top_20_holdings) {
+      for (const h of peer.holdings) {
         const w1 = currentMap.get(h.company);
         if (w1 !== undefined) overlap += Math.min(w1, Number(h.holding_pct) || 0);
       }
       if (overlap > 0) {
-        results.push({ code, overlap: Math.round(overlap * 100) / 100 });
+        results.push({ code: String(code), overlap: Math.round(overlap * 100) / 100 });
       }
     }
     results.sort((a, b) => b.overlap - a.overlap);
@@ -2129,11 +2174,23 @@
       return;
     }
 
+    // Fix-List 9 Feature A — prefer this fund's full holdings (up to 200
+    // lines) when available; fall back to its analytics top-20.
+    const own = _peerHoldings(fund.scheme_code);
+    const ownHoldings = own.holdings.length > 0
+      ? own.holdings
+      : analyticsEntry.top_20_holdings;
+    // Universe of peer codes = union of analytics + holdings-full keys
+    const peerCodeSet = new Set();
+    if (_analyticsCache && _analyticsCache.funds) {
+      for (const c in _analyticsCache.funds) peerCodeSet.add(c);
+    }
+    if (_holdingsFullCache && typeof _holdingsFullCache === 'object'
+        && _holdingsFullCache.funds) {
+      for (const c in _holdingsFullCache.funds) peerCodeSet.add(c);
+    }
     const peers = computeTopOverlapPeers(
-      fund.scheme_code,
-      _analyticsCache.funds,
-      analyticsEntry.top_20_holdings,
-      5
+      fund.scheme_code, [...peerCodeSet], ownHoldings, _peerHoldings, 5
     );
     if (peers.length === 0) {
       card.hidden = false;
@@ -2165,8 +2222,11 @@
 
     const dateStr = _analyticsDate ? DataLoader.fmtDate(_analyticsDate) : '—';
     if (foot) {
+      const sourceLabel = _holdingsFullSource === 'full'
+        ? 'full equity holdings'
+        : 'top-20 holdings';
       foot.innerHTML =
-        `Based on top-20 holdings as on ${escapeHtml(dateStr)}. ` +
+        `Based on ${sourceLabel} as on ${escapeHtml(dateStr)}. ` +
         `Overlap = Σ min(weight<sub>A</sub>, weight<sub>B</sub>) for common stocks.`;
     }
     if (link) {

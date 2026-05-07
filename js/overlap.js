@@ -28,6 +28,11 @@
 
   let _cycle = null;             // screener cycle JSON
   let _analytics = null;         // analytics doc {analytics_date, funds:{...}}
+  // Fix-List 9 Feature A — full equity-only holdings (per-fund up to 200
+  // positions). Primary source for the overlap matrix; the page falls back
+  // to analytics top-20 only if the fetch 404s.
+  let _holdingsFull = null;      // {holdings_date, funds:{code:[holdings]}}
+  let _holdingsSource = 'top20'; // 'full' once holdings-full lands
   let _allFunds = [];            // [{code, name, cat, holdings, hasHoldings}, …] sorted
   let _categories = [];          // sorted unique categories
   let _selected = new Set();     // scheme_code strings (only those with holdings)
@@ -47,11 +52,14 @@
         return Promise.all([
           DataLoader.loadCycle(latest),
           _loadAnalytics(),
+          _loadHoldingsFull(),     // Fix-List 9 Feature A — primary source
         ]);
       })
-      .then(([cycle, analytics]) => {
+      .then(([cycle, analytics, holdingsFull]) => {
         _cycle = cycle;
         _analytics = analytics;
+        _holdingsFull = holdingsFull;        // null if 404 / parse error
+        _holdingsSource = holdingsFull ? 'full' : 'top20';
         _composeFundList();
         _renderEyebrow();
         _renderFundList();
@@ -83,18 +91,41 @@
     return res.json();
   }
 
+  /** Fix-List 9 Feature A — full equity holdings per fund (up to 200).
+   *  Same date + source folder as the analytics file. Resolves to null
+   *  on 404 / parse error so the page can fall back to top-20. */
+  async function _loadHoldingsFull() {
+    const url = 'data/holdings-full-2026-03-31.json';
+    try {
+      const res = await fetch(url, { cache: 'default' });
+      if (!res.ok) throw new Error('holdings-full HTTP ' + res.status);
+      return await res.json();
+    } catch (e) {
+      console.warn('[overlap] holdings-full unavailable, falling back to top-20', e);
+      return null;
+    }
+  }
+
   function _composeFundList() {
     // Outer-join: take every screener fund as the universe, attach holdings
-    // from the analytics file when present.  Funds without holdings render
-    // as disabled rows (greyed out, can't be checked) so the user can see
-    // "this exists but isn't in the overlap data yet."
+    // from the holdings-full file when present (preferred), or from the
+    // analytics top-20 (fallback). Funds without holdings render as
+    // disabled rows so the user sees "this exists but isn't in the overlap
+    // data yet."
     const screenerFunds = (_cycle.funds || []);
     const aFunds = _analytics.funds || {};
+    const fullFunds = (_holdingsFull && _holdingsFull.funds) || {};
     _allFunds = screenerFunds
       .map(f => {
         const code = String(f.scheme_code);
-        const aEntry = aFunds[code];
-        const holdings = aEntry && aEntry.top_20_holdings ? aEntry.top_20_holdings : [];
+        // Prefer full holdings; fall back to analytics top_20 for any fund
+        // missing from the full file (shouldn't happen in v1 — same source
+        // — but defensive in case the two files drift).
+        let holdings = fullFunds[code];
+        if (!holdings || holdings.length === 0) {
+          const aEntry = aFunds[code];
+          holdings = (aEntry && aEntry.top_20_holdings) || [];
+        }
         return {
           code,
           name: f.fund_name || `Scheme ${code}`,
@@ -117,7 +148,10 @@
   function _renderEyebrow() {
     const el = document.getElementById('overlapEyebrow');
     const dateStr = _analytics.analytics_date ? DataLoader.fmtDate(_analytics.analytics_date) : '—';
-    el.textContent = `Portfolio Overlap · Holdings as on ${dateStr}`;
+    const sourceLabel = _holdingsSource === 'full'
+      ? `Full equity holdings as on ${dateStr}`
+      : `Top-20 holdings as on ${dateStr}`;
+    el.textContent = `Portfolio Overlap · ${sourceLabel}`;
     document.getElementById('footUpdated').textContent =
       `Last updated · ${dateStr}`;
   }
@@ -414,10 +448,13 @@
         <tbody>${bodyRows}</tbody>
       </table>`;
 
+    const dateStr = _analytics.analytics_date ? DataLoader.fmtDate(_analytics.analytics_date) : '—';
+    const disclaimer = _holdingsSource === 'full'
+      ? `<b>Full equity holdings only</b> (debt / cash / derivatives excluded). Capped at 200 lines per fund.`
+      : `<b>Overlap on top-20 holdings only;</b> full-portfolio overlap may differ.`;
     foot.innerHTML =
       `${funds.length} funds · ${(funds.length * (funds.length - 1)) / 2} unique pairs · ` +
-      `Holdings as on ${escapeHtml(_analytics.analytics_date ? DataLoader.fmtDate(_analytics.analytics_date) : '—')}. ` +
-      `<b>Overlap on top-20 holdings only;</b> full-portfolio overlap may differ.`;
+      `Holdings as on ${escapeHtml(dateStr)}. ` + disclaimer;
 
     _wireCellHover(funds, rows);
   }

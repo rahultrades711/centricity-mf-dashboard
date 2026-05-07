@@ -54,10 +54,11 @@
     <h1>Portfolio <em>Overlap</em></h1>
     <p class="h-sub">
       Pick two or more funds (max 40). Overlap is computed as
-      <code>Σ min(weight<sub>A</sub>, weight<sub>B</sub>)</code> across each
-      fund's top-20 holdings — common stocks contribute the smaller of the
-      two weights. <b>Overlap on top-20 holdings only;</b> full-portfolio
-      overlap may differ.
+      <code>Σ min(weight<sub>A</sub>, weight<sub>B</sub>)</code> across the
+      common stocks in each fund's full equity holdings — debt, cash, and
+      derivative positions are excluded; per-fund equity lines capped at
+      200. <b>Holdings as on the analytics file's reference date</b> —
+      drift since then may not be reflected.
     </p>
   </section>
 
