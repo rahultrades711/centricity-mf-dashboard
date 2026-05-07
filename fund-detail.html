@@ -184,29 +184,37 @@
           <div class="mgr-co" id="mgrCoManagers" hidden></div>
           <div class="mgr-also-managing" id="mgrAlsoManaging" hidden></div>
           <p class="mgr-bio" id="mgrBio">—</p>
-          <div class="prior-funds">
-            <h4>Lead Manager</h4>
-            <table>
-              <tbody id="mgrLeadTbody"></tbody>
+          <!-- Fix-List 10 §3 — All-managers history table.
+               Replaces the Fix-List 9 "Lead Manager" sub-table that
+               surfaced manager_tenure_longest from screener (a stale,
+               wrong number for current managers — same data the §2
+               LEAD MANAGER bar was reading). The new table lists every
+               manager from manager-history JSON, newest first, with
+               clear Lead / Co badges. -->
+          <div class="mgr-history-table-wrap">
+            <h4 class="mgr-history-title">Manager History</h4>
+            <table class="mgr-history-table" id="mgrHistoryTable">
+              <thead>
+                <tr><th>Manager</th><th>From</th><th>To</th><th>Tenure</th></tr>
+              </thead>
+              <tbody></tbody>
             </table>
           </div>
         </div>
         <div class="mgr-stats" id="mgrStats"></div>
       </div>
 
-      <!-- Fix-List 9 §1 — Manager history timeline (10-year zone +
-           pre-history pill + co-manager row + expand panel) -->
+      <!-- Fix-List 10 §4 — Manager timeline redesigned as a single
+           horizontal line from inception with name annotations
+           alternating above / below.  Replaces the Fix-List 9 dual-row
+           bar layout. -->
       <div class="manager-timeline" id="managerTimeline" hidden>
-        <div class="timeline-head-row">
-          <h4 class="timeline-h">Manager History · Morningstar · Last 10 Years</h4>
-          <span class="timeline-pre-label" id="timelinePreLabel" hidden></span>
-          <button type="button" class="timeline-expand-btn" id="timelineExpandBtn">Show full history ▾</button>
+        <div class="tl-wrap">
+          <div class="tl-annotations" id="timelineTrack"></div>
+          <div class="tl-line"></div>
+          <div class="tl-axis" id="timelineAxis"></div>
         </div>
-        <div class="timeline-track" id="timelineTrack"></div>
-        <div class="timeline-co-row" id="timelineCoRow" hidden></div>
-        <div class="timeline-axis" id="timelineAxis"></div>
-        <p class="timeline-foot" id="timelineFoot"></p>
-        <div class="timeline-expand" id="timelineExpand" hidden></div>
+        <p class="tl-foot" id="timelineFoot"></p>
       </div>
     </section>
 

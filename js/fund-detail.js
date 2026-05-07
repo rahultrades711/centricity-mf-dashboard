@@ -693,14 +693,11 @@
     // Bio uses the §D placeholder caption directly — no async load
     renderManagerBio(null, name);
 
-    // Lead Manager table (single row in v1; we don't have co-managers in JSON)
-    const tenureStr = fund.manager_tenure_yrs != null
-      ? `${DataLoader.fmtNum(fund.manager_tenure_yrs, 1)} yrs` : '—';
-    document.getElementById('mgrLeadTbody').innerHTML = `
-      <tr>
-        <td>${escapeHtml(name)} · Lead Manager</td>
-        <td>${escapeHtml(tenureStr)}</td>
-      </tr>`;
+    // Fix-List 10 §2 — the old "Lead Manager" sub-table (mgrLeadTbody)
+    // was reading screener `manager_tenure_yrs` (= longest-ever, often
+    // wrong for current managers). Mount removed from HTML; the new
+    // .mgr-history-table renders from manager-history JSON inside
+    // renderManagerTimeline() instead.
 
     // Stats grid — Fix-List 5 §C12 dropped 'Active Share' (no data source).
     // Fix-List 7 §6 dropped 'AMC Score' from this grid (kept on the fund
@@ -938,7 +935,35 @@
     // ---- Fix-List 9 §5 — "Also Managing" row ----
     _renderAlsoManaging(fund, main);
 
-    // ---- Fix-List 9 §1 — Redesigned timeline (10-year window) ----
+    // ---- Fix-List 10 §3 — All-managers history table ----
+    // Newest first. Lead badge on the resolved main; Co badge on every
+    // other current; bare row for past. Tenure column reads
+    // _formatTenureYM (matches every other tenure surface on the page).
+    const tbody = document.querySelector('#mgrHistoryTable tbody');
+    if (tbody) {
+      const rows = managers.slice().sort(
+        (a, b) => new Date(b.start) - new Date(a.start)
+      );
+      tbody.innerHTML = rows.map(m => {
+        const isMain = main && m.name === main.name;
+        const isCurr = m.is_current;
+        const cls = isMain ? 'row-main' : (isCurr ? 'row-curr' : '');
+        const badge = isMain ? ' <span class="badge-lead">Lead</span>'
+                    : isCurr ? ' <span class="badge-co">Co</span>'
+                    : '';
+        const toCell = m.end
+          ? _formatLongDate(m.end)
+          : '<span class="curr-tag">Present</span>';
+        return `<tr class="${cls}">
+          <td>${escapeHtml(m.name)}${badge}</td>
+          <td>${escapeHtml(_formatLongDate(m.start))}</td>
+          <td>${toCell}</td>
+          <td>${escapeHtml(_formatTenureYM(m.tenure_years))}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    // ---- Fix-List 10 §4 — Single-line annotated timeline ----
     _drawManagerTimelineV9(managers, main);
     wrap.hidden = false;
   }
@@ -1009,160 +1034,90 @@
    *           not a measurement.
    */
   function _drawManagerTimelineV9(managers, main) {
+    // Fix-List 10 §4 — single annotated line from inception.
+    //
+    // Layout: a single horizontal gold line spans the full width of the
+    // timeline area. Each manager is a stem rising above (even-indexed)
+    // or falling below (odd-indexed) the line at their start date, with
+    // a label "<initials>. <Last>" + muted tenure suffix. The line itself
+    // implicitly carries the fund's lifetime (earliest manager start →
+    // today). Past managers are muted grey; current main is gold +
+    // bigger; current co-managers are gold-deep with half-opacity stem.
     const track = document.getElementById('timelineTrack');
     const axis  = document.getElementById('timelineAxis');
-    const coRow = document.getElementById('timelineCoRow');
-    const preLabel = document.getElementById('timelinePreLabel');
-    const expandPanel = document.getElementById('timelineExpand');
-    const expandBtn = document.getElementById('timelineExpandBtn');
-    if (!track || !axis) return;
-
-    const MIN_WIDTH_PCT = 6;
-    const SHOW_LABEL_THRESHOLD_PCT = 12;
+    const foot  = document.getElementById('timelineFoot');
+    if (!track || !axis || !managers || managers.length === 0) return;
 
     const today = new Date();
-    const windowStart = new Date(today);
-    windowStart.setUTCFullYear(today.getUTCFullYear() - 10);
-    const windowStartMs = windowStart.getTime();
-    const todayMs = today.getTime();
-    const totalMs = todayMs - windowStartMs;
+    const sorted = managers.slice().sort(
+      (a, b) => new Date(a.start) - new Date(b.start)
+    );
+    const tStart = new Date(sorted[0].start);
+    const tEnd   = today;
+    const totalMs = tEnd - tStart;
     if (totalMs <= 0) return;
 
-    // Helpers that clamp a manager's [start, end] to the window
-    function clampToWindow(m) {
-      const ms = new Date(m.start).getTime();
-      const me = m.end ? new Date(m.end).getTime() : todayMs;
-      const cms = Math.max(ms, windowStartMs);
-      const cme = Math.min(me, todayMs);
-      return { ms, me, cms, cme, in: cme > windowStartMs && cms < todayMs };
+    const pct = (d) =>
+      Math.max(0, Math.min(100, ((new Date(d) - tStart) / totalMs) * 100));
+
+    function fmtShort(d) {
+      const dt = new Date(d);
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      return `${months[dt.getUTCMonth()]} '${String(dt.getUTCFullYear()).slice(2)}`;
     }
 
-    // Partition managers by window membership
-    const inWindow = [];
-    const preWindow = [];
-    for (const m of managers) {
-      const c = clampToWindow(m);
-      if (c.in) inWindow.push({ m, ...c });
-      else preWindow.push(m);
+    function makeInitials(name) {
+      // 1-3 capital letter prefix from the name's word starts
+      return (name || '')
+        .split(/\s+/)
+        .filter(Boolean)
+        .map(w => w[0])
+        .join('')
+        .slice(0, 3)
+        .toUpperCase();
     }
 
-    // ---- Pre-history pill ----
-    if (preLabel) {
-      if (preWindow.length > 0) {
-        preLabel.hidden = false;
-        preLabel.textContent = `+ ${preWindow.length} earlier ${preWindow.length === 1 ? 'manager' : 'managers'}`;
-        preLabel.title = preWindow.map(m =>
-          `${m.name} (${_formatLongDate(m.start)} – ${m.end ? _formatLongDate(m.end) : 'Present'})`
-        ).join('\n');
-      } else {
-        preLabel.hidden = true;
-      }
-    }
-
-    // ---- Main row segments ----
-    // Past managers and the resolved main manager all share row 0;
-    // current co-managers move to row 1 (their own track).
-    const mainRowEntries = [];
-    const coRowEntries   = [];
-    for (const e of inWindow) {
-      const isCurrent = e.m.is_current;
-      const isMain = main && e.m.name === main.name;
-      if (isCurrent && !isMain) {
-        coRowEntries.push(e);
-      } else {
-        mainRowEntries.push(e);
-      }
-    }
-
-    function buildSegmentHtml(e, rowKind) {
-      const m = e.m;
-      const leftPct = ((e.cms - windowStartMs) / totalMs) * 100;
-      let widthPct = ((e.cme - e.cms) / totalMs) * 100;
-      if (widthPct < MIN_WIDTH_PCT) widthPct = MIN_WIDTH_PCT;
-      // Don't let the floor push past the right edge
-      if (leftPct + widthPct > 100) widthPct = Math.max(MIN_WIDTH_PCT, 100 - leftPct);
-      let cls;
-      if (m.is_current && main && m.name === main.name) cls = 'is-main';
-      else if (m.is_current) cls = 'is-co';
-      else cls = 'is-past';
-      const rowCls = rowKind === 'co' ? 'in-co-row' : 'in-main-row';
-      const tenureStr = _formatTenureYM(m.tenure_years);
-      const startStr = _formatLongDate(m.start);
-      const endStr   = m.end ? _formatLongDate(m.end) : 'Present';
-      const tooltip = `<b>${escapeHtml(m.name)}</b><br>${startStr} – ${endStr}<br>Tenure: ${tenureStr}`;
-      // First name + last initial when the segment is wide enough
-      const parts = m.name.split(/\s+/);
-      const initialLabel = parts.length > 1
-        ? `${parts[0]} ${parts[parts.length - 1][0]}.`
-        : parts[0];
-      const showLabel = widthPct >= SHOW_LABEL_THRESHOLD_PCT;
-      const inner = showLabel ? `<span class="seg-name">${escapeHtml(initialLabel)}</span>` : '';
+    // Build annotation HTML — alternate above / below to avoid collisions.
+    track.innerHTML = sorted.map((m, i) => {
+      const left   = pct(m.start).toFixed(2);
+      const isMain = main && m.name === main.name;
+      const isCurr = m.is_current;
+      const tenure = _formatTenureYM(m.tenure_years);
+      const side   = i % 2 === 0 ? 'above' : 'below';
+      const cls    = isMain ? 'ann-main' : (isCurr ? 'ann-curr' : 'ann-past');
+      const initials = makeInitials(m.name);
+      const last     = (m.name || '').split(/\s+/).pop();
+      const range    = `${fmtShort(m.start)} – ${m.end ? fmtShort(m.end) : 'present'}`;
+      const titleAttr = `${m.name} · ${range} · ${tenure}`;
       return `
-        <div class="timeline-segment ${cls} ${rowCls}"
-             style="left:${leftPct.toFixed(2)}%;width:${widthPct.toFixed(2)}%"
-             aria-label="${escapeHtml(m.name)} ${startStr} to ${endStr}">
-          ${inner}
-          <span class="timeline-tooltip">${tooltip}</span>
+        <div class="tl-ann ${cls} tl-${side}"
+             style="left:${left}%"
+             title="${escapeHtml(titleAttr)}">
+          <div class="tl-ann-stem"></div>
+          <div class="tl-ann-label">
+            <span class="tl-name">${escapeHtml(initials)}. ${escapeHtml(last)}</span>
+            <span class="tl-dur">${escapeHtml(tenure)}</span>
+          </div>
         </div>`;
-    }
+    }).join('');
 
-    track.innerHTML = mainRowEntries.map(e => buildSegmentHtml(e, 'main')).join('');
-
-    if (coRow) {
-      if (coRowEntries.length > 0) {
-        coRow.hidden = false;
-        coRow.innerHTML = coRowEntries.map(e => buildSegmentHtml(e, 'co')).join('');
-      } else {
-        coRow.hidden = true;
-        coRow.innerHTML = '';
-      }
-    }
-
-    // ---- Year-marker axis (Jan 1 of each year in the window) ----
-    const yearMarkers = [];
-    const startYear = windowStart.getUTCFullYear();
+    // Year axis (Jan 1 of each year strictly between inception and today).
+    const startYear = tStart.getUTCFullYear();
     const endYear   = today.getUTCFullYear();
-    for (let y = startYear; y <= endYear; y++) {
-      const yMs = Date.UTC(y, 0, 1);
-      if (yMs < windowStartMs || yMs > todayMs) continue;
-      const left = ((yMs - windowStartMs) / totalMs) * 100;
-      yearMarkers.push(`<span class="timeline-year" style="left:${left.toFixed(2)}%">${y}</span>`);
+    const axHtml = [];
+    for (let y = startYear + 1; y <= endYear; y++) {
+      const lp = pct(`${y}-01-01`).toFixed(2);
+      axHtml.push(`<span class="tl-year" style="left:${lp}%">${y}</span>`);
     }
-    axis.innerHTML = yearMarkers.join('');
+    axis.innerHTML = axHtml.join('');
 
-    // ---- Expand panel: full chronological history with explicit dates
-    if (expandBtn && expandPanel) {
-      expandBtn.onclick = (e) => {
-        e.preventDefault();
-        const isOpen = !expandPanel.hidden;
-        expandPanel.hidden = isOpen;
-        expandBtn.textContent = isOpen ? 'Show full history ▾' : 'Hide full history ▴';
-      };
-      const sorted = managers.slice().sort((a, b) => new Date(a.start) - new Date(b.start));
-      expandPanel.innerHTML = sorted.map(m => {
-        const startStr = _formatLongDate(m.start);
-        const endStr   = m.end ? _formatLongDate(m.end) : 'Present';
-        const tenureStr = _formatTenureYM(m.tenure_years);
-        const cls = m.is_current
-          ? (main && m.name === main.name ? 'eh-main' : 'eh-co')
-          : 'eh-past';
-        return `
-          <div class="exp-row ${cls}">
-            <span class="exp-name">${escapeHtml(m.name)}</span>
-            <span class="exp-dates">${startStr} – ${endStr}</span>
-            <span class="exp-tenure">${escapeHtml(tenureStr)}</span>
-          </div>`;
-      }).join('');
-    }
-
-    const foot = document.getElementById('timelineFoot');
     if (foot) {
-      const inWin = inWindow.length;
-      const pre = preWindow.length;
+      const spanYrs = (totalMs / (365.25 * 24 * 3600 * 1000)).toFixed(1);
+      const asOf = _managerHistoryCache && _managerHistoryCache.as_of_date
+        ? _managerHistoryCache.as_of_date : '—';
       foot.textContent =
-        `Last 10 years · ${inWin} ${inWin === 1 ? 'manager' : 'managers'} shown` +
-        (pre > 0 ? ` (${pre} earlier omitted — click "Show full history" for the full record)` : '') +
-        `. Source: Morningstar as of ${_managerHistoryCache.as_of_date}.`;
+        `Since inception (${spanYrs} yr span · ${sorted.length} managers shown). ` +
+        `Source: Morningstar as of ${asOf}.`;
     }
   }
 
@@ -1876,12 +1831,14 @@
               font: { family: "'Cambria', Georgia, serif", size: 10 },
               color: '#666',
               autoSkip: false,
+              maxRotation: 0,
+              // Fix-List 10 §5 — quarterly cadence on the drawdown axis
+              // (Jan / Apr / Jul / Oct), matching the nav chart's 3Y/5Y
+              // window. Reusing `fmtAxisDate(ym, '3Y', isLast)` keeps the
+              // formatting source-of-truth in one helper.
               callback: function (val, idx, all) {
                 const lbl = this.getLabelForValue(val);
-                const isJan = lbl && lbl.endsWith('-01');
-                const isLast = idx === all.length - 1;
-                if (isJan || isLast) return formatYMShort(lbl);
-                return '';
+                return fmtAxisDate(lbl, '3Y', idx === all.length - 1);
               },
             },
           },
@@ -2068,10 +2025,12 @@
    *     dominate when N is large).
    */
   function renderSectorList(sectors) {
+    // Fix-List 10 §6 — text-only rows, no proportional bars. The
+    // numeric % column is itself the "magnitude" channel; the gold-on-tan
+    // bars from Fix-List 9 are gone.
     const mount = document.getElementById('sectorList');
     if (!mount) return;
     if (!sectors || sectors.length === 0) {
-      // Render 11 em-dash placeholder rows so the card height stays stable
       const rows = [];
       for (let i = 1; i <= 11; i++) {
         rows.push(`
@@ -2079,7 +2038,6 @@
             <span class="sector-rank">${i}.</span>
             <span class="sector-name">—</span>
             <span class="sector-pct">—</span>
-            <div class="sector-bar-wrap"><div class="sector-bar-fill" style="width:0%"></div></div>
           </div>`);
       }
       mount.innerHTML = rows.join('');
@@ -2087,27 +2045,22 @@
     }
     const top10 = sectors.slice(0, 10);
     const tail  = sectors.slice(10);
-    const maxPct = Math.max(...top10.map(s => Number(s.holding_pct) || 0), 0.01);
     const rowsHtml = top10.map((s, i) => {
       const pct = Number(s.holding_pct) || 0;
-      const barWidth = Math.max(0, Math.min(100, (pct / maxPct) * 100));
       return `
         <div class="sector-row">
           <span class="sector-rank">${i + 1}.</span>
           <span class="sector-name">${escapeHtml(s.sector || '—')}</span>
           <span class="sector-pct">${DataLoader.fmtNum(pct, 2)}%</span>
-          <div class="sector-bar-wrap"><div class="sector-bar-fill" style="width:${barWidth}%"></div></div>
         </div>`;
     });
     if (tail.length > 0) {
       const othersSum = tail.reduce((acc, s) => acc + (Number(s.holding_pct) || 0), 0);
-      const othersWidth = Math.max(0, Math.min(100, (othersSum / maxPct) * 100));
       rowsHtml.push(`
         <div class="sector-row">
           <span class="sector-rank">${top10.length + 1}.</span>
           <span class="sector-name">Others (${tail.length} sectors)</span>
           <span class="sector-pct">${DataLoader.fmtNum(othersSum, 2)}%</span>
-          <div class="sector-bar-wrap"><div class="sector-bar-fill" style="width:${othersWidth}%"></div></div>
         </div>`);
     }
     mount.innerHTML = rowsHtml.join('');
@@ -2203,12 +2156,15 @@
     // Map analytics scheme codes back to the screener cycle to grab the
     // full fund name + category for display.
     const screenerByCode = new Map((_cycle.funds || []).map(f => [String(f.scheme_code), f]));
-    const maxOverlap = peers[0].overlap;
     const rowsHtml = peers.map(p => {
       const sf = screenerByCode.get(String(p.code));
       const fundName = sf ? sf.fund_name : (_analyticsCache.funds[p.code]?.fund_name || `Scheme ${p.code}`);
       const cat = sf ? sf.category : '—';
-      const barWidth = Math.max(0, Math.min(100, (p.overlap / maxOverlap) * 100));
+      // Fix-List 10 §7 — absolute scaling: bar width % = overlap %
+      // directly. A 60 % overlap shows a 60 %-wide bar, 30 % shows 30 %.
+      // Removes the Fix-List 8 relative scaling against the highest
+      // peer (which made every fund's #1 peer look like 100 %).
+      const barWidth = Math.max(0, Math.min(100, Math.abs(Number(p.overlap) || 0)));
       const href = `fund-detail.html?scheme=${encodeURIComponent(p.code)}`;
       return `
         <div class="similar-row">

@@ -471,124 +471,115 @@ table.perf .neg { color: var(--red); }
  *
  * "Show full history" expand panel reveals every segment with explicit
  * date labels for partners who want the complete record. */
-.manager-timeline {
-  margin: 22px 0 0;
-  padding: 18px 18px 14px;
-  border: 1px solid var(--rule); border-radius: 4px;
-  background: #fafaf7;
+/* ============ MANAGER HISTORY TABLE — Fix-List 10 §3 ============
+ * Replaces the Fix-List 9 "Lead Manager" sub-table inside .prior-funds
+ * (which read screener manager_tenure_longest — a stale, wrong number
+ * for current managers and the same data the §2 LEAD MANAGER bar was
+ * surfacing). New table lists every manager from the manager-history
+ * JSON, newest first, with Lead / Co badges. */
+.mgr-history-table-wrap { margin: 16px 0 12px; }
+.mgr-history-title {
+  font-size: 11px; font-weight: 600; letter-spacing: .08em;
+  text-transform: uppercase; color: #888; margin-bottom: 6px;
 }
-.manager-timeline[hidden] { display: none; }
-.timeline-head-row {
-  display: flex; align-items: baseline; justify-content: space-between;
-  margin: 0 0 10px; gap: 12px; flex-wrap: wrap;
+.mgr-history-table {
+  width: 100%; border-collapse: collapse;
+  font-size: 12px; font-family: 'Cambria', Georgia, serif;
+  table-layout: fixed;
 }
-.manager-timeline .timeline-h {
-  font-size: 11.5px; letter-spacing: .14em; text-transform: uppercase;
-  color: var(--gold); margin: 0; font-weight: 700;
-}
-.timeline-pre-label {
-  display: inline-block; padding: 3px 10px;
-  background: #fff; border: 1px solid var(--rule); border-radius: 99px;
-  font-size: 11px; color: var(--text-mid); font-style: italic;
-  cursor: help;
-}
-.timeline-pre-label[hidden] { display: none; }
-.timeline-expand-btn {
-  background: transparent; border: 0;
-  font-size: 11.5px; color: var(--gold); font-weight: 600;
-  cursor: pointer; padding: 0;
-  font-family: inherit;
-}
-.timeline-expand-btn:hover { text-decoration: underline; }
-
-.timeline-track,
-.timeline-co-row {
-  position: relative;
-  background: #f0eee9; border-radius: 4px;
-  overflow: visible;
-}
-.timeline-track     { height: 28px; }
-.timeline-co-row    { height: 20px; margin-top: 6px; background: #f6f1eb; }
-.timeline-co-row[hidden] { display: none; }
-
-.timeline-segment {
-  position: absolute; top: 1px; height: 26px;
-  border-radius: 3px; cursor: pointer;
-  transition: opacity .15s ease;
-  display: flex; align-items: center; justify-content: flex-start;
-  padding: 0 6px; font-size: 10.5px;
-  white-space: nowrap; overflow: hidden;
-  text-overflow: ellipsis;
-}
-.timeline-co-row .timeline-segment { height: 18px; top: 1px; font-size: 10px; }
-.timeline-segment:hover { opacity: .85; z-index: 10; }
-
-.timeline-segment.is-main { background: #BD9568; color: #fff; font-weight: 700; }
-.timeline-segment.is-co   { background: #DBC8B2; color: #1a1a1a; border: 1px solid #BD9568; }
-.timeline-segment.is-past { background: #E8E8E8; color: #555; }
-
-.timeline-axis {
-  position: relative; height: 18px; margin-top: 6px;
-  border-top: 1px dashed var(--rule);
-}
-.timeline-year {
-  position: absolute; top: 4px;
-  font-size: 10px; color: #888; transform: translateX(-50%);
-  font-family: 'Cambria', Georgia, serif;
-  font-variant-numeric: tabular-nums;
-}
-.timeline-tooltip {
-  position: absolute; bottom: calc(100% + 8px); left: 50%;
-  transform: translateX(-50%);
+.mgr-history-table th {
   background: #000; color: #fff;
-  padding: 7px 11px; border-radius: 4px; font-size: 11px;
-  white-space: nowrap; pointer-events: none; z-index: 100;
-  display: none;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, .25);
+  padding: 5px 8px; text-align: left;
+  font-size: 11px; letter-spacing: .05em;
 }
-.timeline-tooltip b { color: var(--gold); font-weight: 700; }
-.timeline-segment:hover .timeline-tooltip { display: block; }
-.timeline-foot {
-  margin: 10px 0 0; font-size: 11px; color: var(--text-mid);
-  font-style: italic; line-height: 1.4;
+.mgr-history-table th:nth-child(1) { width: 35%; }
+.mgr-history-table th:nth-child(2) { width: 22%; }
+.mgr-history-table th:nth-child(3) { width: 22%; }
+.mgr-history-table th:nth-child(4) { width: 21%; text-align: right; }
+.mgr-history-table td {
+  padding: 5px 8px; border-bottom: 1px solid #e8e8e8;
+  vertical-align: middle;
 }
+.mgr-history-table td:nth-child(4) {
+  text-align: right; font-variant-numeric: tabular-nums;
+}
+.mgr-history-table tr.row-main td { background: #FDF8F2; font-weight: 600; }
+.mgr-history-table tr.row-curr td { background: #FAFAFA; }
+.mgr-history-table tr:hover td { background: #F5F0E8; }
+.badge-lead {
+  background: #BD9568; color: #fff; font-size: 9px;
+  padding: 1px 5px; border-radius: 3px;
+  margin-left: 4px; font-weight: 700;
+}
+.badge-co {
+  background: #DBC8B2; color: #000; font-size: 9px;
+  padding: 1px 5px; border-radius: 3px; margin-left: 4px;
+}
+.curr-tag { color: #2E7D32; font-weight: 600; }
 
-/* Expand panel — full chronological history with explicit dates */
-.timeline-expand {
-  margin-top: 12px; padding-top: 12px;
-  border-top: 1px solid var(--rule);
-  max-height: 240px; overflow-y: auto;
+/* ============ MANAGER TIMELINE — Fix-List 10 §4 redesign =========
+ * Single horizontal gold line from fund inception to today. Manager
+ * names render as annotations stemming above / below the line,
+ * alternating to avoid collisions. The label inside each annotation
+ * is a 3-letter initials prefix + the manager's last name (so even a
+ * dense run of co-management stays readable), with the tenure
+ * appended in muted grey. Hover-tooltip carries the full date range. */
+.manager-timeline { margin: 20px 0 8px; }
+.manager-timeline[hidden] { display: none; }
+.tl-wrap {
+  position: relative; height: 80px;     /* annotations + line + axis */
 }
-.timeline-expand[hidden] { display: none; }
-.timeline-expand .exp-row {
-  display: grid;
-  grid-template-columns: 1fr 200px 100px;
-  gap: 10px; align-items: baseline;
-  padding: 5px 0; font-size: 12px;
-  border-bottom: 1px solid var(--rule);
-  font-variant-numeric: tabular-nums;
+.tl-line {
+  position: absolute; top: 50%; left: 0; right: 0;
+  height: 2px; background: #BD9568;
+  transform: translateY(-50%);
 }
-.timeline-expand .exp-row:last-child { border-bottom: 0; }
-.timeline-expand .exp-name { color: #000; font-weight: 600; }
-.timeline-expand .exp-dates { color: var(--text-mid); }
-.timeline-expand .exp-tenure { color: #000; text-align: right; }
-.timeline-expand .eh-main .exp-name { color: var(--gold-deep); }
-.timeline-expand .eh-co .exp-name { color: var(--gold-deep); }
-.timeline-expand .eh-past .exp-name { color: #555; font-weight: 500; }
+.tl-annotations {
+  position: absolute; inset: 0;
+  pointer-events: none;
+}
+.tl-ann {
+  position: absolute; pointer-events: all; cursor: default;
+}
+.tl-ann-stem {
+  position: absolute; left: 0; width: 1px; background: #ccc;
+}
+.tl-ann.tl-above .tl-ann-stem { bottom: 50%; height: 16px; }
+.tl-ann.tl-below .tl-ann-stem { top: 50%; height: 16px; }
+.tl-ann-label {
+  position: absolute; left: 2px;
+  white-space: nowrap;
+  font-size: 10px; font-family: 'Cambria', Georgia, serif;
+}
+.tl-ann.tl-above .tl-ann-label { bottom: calc(50% + 16px); }
+.tl-ann.tl-below .tl-ann-label { top:    calc(50% + 16px); }
+.tl-name { font-weight: 600; }
+.tl-dur  { color: #888; margin-left: 3px; }
 
-.prior-funds { margin-top: 18px; }
-.prior-funds h4 {
-  font-size: 13px; letter-spacing: .14em; text-transform: uppercase;
-  color: var(--gold); margin: 0 0 10px; font-weight: 700;
+/* Current main manager — gold, slightly larger, gold stem */
+.tl-ann.ann-main .tl-name      { color: #BD9568; font-size: 11px; }
+.tl-ann.ann-main .tl-ann-stem  { background: #BD9568; width: 2px; }
+/* Current co-managers — gold-deep, half-opacity gold stem */
+.tl-ann.ann-curr .tl-name      { color: #5C3D11; }
+.tl-ann.ann-curr .tl-ann-stem  { background: #BD9568; opacity: .5; }
+/* Past managers — muted */
+.tl-ann.ann-past .tl-name      { color: #888; }
+.tl-ann.ann-past .tl-ann-stem  { background: #ccc; }
+
+/* Year axis */
+.tl-axis {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  height: 18px;
 }
-.prior-funds table {
-  width: 100%; border-collapse: collapse; font-size: 13px;
+.tl-year {
+  position: absolute; bottom: 0;
+  font-size: 10px; color: #aaa;
+  transform: translateX(-50%);
+  font-family: 'Cambria', Georgia, serif;
 }
-.prior-funds td {
-  padding: 9px 0; border-bottom: 1px solid var(--rule);
-}
-.prior-funds td:last-child {
-  text-align: right; font-weight: 700;
+.tl-foot {
+  font-size: 10px; color: #aaa;
+  margin-top: 4px; font-style: italic;
 }
 
 /* ============ PORTFOLIO — Fix-List 6 §3 rebuild ============ */
@@ -638,13 +629,13 @@ table.perf .neg { color: var(--red); }
   color: var(--black); font-weight: 700;
 }
 
-/* Fix-List 8 §3 — sector donut + two-column legend retired. Sector
- * allocation is now a ranked bar list: rank, sector name, percentage,
- * proportional bar. Top 10 sectors by allocation; remainder rolled up
- * into "Others (N sectors)" as the always-last 11th row. */
+/* Fix-List 10 §6 — sector ranked list (text-only). Fix-List 9's
+ * proportional gold-on-tan bars retired; the numeric percent is
+ * itself the magnitude channel. Top 10 sectors + always-last
+ * "Others (N sectors)" row. */
 .sector-list { width: 100%; margin-top: 4px; }
 .sector-row {
-  display: flex; align-items: center; gap: 8px;
+  display: flex; align-items: center; gap: 6px;
   padding: 3px 0; font-size: 12px;
   font-family: 'Cambria', Georgia, serif;
 }
@@ -657,15 +648,8 @@ table.perf .neg { color: var(--red); }
   text-overflow: ellipsis; color: #000;
 }
 .sector-pct {
-  width: 46px; text-align: right; font-variant-numeric: tabular-nums;
+  width: 56px; text-align: right; font-variant-numeric: tabular-nums;
   flex-shrink: 0; color: #000;
-}
-.sector-bar-wrap {
-  width: 80px; height: 6px; background: #DBC8B2;
-  border-radius: 3px; flex-shrink: 0; overflow: hidden;
-}
-.sector-bar-fill {
-  height: 100%; background: #BD9568; border-radius: 3px;
 }
 
 /* Compact holdings table (right column) */

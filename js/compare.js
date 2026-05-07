@@ -17,6 +17,10 @@
   let _selected = [];          // fund objects, in order chosen
   let _activeTab = 'returns';
   let _fundMS = null;
+  // Fix-List 10 §8 — Morningstar manager-history overlay. Same pattern
+  // as screener.js: lazy fetch, build _mgrByScheme on resolve, re-render
+  // the manager tab.
+  let _mgrByScheme = null;
 
   document.addEventListener('DOMContentLoaded', main);
 
@@ -49,6 +53,50 @@
     }
 
     initToasts();
+
+    // Fix-List 10 §8 — fire-and-forget manager-history overlay fetch.
+    // When it lands, rebuild the index and re-render the active tab so
+    // manager name + tenure cells pick up the Morningstar values.
+    _loadMgrHistoryOverlay();
+  }
+
+  async function _loadMgrHistoryOverlay() {
+    try {
+      const res = await fetch('data/manager-history-2026-04-30.json', { cache: 'default' });
+      if (!res.ok) return;
+      const doc = await res.json();
+      const idx = Object.create(null);
+      for (const code in doc.funds) {
+        const entry = doc.funds[code];
+        if (!entry || !entry.managers) continue;
+        const current = entry.managers.filter(m => m.is_current);
+        if (current.length === 0) continue;
+        const main = current.reduce((a, b) =>
+          (Number(a.tenure_years) || 0) > (Number(b.tenure_years) || 0) ? a : b);
+        idx[String(code)] = { name: main.name, tenure_years: main.tenure_years };
+      }
+      _mgrByScheme = idx;
+      // Re-render whichever tab is active. Manager tab gets the most
+      // benefit; others share the same _selected[] and rebuild cleanly.
+      renderActiveTab();
+    } catch (e) {
+      console.warn('[compare] manager-history overlay unavailable', e);
+    }
+  }
+
+  /** Read manager_name / manager_tenure_yrs preferring the Morningstar
+   *  overlay when the fund has an entry; fall back to screener fields. */
+  function _mgrField(fund, key) {
+    if (_mgrByScheme && fund && fund.scheme_code != null) {
+      const overlay = _mgrByScheme[String(fund.scheme_code)];
+      if (overlay) {
+        if (key === 'manager_name')       return overlay.name;
+        if (key === 'manager_tenure_yrs') return overlay.tenure_years;
+      }
+    }
+    if (key === 'manager_name')       return fund.manager_name;
+    if (key === 'manager_tenure_yrs') return fund.manager_tenure_yrs;
+    return null;
   }
 
   function renderLoadError(err) {
@@ -162,8 +210,8 @@
 
   function renderManager(wrap) {
     const rows = [
-      { label: 'Manager', pick: f => f.manager_name || '—', fmt: v => v },
-      { label: 'Mgr Tenure (yrs)', pick: f => f.manager_tenure_yrs, fmt: v => DataLoader.fmtNum(v, 1) },
+      { label: 'Manager', pick: f => _mgrField(f, 'manager_name') || '—', fmt: v => v },
+      { label: 'Mgr Tenure (yrs)', pick: f => _mgrField(f, 'manager_tenure_yrs'), fmt: v => DataLoader.fmtNum(v, 1) },
       { label: 'Inception', pick: f => f.inception_date, fmt: DataLoader.fmtDate },
       { label: 'Fund Tenure (yrs)', pick: f => f.fund_tenure_yrs, fmt: v => DataLoader.fmtNum(v, 1) },
       { label: 'AMC', pick: f => f.amc || '—', fmt: v => v },

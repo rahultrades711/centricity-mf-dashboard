@@ -63,6 +63,12 @@
   let _allFunds = [];
   let _filteredFunds = [];
   let _scoringWeights = [];
+  // Fix-List 10 §8 — Morningstar manager-history overlay. Lazy-loaded
+  // alongside the cycle JSON; null until the fetch resolves. Built
+  // once into _mgrByScheme: { scheme_code: {name, tenure_years} } from
+  // resolved-main-manager (longest-tenure current per fund).
+  let _mgrHistoryCache = null;
+  let _mgrByScheme = null;
   let _customWeights = null;          // applied weights (committed via OK)
   let _draftWeights = null;           // currently being edited inside the drawer
   let _drawerOpen = false;
@@ -107,7 +113,7 @@
     { id: 'rngDownCap', key: 'down_capture_3y_pct', label: 'Down Capture',       accessor: f => f.risk_metrics ? f.risk_metrics.down_capture_3y_pct : null, kind: 'pct-pos', step: 1 },
     { id: 'rngUpCap',   key: 'up_capture_3y_pct',   label: 'Up Capture',         accessor: f => f.risk_metrics ? f.risk_metrics.up_capture_3y_pct : null, kind: 'pct-pos', step: 1 },
     { id: 'rngTurn',    key: 'turnover_pct',        label: 'Portfolio Turnover', accessor: f => f.turnover_pct,                    kind: 'pct-pos',   step: 1 },
-    { id: 'rngMgrTen',  key: 'manager_tenure_yrs',  label: 'Mgr Tenure',         accessor: f => f.manager_tenure_yrs,              kind: 'num',       suffix: ' yrs', step: 0.5 },
+    { id: 'rngMgrTen',  key: 'manager_tenure_yrs',  label: 'Mgr Tenure',         accessor: f => pluck(f, 'manager_tenure_yrs'),    kind: 'num',       suffix: ' yrs', step: 0.5 },
     { id: 'rngFundTen', key: 'fund_tenure_yrs',     label: 'Fund Tenure',        accessor: f => f.fund_tenure_yrs,                 kind: 'num',       suffix: ' yrs', step: 0.5 },
     { id: 'rngStocks',  key: 'no_of_stocks',        label: 'No. of Stocks',      accessor: f => f.no_of_stocks,                    kind: 'int',       step: 1 },
     { id: 'rngTer',     key: 'ter_pct',             label: 'TER',                accessor: f => f.ter_pct,                         kind: 'pct-pos',   step: 0.05 },
@@ -122,6 +128,19 @@
   /* ---------- nested-path resolver (used by sort + extra columns) ---------- */
   function pluck(obj, path) {
     if (obj == null) return null;
+    // Fix-List 10 §8 — Morningstar overlay: when a row's manager_name
+    // or manager_tenure_yrs is requested, prefer the resolved-main-
+    // manager value from manager-history-*.json (loaded lazily). Falls
+    // back to screener JSON when the index isn't built yet OR the fund
+    // has no manager-history entry — so first paint and degraded fetch
+    // both render cleanly.
+    if (_mgrByScheme && obj && obj.scheme_code != null) {
+      const overlay = _mgrByScheme[String(obj.scheme_code)];
+      if (overlay) {
+        if (path === 'manager_name')        return overlay.name;
+        if (path === 'manager_tenure_yrs')  return overlay.tenure_years;
+      }
+    }
     return String(path).split('.').reduce((o, k) => (o == null ? null : o[k]), obj);
   }
 
@@ -280,6 +299,38 @@
     parseUrlState();
     applyAndRender();
     initToasts();
+
+    // Fix-List 10 §8 — fire-and-forget fetch of manager-history.
+    // When it resolves, build the overlay index + re-render so manager
+    // name + tenure cells / sliders pick up the Morningstar values.
+    _loadMgrHistoryOverlay();
+  }
+
+  async function _loadMgrHistoryOverlay() {
+    try {
+      const res = await fetch('data/manager-history-2026-04-30.json', { cache: 'default' });
+      if (!res.ok) return;
+      _mgrHistoryCache = await res.json();
+      const idx = Object.create(null);
+      for (const code in _mgrHistoryCache.funds) {
+        const entry = _mgrHistoryCache.funds[code];
+        if (!entry || !entry.managers) continue;
+        const current = entry.managers.filter(m => m.is_current);
+        if (current.length === 0) continue;
+        // Resolved main = longest current tenure (matches fund-detail's
+        // fallback when the screener manager_name doesn't fuzzy-match).
+        const main = current.reduce((a, b) =>
+          (Number(a.tenure_years) || 0) > (Number(b.tenure_years) || 0) ? a : b);
+        idx[String(code)] = { name: main.name, tenure_years: main.tenure_years };
+      }
+      _mgrByScheme = idx;
+      // Re-render so any visible manager-name / manager-tenure cells +
+      // the slider-domain bounds pick up the overlay values.
+      initFilterDomains();
+      applyAndRender();
+    } catch (e) {
+      console.warn('[screener] manager-history overlay unavailable', e);
+    }
   }
 
   function renderLoadError(err) {
