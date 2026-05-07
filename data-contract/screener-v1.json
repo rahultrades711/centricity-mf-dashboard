@@ -355,6 +355,30 @@
         "_added": "2026-05-06 (Fund Detail Fix-List 1 §A.1, additive)",
         "source": "Date of the last non-null NAV row in 📈 Fund NAV for this fund. Null when the fund has no NAV series."
       },
+      "monitor_returns": {
+        "type": "object",
+        "_added": "2026-05-07 (Fund Detail Fix-List 5 §A, additive)",
+        "_overview": "Point-to-point returns sourced from the MF Monitor Excel. Joined to fund records by Scheme Name (Monitor col 0 == fund_name). All values null when no Monitor file was supplied at convert-time, OR when the fund's name doesn't appear in any Monitor sheet (e.g., 1-3yr Warning funds that postdate the Monitor build).",
+        "shape": {
+          "ytd_pct":        "float|null — Monitor 'YTD' column",
+          "return_1m_pct":  "float|null — Monitor '1 Month'",
+          "return_1y_pct":  "float|null — Monitor '1 Year'",
+          "return_3y_pct":  "float|null — Monitor '3 Years'",
+          "return_5y_pct":  "float|null — Monitor '5 Years'",
+          "return_10y_pct": "float|null — Monitor '10 Years' (null when fund tenure < 10y)"
+        },
+        "_note": "These are POINT-TO-POINT returns, not CAGR — render as-is on the page. fund-detail.html's returns table sources the Fund row from this block (replacing the converter-derived trailing_returns for display purposes)."
+      },
+      "exit_load": {
+        "type": "string|null",
+        "_added": "2026-05-07 (Fund Detail Fix-List 5 §A, additive)",
+        "_overview": "Free-text exit-load string from the MF Monitor file. Equity sheets carry it under '[Exit Load]' (col 22); hybrid sheets carry it under 'Remark' (col 26). The Monitor extractor reads whichever header is present. Null when no Monitor file was supplied or when the fund's name doesn't match a Monitor row."
+      },
+      "monitor_ter_pct": {
+        "type": "float|null",
+        "_added": "2026-05-07 (Fund Detail Fix-List 5 §A, additive)",
+        "_overview": "Regular-plan TER as reported in the MF Monitor 'Ratio' column. Distinct from `ter_pct` above — the Whitelisting Excel ter_pct field appears to carry the direct-plan TER (e.g., HDFC Focused: 0.47 in Whitelisting vs 1.6 in Monitor). Both fields are preserved on the record; fund-detail.html displays `monitor_ter_pct` since that's the partner-facing regular-plan number. Per Fund Detail Fix-List 5 §A data-quality note: do NOT overwrite ter_pct — keep both, document the discrepancy."
+      },
       "rolling_3y_stats": {
         "type": "object|null",
         "_added": "2026-05-06 (Fund Detail Fix-List 1 §A.2, additive)",

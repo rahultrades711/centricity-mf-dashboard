@@ -84,6 +84,7 @@
     renderManager(fund);
     renderPortfolio(fund);
     renderCost(fund, cycle);
+    renderVerdict(fund, cycle);
     renderFooter(cycle);
     wireBreadcrumb(fund);
     wireActionButtons(fund);
@@ -95,16 +96,23 @@
       _navSeries = entry;
       renderNavChart();
       renderDrawdownChart();
+      // Now that bench monthly series is in memory, fill in YTD / 1M / 10Y
+      // bench cells in the returns table + redraw the bar chart.
+      updateBenchCellsAfterNavLoad();
     }).catch((e) => {
       console.warn('[fund-detail] nav-series unavailable', e);
       showNavEmpty();
       showDdEmpty();
+      // Returns table still renders with bench YTD/1M/10Y as em-dash, and
+      // the bar chart still draws (those datasets just have null values).
+      _renderReturnsBarChartWhenReady();
     });
-    loadManagerProfile(fund.manager_name).then(profile => {
-      renderManagerBio(profile, fund.manager_name);
+    // Analytics JSON for the Portfolio section (Fix-List 5 §C9)
+    loadAnalyticsForFund(fund.scheme_code).then(entry => {
+      renderAnalyticsHoldings(entry);
     }).catch((e) => {
-      console.warn('[fund-detail] manager-profiles unavailable', e);
-      renderManagerBio(null, fund.manager_name);
+      console.warn('[fund-detail] analytics JSON unavailable', e);
+      // Leave the placeholder visible (already rendered as default markup)
     });
   }
 
@@ -154,7 +162,9 @@
   }
 
   function renderScoreCard(fund) {
-    const status = fund.centricity_score_status;
+    // Fix-List 5 §C5 — Recommended pill + Conviction label removed; the
+    // score card now shows only the big score + delta line + 4-cell mini
+    // grid. Verdict copy lives in section 07's strengths/concerns insights.
     const scoreOutOf10 = (fund.centricity_score != null)
       ? (fund.centricity_score * 10) : null;
 
@@ -168,25 +178,6 @@
       : '';
     document.getElementById('scoreDelta').innerHTML =
       `Cycle change · — (no prior cycle in archive). ${rankLine}`;
-
-    // Verdict pill
-    const pill = document.getElementById('verdictPill');
-    pill.classList.remove('recommended', 'watch', 'exit', 'new');
-    if (status === 'Ranked') {
-      pill.classList.add('recommended');
-      pill.textContent = 'Recommended';
-      document.getElementById('convictionLabel').textContent = 'Conviction · Excel-locked';
-    } else if (status === '1-3yr Warning') {
-      pill.classList.add('watch');
-      pill.textContent = 'Under Watch';
-      const w = fund.centricity_score_warning_pct;
-      document.getElementById('convictionLabel').textContent =
-        w != null ? `Tenure < 3y · provisional ${w.toFixed(2)}%` : 'Tenure < 3y · provisional';
-    } else {
-      pill.classList.add('new');
-      pill.textContent = 'New Fund';
-      document.getElementById('convictionLabel').textContent = 'Tenure < 1y · monitoring';
-    }
 
     // Mini grid (4 cells per Fund Detail Fix-List spec)
     const grid = document.getElementById('scoreMiniGrid');
@@ -204,87 +195,232 @@
 
   /* ============================================================
    * 01 — PERFORMANCE
+   * Fix-List 5 §C6+§C7 — 6-column returns table sourced from Monitor
+   * (point-to-point) for Fund + Cat Avg; benchmark cells from Monitor's
+   * benchmark_returns where available + nav-series-derived YTD/1M/10Y.
+   * Plus a grouped bar chart Fund/Bench/Cat-avg across the 6 periods.
    * ============================================================ */
+  // Cached per-page state so updateBenchCellsAfterNavLoad() can re-render
+  // the same table once nav-series resolves (YTD / 1M / 10Y bench cells
+  // need the index NAV series, which loads asynchronously).
+  let _perfState = null;
+
+  const PERF_FIELDS = [
+    { col: 'YTD', monitorKey: 'ytd_pct',        period: 'ytd' },
+    { col: '1M',  monitorKey: 'return_1m_pct',  period: '1m'  },
+    { col: '1Y',  monitorKey: 'return_1y_pct',  period: '1y'  },
+    { col: '3Y',  monitorKey: 'return_3y_pct',  period: '3y'  },
+    { col: '5Y',  monitorKey: 'return_5y_pct',  period: '5y'  },
+    { col: '10Y', monitorKey: 'return_10y_pct', period: '10y' },
+  ];
+
   function renderPerformance(fund, cycle) {
-    // Cat avg / median row (computed client-side)
     const peers = (cycle.funds || []).filter(f => f.category === fund.category);
     const peerCount = peers.length;
     const benchmarkName = fund.benchmark || '—';
+    const cycleLabel = DataLoader.fmtCycleLabelDate(cycle.cycle_meta);
     document.getElementById('perfSubtitle').textContent =
-      `Annualised CAGR. Benchmark · ${benchmarkName}. Category · ${fund.category} (${peerCount} fund${peerCount === 1 ? '' : 's'}). All values net of TER.`;
+      `Point-to-point returns as on ${cycleLabel}. Benchmark from index NAV series. ` +
+      `Category average from ${peerCount} fund${peerCount === 1 ? '' : 's'} in ${fund.category}.`;
 
-    // Pull values
-    const f_ytd = fund.cy_returns ? fund.cy_returns.cy_ytd_pct : null;
-    const f_1y  = fund.trailing_returns ? fund.trailing_returns.return_1y_pct : null;
-    const f_3y  = fund.trailing_returns ? fund.trailing_returns.return_3y_pct : null;
-    const f_5y  = fund.trailing_returns ? fund.trailing_returns.return_5y_pct : null;
-    const f_si  = fund.trailing_returns ? fund.trailing_returns.return_si_pct : null;
-    // Benchmark — only 1Y/3Y/5Y in contract; YTD + SI shown as em-dash
-    const b_1y  = fund.benchmark_returns ? fund.benchmark_returns.return_1y_pct : null;
-    const b_3y  = fund.benchmark_returns ? fund.benchmark_returns.return_3y_pct : null;
-    const b_5y  = fund.benchmark_returns ? fund.benchmark_returns.return_5y_pct : null;
+    // Fund row from Monitor (point-to-point); 10Y suppressed when fund_tenure < 10y
+    const m = fund.monitor_returns || {};
+    const fundVals = PERF_FIELDS.map(f => m[f.monitorKey]);
+    if (fund.fund_tenure_yrs != null && fund.fund_tenure_yrs < 10) {
+      fundVals[5] = null;
+    }
 
-    // Category averages (only computed when peerCount >= 3)
-    function catAvg(picker) {
-      if (peerCount < 3) return null;
-      const vals = peers.map(picker).filter(v => v != null && !isNaN(v));
-      if (vals.length === 0) return null;
+    // Benchmark — 1Y/3Y/5Y from screener-converter benchmark_returns;
+    // YTD/1M/10Y from nav-series (lazy, populated by updateBenchCellsAfterNavLoad)
+    const br = fund.benchmark_returns || {};
+    const benchVals = [
+      null,                         // YTD — populated when nav-series loads
+      null,                         // 1M
+      br.return_1y_pct,
+      br.return_3y_pct,
+      br.return_5y_pct,
+      null,                         // 10Y
+    ];
+
+    // Category avg from peers' monitor_returns — needs ≥ 3 peers with the field
+    function catAvg(key) {
+      const vals = peers
+        .map(p => (p.monitor_returns || {})[key])
+        .filter(v => v != null && !isNaN(v));
+      if (vals.length < 3) return null;
       return vals.reduce((s, v) => s + v, 0) / vals.length;
     }
-    const c_ytd = catAvg(f => f.cy_returns ? f.cy_returns.cy_ytd_pct : null);
-    const c_1y  = catAvg(f => f.trailing_returns ? f.trailing_returns.return_1y_pct : null);
-    const c_3y  = catAvg(f => f.trailing_returns ? f.trailing_returns.return_3y_pct : null);
-    const c_5y  = catAvg(f => f.trailing_returns ? f.trailing_returns.return_5y_pct : null);
-    const c_si  = catAvg(f => f.trailing_returns ? f.trailing_returns.return_si_pct : null);
+    const catVals = PERF_FIELDS.map(f => catAvg(f.monitorKey));
 
-    // Excess vs benchmark — fund - benchmark when both exist
-    const excess = (a, b) => (a != null && b != null) ? (a - b) : null;
-    const e_ytd = null;             // no benchmark YTD in contract
-    const e_1y  = excess(f_1y, b_1y);
-    const e_3y  = excess(f_3y, b_3y);
-    const e_5y  = excess(f_5y, b_5y);
-    const e_si  = null;             // no benchmark SI in contract
+    _perfState = { fund, cycle, benchmarkName, peerCount, fundVals, benchVals, catVals };
+    _renderReturnsTable();
+    _renderReturnsBarChartWhenReady();
+  }
 
-    const tbody = document.getElementById('perfTbody');
-    tbody.innerHTML = `
+  /**
+   * Invoked after `_navSeries` resolves — fills in benchmark YTD / 1M / 10Y
+   * from the monthly index series and re-renders both the returns table
+   * and the grouped bar chart.
+   */
+  function updateBenchCellsAfterNavLoad() {
+    if (!_perfState || !_navSeries || !Array.isArray(_navSeries.bench)) return;
+    const cycleDate = _cycle.cycle_meta.cycle_date;
+    const bench = _navSeries.bench;
+    _perfState.benchVals[0] = _benchYtdPctFromMonthly(bench, cycleDate);
+    _perfState.benchVals[1] = _benchOneMonthPctFromMonthly(bench, cycleDate);
+    _perfState.benchVals[5] = _benchTenYearCagrFromMonthly(bench, cycleDate);
+    _renderReturnsTable();
+    _renderReturnsBarChartWhenReady();
+  }
+
+  function _renderReturnsTable() {
+    if (!_perfState) return;
+    const { fund, benchmarkName, fundVals, benchVals, catVals } = _perfState;
+    const fmt = (v) => fmtPctOnePlace(v);
+    const cell = (v) => (v == null || isNaN(v))
+      ? '<td>—</td>'
+      : `<td class="${v < 0 ? 'neg' : ''}">${fmt(v)}</td>`;
+
+    document.getElementById('perfTbody').innerHTML = `
       <tr class="row-fund">
         <td>${escapeHtml(fund.fund_name)}</td>
-        <td class="${pctCls(f_ytd)}">${DataLoader.fmtPct(f_ytd)}</td>
-        <td class="${pctCls(f_1y)}">${DataLoader.fmtPct(f_1y)}</td>
-        <td class="${pctCls(f_3y)}">${DataLoader.fmtPct(f_3y)}</td>
-        <td class="${pctCls(f_5y)}">${DataLoader.fmtPct(f_5y)}</td>
-        <td class="${pctCls(f_si)}">${DataLoader.fmtPct(f_si)}</td>
+        ${fundVals.map(cell).join('')}
       </tr>
       <tr class="row-bench">
         <td>${escapeHtml(benchmarkName)}</td>
-        <td>—</td>
-        <td class="${pctCls(b_1y)}">${DataLoader.fmtPct(b_1y)}</td>
-        <td class="${pctCls(b_3y)}">${DataLoader.fmtPct(b_3y)}</td>
-        <td class="${pctCls(b_5y)}">${DataLoader.fmtPct(b_5y)}</td>
-        <td>—</td>
+        ${benchVals.map(cell).join('')}
       </tr>
       <tr class="row-cat">
         <td>${escapeHtml(fund.category)} · Category Avg</td>
-        <td class="${pctCls(c_ytd)}">${DataLoader.fmtPct(c_ytd)}</td>
-        <td class="${pctCls(c_1y)}">${DataLoader.fmtPct(c_1y)}</td>
-        <td class="${pctCls(c_3y)}">${DataLoader.fmtPct(c_3y)}</td>
-        <td class="${pctCls(c_5y)}">${DataLoader.fmtPct(c_5y)}</td>
-        <td class="${pctCls(c_si)}">${DataLoader.fmtPct(c_si)}</td>
-      </tr>
-      <tr class="row-excess">
-        <td><b>Excess vs Benchmark</b></td>
-        <td>${deltaCell(e_ytd)}</td>
-        <td>${deltaCell(e_1y)}</td>
-        <td>${deltaCell(e_3y)}</td>
-        <td>${deltaCell(e_5y)}</td>
-        <td>${deltaCell(e_si)}</td>
+        ${catVals.map(cell).join('')}
       </tr>`;
   }
 
-  function deltaCell(v) {
+  function _renderReturnsBarChartWhenReady() {
+    ensureChartJs().then(() => _renderReturnsBarChart()).catch(() => {/* silent */});
+  }
+
+  let _returnsBarChartInstance = null;
+  function _renderReturnsBarChart() {
+    if (!_perfState) return;
+    const { fundVals, benchVals, catVals } = _perfState;
+    const labels = PERF_FIELDS.map(f => f.col);
+    const ctx = document.getElementById('returnsBarChart').getContext('2d');
+    if (_returnsBarChartInstance) {
+      _returnsBarChartInstance.destroy();
+      _returnsBarChartInstance = null;
+    }
+
+    // Per-bar colour: red for negatives regardless of dataset, brand colour otherwise
+    const colourBars = (vals, brandColor) => vals.map(v =>
+      (v != null && v < 0) ? '#931621' : brandColor
+    );
+
+    _returnsBarChartInstance = new window.Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Fund',
+            data: fundVals.map(v => v == null ? null : v),
+            backgroundColor: colourBars(fundVals, '#6B3F1A'),
+            borderColor: '#6B3F1A', borderWidth: 0,
+          },
+          {
+            label: 'Benchmark',
+            data: benchVals.map(v => v == null ? null : v),
+            backgroundColor: colourBars(benchVals, '#BFBFBF'),
+            borderColor: '#BFBFBF', borderWidth: 0,
+          },
+          {
+            label: 'Category Avg',
+            data: catVals.map(v => v == null ? null : v),
+            backgroundColor: colourBars(catVals, '#BD9568'),
+            borderColor: '#BD9568', borderWidth: 0,
+          },
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        animation: { duration: 200 },
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#000', titleColor: '#BD9568', bodyColor: '#fff',
+            borderColor: '#6B3F1A', borderWidth: 1,
+            callbacks: {
+              label: (ctx) => `${ctx.dataset.label}: ${ctx.raw == null ? '—' : fmtPctOnePlace(ctx.raw)}`,
+            },
+          },
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { font: { family: "'Cambria', Georgia, serif", size: 11 }, color: '#000' } },
+          y: {
+            grid: { color: 'rgba(217, 217, 217, .55)', drawBorder: false },
+            ticks: {
+              font: { family: "'Cambria', Georgia, serif", size: 10 },
+              color: '#666',
+              callback: (v) => `${v}%`,
+            },
+          },
+        },
+      },
+    });
+  }
+
+  /* Bench computations from the monthly nav-series.
+   * `bench` is an ascending array of {d:"YYYY-MM", v: <index value>}.
+   * Cycle date is "YYYY-MM-DD"; we pin to the year/month-of-cycle for matching. */
+  function _findMonthlyByYM(bench, ym) {
+    // Last point with d <= ym (handles missing months gracefully)
+    let pick = null;
+    for (const p of bench) { if (p.d <= ym) pick = p; else break; }
+    return pick;
+  }
+  function _benchYtdPctFromMonthly(bench, cycleDate) {
+    if (!bench || bench.length < 2) return null;
+    const cycleYear = parseInt(cycleDate.slice(0, 4), 10);
+    const cycleYM = cycleDate.slice(0, 7);
+    // YTD anchor = last month of (cycleYear - 1) (Dec close), e.g. "2025-12"
+    const anchorYM = `${cycleYear - 1}-12`;
+    const anchor = _findMonthlyByYM(bench, anchorYM);
+    const cur = _findMonthlyByYM(bench, cycleYM);
+    if (!anchor || !cur || !anchor.v || anchor.v <= 0) return null;
+    return Math.round(((cur.v / anchor.v - 1) * 100) * 10000) / 10000;
+  }
+  function _benchOneMonthPctFromMonthly(bench, cycleDate) {
+    if (!bench || bench.length < 2) return null;
+    const cycleYM = cycleDate.slice(0, 7);
+    const cur = _findMonthlyByYM(bench, cycleYM);
+    if (!cur) return null;
+    // Find the prior calendar month — point with d strictly < cycleYM, max
+    let prior = null;
+    for (const p of bench) { if (p.d < cycleYM) prior = p; else break; }
+    if (!prior || !prior.v || prior.v <= 0) return null;
+    return Math.round(((cur.v / prior.v - 1) * 100) * 10000) / 10000;
+  }
+  function _benchTenYearCagrFromMonthly(bench, cycleDate) {
+    if (!bench || bench.length < 12) return null;
+    const cycleYear = parseInt(cycleDate.slice(0, 4), 10);
+    const cycleMonth = cycleDate.slice(5, 7);
+    const tenYearYM = `${cycleYear - 10}-${cycleMonth}`;
+    const start = _findMonthlyByYM(bench, tenYearYM);
+    const cur = _findMonthlyByYM(bench, cycleDate.slice(0, 7));
+    if (!start || !cur || !start.v || start.v <= 0) return null;
+    // Require the start point to be within ~3 months of the 10y target
+    const startDate = new Date(Date.UTC(parseInt(start.d.slice(0, 4), 10), parseInt(start.d.slice(5, 7), 10) - 1, 1));
+    const targetDate = new Date(Date.UTC(cycleYear - 10, parseInt(cycleMonth, 10) - 1, 1));
+    if (Math.abs(targetDate - startDate) > 1000 * 60 * 60 * 24 * 100) return null;
+    const cagr = Math.pow(cur.v / start.v, 1 / 10) - 1;
+    return Math.round(cagr * 100 * 10000) / 10000;
+  }
+
+  function fmtPctOnePlace(v) {
     if (v == null || isNaN(v)) return '—';
-    const cls = v > 0 ? 'delta-pos' : (v < 0 ? 'delta-neg' : '');
-    return `<span class="${cls}">${DataLoader.fmtPct(v)}</span>`;
+    const sign = v < 0 ? '−' : '';
+    return sign + Math.abs(v).toFixed(1) + '%';
   }
   function pctCls(v) {
     return (v != null && !isNaN(v) && v < 0) ? 'neg' : '';
@@ -435,9 +571,8 @@
     document.getElementById('mgrTitle').textContent =
       `${fund.amc || '—'} · Lead Manager · Tenure ${fund.manager_tenure_yrs != null ? DataLoader.fmtNum(fund.manager_tenure_yrs, 1) + ' yrs' : '—'}`;
     document.getElementById('mgrAvatar').textContent = managerInitials(name);
-    document.getElementById('mgrBio').textContent =
-      `Loading manager profile for ${name}…`;
-    document.getElementById('mgrBio').classList.add('placeholder');
+    // Bio uses the §D placeholder caption directly — no async load
+    renderManagerBio(null, name);
 
     // Lead Manager table (single row in v1; we don't have co-managers in JSON)
     const tenureStr = fund.manager_tenure_yrs != null
@@ -448,13 +583,12 @@
         <td>${escapeHtml(tenureStr)}</td>
       </tr>`;
 
-    // Stats grid
+    // Stats grid — Fix-List 5 §C12 dropped 'Active Share' (no data source)
     const cells = [
       ['Tenure',         fund.manager_tenure_yrs != null ? `${DataLoader.fmtNum(fund.manager_tenure_yrs, 1)} yrs` : '—'],
       ['Fund AUM',       fund.aum_cr != null ? `₹ ${DataLoader.fmtINR(fund.aum_cr)} Cr` : '—'],
       ['No. of Stocks',  fund.no_of_stocks != null ? fund.no_of_stocks : '—'],
       ['AMC Score',      fund.amc_score != null ? `${fund.amc_score} / 10` : '—'],
-      ['Active Share',   '—'],
       ['Fund Tenure',    fund.fund_tenure_yrs != null ? `${DataLoader.fmtNum(fund.fund_tenure_yrs, 1)} yrs` : '—'],
     ];
     document.getElementById('mgrStats').innerHTML = cells
@@ -511,13 +645,24 @@
       wrap.hidden = true;
     }
   }
+  /**
+   * Fix-List 5 §C8 — segments < 6% put their label OUTSIDE the bar
+   * (anchored to the segment via `.seg-out` overlay) so the colour band
+   * is always visible even on a 1-2% slice. A `min-width: 4px` floor
+   * keeps the colour visible on near-zero allocations.
+   */
   function renderBars(segs) {
-    return segs.map(s => {
-      const pct = s.pct != null ? Math.max(0, Number(s.pct)) : 0;
-      if (pct < 0.01) return '';
-      const showLabel = pct > 8;
-      const text = showLabel ? `${escapeHtml(s.label)} ${DataLoader.fmtNum(pct, 1)}%` : '';
-      return `<div class="seg ${s.cls}" style="width:${pct.toFixed(2)}%">${text}</div>`;
+    const visible = segs.map(s => ({
+      cls: s.cls,
+      label: s.label,
+      pct: s.pct != null ? Math.max(0, Number(s.pct)) : 0,
+    })).filter(s => s.pct > 0.01);
+    return visible.map(s => {
+      const inside = s.pct > 6;
+      const labelHtml = inside
+        ? `${escapeHtml(s.label)} ${DataLoader.fmtNum(s.pct, 1)}%`
+        : `<span class="seg-out">${escapeHtml(s.label)} ${DataLoader.fmtNum(s.pct, 1)}%</span>`;
+      return `<div class="seg ${s.cls} ${inside ? 'inside' : 'outside'}" style="width:${s.pct.toFixed(2)}%">${labelHtml}</div>`;
     }).join('');
   }
 
@@ -525,6 +670,14 @@
    * 05 — COST
    * ============================================================ */
   function renderCost(fund, cycle) {
+    // Fix-List 5 §C10 — cost section overhaul:
+    //   • TER renamed to "TER (Regular Plan)" and sourced from Monitor's
+    //     Ratio column (`monitor_ter_pct`). The Whitelisting Excel ter_pct
+    //     looks like direct-plan TER and stays on the record but isn't
+    //     surfaced here. See ISSUE-0013 data-quality note.
+    //   • Exit Load now populated from `fund.exit_load` (Monitor file).
+    //   • Min SIP / Lumpsum row dropped — no data source.
+    //   • Taxation row added — derived from category mapping.
     const peers = (cycle.funds || []).filter(f => f.category === fund.category);
     function median(picker) {
       const vals = peers.map(picker).filter(v => v != null && !isNaN(v)).sort((a, b) => a - b);
@@ -532,8 +685,8 @@
       const m = Math.floor(vals.length / 2);
       return vals.length % 2 ? vals[m] : (vals[m - 1] + vals[m]) / 2;
     }
-    const ter = fund.ter_pct;
-    const catTer = median(f => f.ter_pct);
+    const ter = fund.monitor_ter_pct;
+    const catTer = median(f => f.monitor_ter_pct);
     let terSub;
     if (ter != null && catTer != null) {
       const bps = Math.round((ter - catTer) * 100);
@@ -545,16 +698,19 @@
       terSub = 'Category median unavailable.';
     }
 
+    const taxation = getTaxation(fund);
     const cards = [
       {
-        lbl: 'Total Expense Ratio',
+        lbl: 'TER (Regular Plan)',
         v: ter != null ? `${DataLoader.fmtNum(ter, 2)}%` : '—',
         sub: terSub,
       },
       {
         lbl: 'Exit Load',
-        v: '—',
-        sub: 'Exit-load data not yet in pipeline — check the offer document for the most recent rule.',
+        v: fund.exit_load || '—',
+        sub: fund.exit_load
+          ? 'From the latest MF Monitor.'
+          : 'Exit-load data missing — check the offer document.',
       },
       {
         lbl: 'Portfolio Turnover',
@@ -562,9 +718,9 @@
         sub: 'Lower = longer holding period.',
       },
       {
-        lbl: 'Min SIP / Lumpsum',
-        v: '—',
-        sub: 'SIP / lumpsum minimums not yet in pipeline — check the offer document.',
+        lbl: 'Taxation',
+        v: taxation.regime,
+        sub: taxation.detail + ' <span class="footnote">Surcharge & cess applicable. Consult your tax advisor.</span>',
       },
     ];
     document.getElementById('costGrid').innerHTML = cards.map(c => `
@@ -573,6 +729,149 @@
         <div class="v">${escapeHtml(c.v)}</div>
         <div class="sub">${c.sub}</div>
       </div>`).join('');
+  }
+
+  /* ============================================================
+   * 07 — VERDICT (Fix-List 5 §C11)
+   *
+   * Client-side strengths/concerns generated from the fund's own data.
+   * No BUY/SELL/HOLD calls — only factual observations driven by
+   * trigger thresholds. Replaces the gold-ring-motif placeholder.
+   * ============================================================ */
+  function renderVerdict(fund, cycle) {
+    document.getElementById('verdictSubtitle').textContent =
+      `Updated ${cycle.cycle_meta.as_on_display} · Auto-derived from this cycle's data`;
+    const insights = generateInsights(fund, cycle);
+    const grid = document.getElementById('verdictGrid');
+    if (insights.strengths.length === 0 && insights.concerns.length === 0) {
+      grid.innerHTML = `
+        <div class="verdict-empty" style="grid-column:1/-1">
+          <div class="ring-motif gold" aria-hidden="true"></div>
+          <p>Insights activate once enough data is in (sub-1y or sub-3y funds typically lack the metrics to drive observations). Check back next cycle.</p>
+        </div>`;
+      return;
+    }
+    const concernsBody = insights.concerns.length
+      ? `<ul>${insights.concerns.map(s => `<li>${s}</li>`).join('')}</ul>`
+      : `<p class="v-empty">No material concerns identified in this cycle's data.</p>`;
+    const strengthsBody = insights.strengths.length
+      ? `<ul>${insights.strengths.map(s => `<li>${s}</li>`).join('')}</ul>`
+      : `<p class="v-empty">No standout strengths above thresholds in this cycle's data.</p>`;
+    grid.innerHTML = `
+      <div class="v-col">
+        <h4>Strengths</h4>
+        ${strengthsBody}
+      </div>
+      <div class="v-col cons">
+        <h4>Areas to Watch</h4>
+        ${concernsBody}
+      </div>`;
+    document.getElementById('verdictFoot').textContent =
+      'Auto-generated from fund-side metrics. Centricity Investment Committee narrative arrives in Phase 5.';
+  }
+
+  function generateInsights(fund, cycle) {
+    const strengths = [];
+    const concerns = [];
+    const peers = (cycle.funds || []).filter(f => f.category === fund.category);
+
+    function pct1(v) { return DataLoader.fmtNum(v, 1) + '%'; }
+    function escape(s) { return escapeHtml(String(s)); }
+
+    // ---- Strengths ----
+    if (fund.centricity_score != null && fund.centricity_score >= 0.80) {
+      const ofN = (cycle.cycle_meta.total_funds || '—').toLocaleString('en-IN');
+      const inCat = fund.centricity_rank_in_category != null ? `#${fund.centricity_rank_in_category} in ${escape(fund.category)}` : null;
+      const overall = fund.centricity_rank_overall != null ? `#${fund.centricity_rank_overall} overall (of ${ofN})` : null;
+      const rankPart = [inCat, overall].filter(Boolean).join(' / ');
+      strengths.push(`Centricity Score <b>${(fund.centricity_score * 10).toFixed(2)}/10</b>${rankPart ? ' · ' + rankPart : ''}.`);
+    }
+    const rs = fund.rolling_3y_stats;
+    if (rs && rs.pct_beat_benchmark != null && rs.pct_beat_benchmark >= 90) {
+      strengths.push(`Beats benchmark in <b>${pct1(rs.pct_beat_benchmark)}</b> of all 3-year rolling windows.`);
+    }
+    if (rs && rs.pct_above_12 != null && rs.pct_above_12 >= 80) {
+      strengths.push(`<b>${pct1(rs.pct_above_12)}</b> of rolling 3Y windows delivered &gt; 12% CAGR.`);
+    }
+    const maxDd = fund.risk_metrics ? fund.risk_metrics.max_drawdown_3y_pct : null;
+    if (maxDd != null && maxDd > -15) {
+      // Compute category avg drawdown (3-peer floor)
+      const catDdVals = peers.map(p => p.risk_metrics ? p.risk_metrics.max_drawdown_3y_pct : null)
+        .filter(v => v != null);
+      const catDdAvg = catDdVals.length >= 3
+        ? catDdVals.reduce((s, v) => s + v, 0) / catDdVals.length : null;
+      if (catDdAvg != null && maxDd > catDdAvg) {
+        strengths.push(`Max 3Y drawdown limited to <b>${pct1(maxDd)}</b> — shallower than category average <b>${pct1(catDdAvg)}</b>.`);
+      } else {
+        strengths.push(`Max 3Y drawdown limited to <b>${pct1(maxDd)}</b>.`);
+      }
+    }
+    const a3 = fund.alpha ? fund.alpha.alpha_3y_pct : null;
+    if (a3 != null && a3 > 5) {
+      strengths.push(`3Y alpha of <b>+${DataLoader.fmtNum(a3, 1)}%</b> vs benchmark — consistent excess return.`);
+    }
+    if (fund.fund_tenure_yrs != null && fund.fund_tenure_yrs > 10) {
+      strengths.push(`Fund track record spans <b>${DataLoader.fmtNum(fund.fund_tenure_yrs, 1)} years</b> across multiple market cycles.`);
+    }
+    if (fund.manager_name && fund.manager_tenure_yrs != null && fund.manager_tenure_yrs > 5) {
+      strengths.push(`Manager <b>${escape(fund.manager_name)}</b> has <b>${DataLoader.fmtNum(fund.manager_tenure_yrs, 1)} years</b> at the helm — above-average continuity.`);
+    }
+    if (fund.consistency_pct != null && fund.consistency_pct >= 95) {
+      strengths.push(`Consistency score of <b>${pct1(fund.consistency_pct)}</b> — rare in this category.`);
+    }
+
+    // ---- Concerns ----
+    const m = fund.monitor_returns || {};
+    const br = fund.benchmark_returns || {};
+    if (m.return_1y_pct != null && br.return_1y_pct != null && m.return_1y_pct < br.return_1y_pct) {
+      concerns.push(`1Y return <b>${pct1(m.return_1y_pct)}</b> trails benchmark <b>${pct1(br.return_1y_pct)}</b> — recent underperformance worth monitoring.`);
+    }
+    if (m.ytd_pct != null && m.ytd_pct < -5) {
+      concerns.push(`YTD return of <b>${pct1(m.ytd_pct)}</b> — short-term drawdown in progress.`);
+    }
+    const sd = fund.risk_metrics ? fund.risk_metrics.std_dev_3y_pct : null;
+    if (sd != null && sd > 15) {
+      concerns.push(`Volatility (Std Dev <b>${pct1(sd)}</b>) above typical for this category — expect swings.`);
+    }
+    if (fund.manager_name && fund.manager_tenure_yrs != null && fund.manager_tenure_yrs < 2) {
+      concerns.push(`Manager <b>${escape(fund.manager_name)}</b> has &lt; 2 years running this fund — track record limited.`);
+    }
+    if (fund.aum_cr != null && fund.aum_cr > 30000) {
+      concerns.push(`AUM of <b>₹${DataLoader.fmtINR(fund.aum_cr)} Cr</b> — large corpus may constrain agility in mid/small-cap exposure.`);
+    }
+    if (fund.no_of_stocks != null && fund.no_of_stocks < 20) {
+      concerns.push(`Concentrated portfolio of <b>${fund.no_of_stocks}</b> stocks — higher single-stock risk.`);
+    }
+
+    return { strengths, concerns };
+  }
+
+  /**
+   * Derive equity-vs-slab taxation from the fund's SEBI category.
+   * Equity-taxed: every Equity sub-class fund + the Hybrid categories
+   * listed below (which have ≥ 65% equity exposure to qualify under
+   * Sec 112A's equity-fund rule).
+   * Slab-taxed: Conservative Hybrid + any Hybrid not in the equity list
+   * (Hybrid debt-tilt funds taxed as debt under post-Apr-2023 rules).
+   */
+  function getTaxation(fund) {
+    const EQUITY_TAXED_HYBRID = new Set([
+      'Aggressive Hybrid', 'Balanced Advantage', 'Dynamic Asset Allocation',
+      'Multi Asset Allocation', 'Equity Savings', 'Arbitrage',
+    ]);
+    const isEquityClass = fund.sub_category_class === 'Equity';
+    const isEquityHybrid = fund.sub_category_class === 'Hybrid' &&
+      EQUITY_TAXED_HYBRID.has(fund.category);
+    if (isEquityClass || isEquityHybrid) {
+      return {
+        regime: 'Equity (LTCG / STCG)',
+        detail: 'LTCG: 12.5% (>1 yr, above ₹1.25L exemption) · STCG: 20% (<1 yr).',
+      };
+    }
+    return {
+      regime: 'Slab rate',
+      detail: 'Taxed at slab rate (any holding period, post Apr 2023 rules).',
+    };
   }
 
   /* ============================================================
@@ -818,19 +1117,91 @@
   }
 
   /* ============================================================
-   * MANAGER PROFILE LOADER
+   * ANALYTICS LOADER (Fund Detail Fix-List 5 §C9)
+   *
+   * data/analytics-YYYY-MM-DD.json carries the top-20 holdings + sector
+   * allocation per scheme_code. The file's `analytics_date` field drives
+   * the "Holdings as on …" caption, so the date the dashboard reads is
+   * data-driven (not hardcoded).
    * ============================================================ */
-  async function loadManagerProfile(name) {
-    if (!name) return null;
-    try {
-      const res = await fetch('data/manager-profiles.json', { cache: 'default' });
-      if (!res.ok) return null;
-      const doc = await res.json();
-      return (doc.profiles && doc.profiles[name]) || null;
-    } catch (_) {
-      return null;
-    }
+  let _analyticsDate = null;
+
+  async function loadAnalyticsForFund(schemeCode) {
+    // Discover the latest analytics file in data/. Right now there's
+    // exactly one (analytics-2026-03-31.json); when v1.x ships monthly,
+    // pick the latest by filename sort.
+    const url = `data/analytics-2026-03-31.json`;
+    const res = await fetch(url, { cache: 'default' });
+    if (!res.ok) throw new Error('analytics HTTP ' + res.status);
+    const doc = await res.json();
+    _analyticsDate = doc.analytics_date || null;
+    const entry = doc.funds && doc.funds[String(schemeCode)];
+    if (!entry) throw new Error('scheme not in analytics');
+    return entry;
   }
+
+  function renderAnalyticsHoldings(entry) {
+    const wrap = document.querySelector('.holdings-placeholder');
+    if (!wrap || !entry) return;
+    const sectors = entry.sector_allocation || [];
+    const topHoldings = entry.top_20_holdings || [];
+    const top10Concentration = entry.top_10_concentration_pct;
+    const dateStr = _analyticsDate ? DataLoader.fmtDate(_analyticsDate) : '—';
+
+    // Cap sector list at 10; if more, fold the rest into "Others"
+    let sectorRows = sectors;
+    if (sectorRows.length > 10) {
+      const head = sectorRows.slice(0, 10);
+      const tail = sectorRows.slice(10);
+      const tailSum = tail.reduce((s, x) => s + (x.holding_pct || 0), 0);
+      sectorRows = head.concat([{ sector: `Others (${tail.length})`, holding_pct: Math.round(tailSum * 100) / 100 }]);
+    }
+    const maxSectorPct = Math.max(...sectorRows.map(s => s.holding_pct || 0), 1);
+
+    const sectorBars = sectorRows.map(s => {
+      const widthPct = ((s.holding_pct || 0) / maxSectorPct) * 100;
+      return `
+        <div class="sector-row">
+          <span class="sector-label">${escapeHtml(s.sector || '—')}</span>
+          <span class="sector-bar"><i style="width:${widthPct.toFixed(2)}%"></i></span>
+          <span class="sector-pct"><b>${DataLoader.fmtNum(s.holding_pct, 1)}%</b></span>
+        </div>`;
+    }).join('');
+
+    const holdingsRows = topHoldings.map(h => `
+      <tr>
+        <td class="num">${h.rank}</td>
+        <td><b>${escapeHtml(h.company || '—')}</b></td>
+        <td>${escapeHtml(h.sector || '—')}</td>
+        <td>${escapeHtml(h.mcap_type || '—')}</td>
+        <td class="num"><b>${DataLoader.fmtNum(h.holding_pct, 2)}%</b></td>
+      </tr>`).join('');
+
+    wrap.innerHTML = `
+      <div class="block-sub-h" style="margin-bottom:8px">Sector Allocation</div>
+      <div class="sector-list">${sectorBars}</div>
+      <div class="block-sub-h" style="margin:24px 0 8px">Top ${topHoldings.length} Holdings</div>
+      <div class="holdings-table-wrap">
+        <table class="holdings-tbl">
+          <thead><tr><th>#</th><th>Company</th><th>Sector</th><th>M-Cap</th><th class="num">Weight</th></tr></thead>
+          <tbody>${holdingsRows}</tbody>
+        </table>
+      </div>
+      <div class="holdings-callout">
+        Top 10 holdings = <b>${DataLoader.fmtNum(top10Concentration, 1)}%</b> of portfolio
+        ${entry.cash_and_equiv_pct != null && entry.cash_and_equiv_pct > 0
+          ? ` · Cash &amp; equiv (TREPS / Repo / G-Sec): <b>${DataLoader.fmtNum(entry.cash_and_equiv_pct, 1)}%</b>` : ''}
+      </div>
+      <div class="holdings-asof">Holdings as on ${escapeHtml(dateStr)}</div>`;
+  }
+
+  /* ============================================================
+   * MANAGER PROFILE — Fix-List 5 §D retired the auto-scrape JSON in
+   * favour of a CSV the Products Team manually enriches. The page
+   * carries the data we DO have on every fund (manager_name, AMC,
+   * tenure) inline — no async load needed. The bio paragraph shows a
+   * placeholder caption directing the analyst to the human-curated CSV.
+   * ============================================================ */
 
   /* ============================================================
    * BUTTONS / INTERACTIONS

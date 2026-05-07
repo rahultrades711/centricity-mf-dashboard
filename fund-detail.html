@@ -68,10 +68,6 @@
         <div class="delta" id="scoreDelta">Cycle change · — (no prior cycle in archive)</div>
         <div class="score-grid" id="scoreMiniGrid"></div>
       </div>
-      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:10px">
-        <span class="verdict-pill" id="verdictPill">—</span>
-        <span class="conviction" id="convictionLabel"></span>
-      </div>
     </div>
   </div>
 </section>
@@ -91,14 +87,31 @@
             <tr>
               <th></th>
               <th>YTD</th>
+              <th>1M</th>
               <th>1Y</th>
               <th>3Y</th>
               <th>5Y</th>
-              <th>SI</th>
+              <th>10Y</th>
             </tr>
           </thead>
           <tbody id="perfTbody"></tbody>
         </table>
+      </div>
+
+      <!-- Returns grouped bar chart — Fund / Benchmark / Cat Avg across the 6 periods -->
+      <div class="returns-chart-wrap" id="returnsChartWrap">
+        <div class="chart-head">
+          <div>
+            <div style="font-size:13px;font-weight:700">Returns vs Benchmark & Category</div>
+            <div class="chart-caption">Fund · Benchmark · Category — across the same 6 periods. Negative values render below the axis in #931621.</div>
+          </div>
+          <div class="legend">
+            <span><i style="background:var(--brown)"></i>Fund</span>
+            <span><i style="background:var(--grey-mid)"></i>Benchmark</span>
+            <span><i style="background:var(--gold)"></i>Category Avg</span>
+          </div>
+        </div>
+        <div class="chart-canvas-wrap"><canvas id="returnsBarChart"></canvas></div>
       </div>
 
       <!-- NAV chart -->
@@ -239,10 +252,12 @@
       <h2>The Final <em>Read</em></h2>
       <p class="h-sub" id="verdictSubtitle">Updated — · Authored by the Centricity Investment Committee</p>
 
-      <div class="verdict-empty">
-        <div class="ring-motif gold" aria-hidden="true"></div>
-        <p>Centricity Investment Committee verdicts are auto-generated during the data pipeline run in Phase 5. They will appear here from the next cycle.</p>
+      <div class="verdict-grid" id="verdictGrid">
+        <!-- Populated by renderVerdict() — strengths + concerns lists derived
+             from the fund's own data. No BUY/SELL calls; only factual
+             observations. -->
       </div>
+      <p class="verdict-foot" id="verdictFoot"></p>
     </section>
 
     <!-- DOWNLOAD STRIP -->

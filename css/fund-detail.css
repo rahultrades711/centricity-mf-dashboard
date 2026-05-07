@@ -11,6 +11,13 @@
  * Cowork 2026-05-06 — Fund Detail full rebuild (Sheet 3 review).
  */
 
+/* Fix-List 5 §C1 — `[hidden]` was being overridden by `.not-found {
+ * display: flex; }` further down because attribute-style hiding has
+ * lower specificity than element-style display. Pin it at the top so
+ * any element with the hidden attribute disappears regardless of any
+ * later rule that sets display. */
+[hidden] { display: none !important; }
+
 /* Local variable extensions (centricity.css already declares the rest) */
 :root {
   --brown:      #6B3F1A;
@@ -43,7 +50,9 @@ html, body { background: #fafaf7; }
   display: grid; grid-template-columns: 1.6fr 1fr; gap: 36px;
 }
 .hero .eyebrow {
-  font-size: 10.5px; letter-spacing: .28em; text-transform: uppercase; color: var(--gold);
+  font-size: 10.5px; letter-spacing: .28em; text-transform: uppercase;
+  /* Fix-List 5 §C3 — black for legibility on the white hero, was gold */
+  color: #000;
   font-weight: 700; display: block; margin-bottom: 8px;
 }
 .hero h1 {
@@ -242,6 +251,13 @@ table.perf .delta-pos { color: var(--green); font-weight: 700; }
 table.perf .delta-neg { color: var(--red); font-weight: 700; }
 table.perf .neg { color: var(--red); }
 
+/* ============ RETURNS BAR CHART (Fix-List 5 §C7) ============ */
+.returns-chart-wrap {
+  margin-top: 18px; border: 1px solid var(--rule); border-radius: 4px;
+  padding: 18px 20px; background: #fafaf7;
+}
+.returns-chart-wrap .chart-canvas-wrap { height: 220px; }
+
 /* ============ NAV CHART ============ */
 .nav-chart-wrap {
   margin-top: 18px; border: 1px solid var(--rule); border-radius: 4px;
@@ -419,14 +435,93 @@ table.perf .neg { color: var(--red); }
   padding: 1px 5px; border-radius: 2px; font-size: 11.5px;
 }
 
+/* Sector allocation horizontal-bars list — Fix-List 5 §C9 */
+.sector-list { margin-top: 4px; }
+.sector-row {
+  display: grid; grid-template-columns: 140px 1fr 60px;
+  gap: 12px; align-items: center;
+  padding: 6px 0; border-bottom: 1px dashed var(--rule);
+}
+.sector-row:last-child { border-bottom: 0; }
+.sector-label {
+  font-size: 12.5px; color: var(--black); font-weight: 700;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sector-bar {
+  display: block; height: 8px;
+  background: var(--grey-light); border-radius: 99px; overflow: hidden;
+}
+.sector-bar i {
+  display: block; height: 100%; background: var(--gold);
+}
+.sector-pct {
+  font-size: 12px; text-align: right;
+  font-variant-numeric: tabular-nums; font-weight: 700;
+}
+
+/* Top-N holdings table — Fix-List 5 §C9 */
+.holdings-table-wrap { overflow-x: auto; }
+table.holdings-tbl {
+  width: 100%; border-collapse: collapse; font-size: 12.5px;
+}
+table.holdings-tbl thead th {
+  background: #000; color: #fff; text-align: left;
+  padding: 10px 10px; font-weight: 700;
+  font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase;
+}
+table.holdings-tbl thead th.num { text-align: right; }
+table.holdings-tbl tbody td {
+  padding: 9px 10px; border-bottom: 1px solid var(--rule);
+}
+table.holdings-tbl tbody td.num {
+  text-align: right; font-variant-numeric: tabular-nums;
+}
+table.holdings-tbl tbody tr:nth-child(even) td { background: rgba(247, 246, 244, 1); }
+table.holdings-tbl tbody tr:hover td { background: var(--tan-soft); }
+
+.holdings-callout {
+  margin-top: 12px; padding: 10px 14px;
+  background: rgba(189, 149, 104, .10);
+  border-left: 3px solid var(--gold);
+  font-size: 12.5px; color: var(--ink);
+  border-radius: 0 3px 3px 0;
+}
+.holdings-callout b { font-weight: 700; }
+.holdings-asof {
+  margin-top: 10px; font-size: 11px; color: var(--text-mid);
+  font-style: italic;
+}
+
+/* Cost-card sub-line: shrink the footnote slightly */
+.cost-card .sub .footnote {
+  display: block; margin-top: 6px;
+  font-size: 10.5px; color: var(--text-mid);
+}
+
 .mc-bars {
   display: flex; gap: 0; height: 38px; margin-top: 8px;
-  border-radius: 3px; overflow: hidden; border: 1px solid var(--rule);
+  border-radius: 3px; overflow: visible; border: 1px solid var(--rule);
+  /* outside labels overflow below — reserve room so they don't collide with the legend */
+  margin-bottom: 24px;
 }
 .mc-bars .seg {
   display: flex; align-items: center; justify-content: center;
   font-size: 12px; font-weight: 700; color: #fff; letter-spacing: .04em;
-  white-space: nowrap; overflow: hidden;
+  white-space: nowrap; overflow: visible;            /* allow .seg-out overflow */
+  min-width: 4px;                                    /* Fix-List 5 §C8: keep colour visible */
+  position: relative;
+}
+.mc-bars .seg.outside {
+  /* Hide any inside text on small segments; the .seg-out overlay carries the label */
+  color: transparent;
+}
+.mc-bars .seg .seg-out {
+  position: absolute; top: 100%;
+  left: 50%; transform: translateX(-50%);
+  margin-top: 6px;
+  font-size: 10.5px; letter-spacing: .04em; color: var(--text-mid); font-weight: 700;
+  background: #fff; padding: 1px 4px; border-radius: 2px;
+  white-space: nowrap;
 }
 .mc-bars .seg.large    { background: #0E0E0E; }
 .mc-bars .seg.mid      { background: var(--brown); }
@@ -481,9 +576,47 @@ table.perf .neg { color: var(--red); }
   background: #000; color: #fff; border-radius: 6px;
   padding: 32px 34px; border: 1px solid var(--brown);
 }
-.verdict-block h2 { color: #fff; margin-bottom: 6px; }
-.verdict-block h2 em { color: var(--gold); }
-.verdict-block .h-sub { color: rgba(255, 255, 255, .65); }
+/* Fix-List 5 §C2 — pin element name to match the specificity of the
+ * universal `section.block h2` rule (0,0,2,1). Without `section.` these
+ * were 0,0,1,1 and lost the cascade, leaving the Verdict heading in
+ * default-black on a black background. Same fix for h2 em + h-sub. */
+section.verdict-block h2 { color: #fff; margin-bottom: 6px; }
+section.verdict-block h2 em { color: var(--gold); }
+section.verdict-block .h-sub { color: rgba(255, 255, 255, .65); }
+/* Verdict insights — Fix-List 5 §C11 */
+.verdict-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 28px;
+  margin-top: 8px;
+}
+.verdict-grid .v-col h4 {
+  font-size: 11.5px; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--gold); margin: 0 0 12px; font-weight: 700;
+}
+.verdict-grid .v-col ul {
+  margin: 0; padding: 0; list-style: none;
+}
+.verdict-grid .v-col li {
+  font-size: 13.5px; padding: 10px 0; line-height: 1.55;
+  border-bottom: 1px solid rgba(255, 255, 255, .08);
+  color: rgba(255, 255, 255, .88);
+  display: flex; gap: 12px;
+}
+.verdict-grid .v-col li:last-child { border-bottom: 0; }
+.verdict-grid .v-col li::before {
+  content: ''; flex: 0 0 6px; width: 6px; height: 6px; border-radius: 99px;
+  background: var(--gold); margin-top: 8px;
+}
+.verdict-grid .v-col.cons li::before { background: #FF8B95; }
+.verdict-grid .v-col li b { color: #fff; font-weight: 700; }
+.verdict-grid .v-col .v-empty {
+  font-style: italic; color: rgba(255, 255, 255, .6);
+  font-size: 12.5px; margin: 0;
+}
+.verdict-foot {
+  margin: 22px 0 0; font-size: 11.5px; color: rgba(255, 255, 255, .5);
+  letter-spacing: .04em;
+}
+
 .verdict-empty {
   display: flex; flex-direction: column; align-items: center; gap: 18px;
   padding: 30px 20px;

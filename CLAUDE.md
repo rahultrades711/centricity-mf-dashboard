@@ -89,6 +89,7 @@ The dashboard reads from **four independent contracts**, each governing one upst
 - `alpha_3y` / `alpha_5y` — fund minus benchmark over the trailing window
 - `nav_latest_value` / `nav_latest_date` — last non-null NAV row for the fund (Fund Detail Fix-List 1 §A.1, additive)
 - `rolling_3y_stats` — daily-roll 3Y CAGR statistics (avg / median / best / worst window-start dates / pct_positive / pct_above_12 / pct_beat_benchmark / observation_count). Null when fewer than 252 daily NAV observations (sub-1Y data — can't form a 3Y window). Powers Fund Detail's 6-card Rolling Returns grid. (Fund Detail Fix-List 1 §A.2, additive)
+- `monitor_returns` / `exit_load` / `monitor_ter_pct` — overlay from the MF Monitor file. `monitor_returns` carries point-to-point YTD / 1M / 1Y / 3Y / 5Y / 10Y. `exit_load` is the free-text rule from the Monitor's `[Exit Load]` (equity sheets) or `Remark` (hybrid sheets) column. `monitor_ter_pct` is the regular-plan TER from Monitor's `Ratio` column — DISTINCT from `ter_pct` (which appears to carry direct-plan TER from the Whitelisting Excel). Both are preserved on the record per Designed-for-Change rule; Fund Detail displays `monitor_ter_pct`. See ISSUE-0013 for the discrepancy. (Fund Detail Fix-List 5 §A, additive)
 
 **`analytics_pending: true` flags** appear on every Screener fund record for fields sourced from the Analytics pipeline (top-10 holdings, sector allocation, full stocks, manager-change history, category history). The dashboard renders these as placeholders ("Holdings data integration pending — coming in v1.1") until the Analytics converter ships.
 
@@ -174,14 +175,15 @@ Dashboard-Repo/
 │   ├── Daily_MF_monitor_DD_Month_YYYY.xlsx        ← Monitor input
 │   ├── screener-YYYY-MM-DD.json                   ← Screener output (auto)
 │   ├── nav-series-YYYY-MM-DD.json                 ← Monthly NAV + benchmark series, capped 13y back; lazy-loaded by fund-detail.js for the "Growth of ₹ 1,00,000" chart. Emitted alongside the screener JSON by the same converter.
-│   ├── manager-profiles.json                      ← Manager bios (post-converter scrape via scripts/scrape_manager_profiles.py); fund-detail.js looks up by manager_name, falls back to a placeholder caption when the file or the entry is missing.
+│   ├── analytics-YYYY-MM-DD.json                  ← Per-fund top-20 holdings + sector allocation + concentration metrics; built by scripts/excel_to_json_analytics.py (Equity + Hybrid; Debt deferred). Lazy-loaded by fund-detail.js. (Fix-List 5 §B)
+│   ├── manager-profiles-template.csv              ← Manual-fill CSV (Manager / AMC / Funds / AUM auto-derived; Co-Manager / Bio / Source manually filled by Products Team). Replaces the auto-scrape JSON after quality issues. Built by scripts/build_manager_profiles.py. (Fix-List 5 §D)
 │   ├── analytics-YYYY-MM-DD.json                  ← Analytics output (auto)
 │   └── monitor-YYYY-MM-DD.json                    ← Monitor output (auto)
 ├── scripts/
-│   ├── excel_to_json_screener.py          ← built Step 2; emits screener JSON + nav-series file alongside (Fund Detail Fix-List 1 §A)
-│   ├── scrape_manager_profiles.py         ← built Sheet 3 review; standalone post-converter; outputs manager-profiles.json with cadence cache
-│   ├── excel_to_json_analytics.py         ← stub for v1.x (TODO comment)
-│   └── excel_to_json_monitor.py           ← stub for v1.x (TODO comment)
+│   ├── excel_to_json_screener.py          ← built Step 2; accepts optional Monitor xlsx (Fix-List 5 §A); emits screener JSON + nav-series file alongside (Fix-List 1 §A)
+│   ├── excel_to_json_analytics.py         ← built Fix-List 5 §B (Equity + Hybrid); Debt holdings deferred until Debt Screener exists
+│   ├── build_manager_profiles.py          ← built Fix-List 5 §D; emits manager-profiles-template.csv for manual enrichment (replaced the auto-scraper)
+│   └── excel_to_json_monitor.py           ← stub (point-to-point Monitor returns are now overlaid by excel_to_json_screener.py via Fix-List 5 §A; this script may be retired in v1.x or repurposed for as-on-date Monitor outputs)
 ├── index.html                             ← Screen 1 — Home
 ├── screener.html                          ← Screen 2
 ├── fund-detail.html                       ← Screen 3

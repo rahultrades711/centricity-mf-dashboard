@@ -1146,6 +1146,110 @@ def emit_nav_series_file(
         json.dump(payload, f, ensure_ascii=False, separators=(",", ":"))
 
 
+def extract_monitor_data(monitor_path: Path) -> dict:
+    """
+    Read the MF Monitor workbook and return a dict keyed by Scheme Name with
+    point-to-point returns + exit load + Monitor TER.
+
+    Sheet structure varies between equity sheets ('Focused Fund', 'Large Cap
+    Fund', etc. — 23 cols, exit load in '[Exit Load]') and hybrid sheets
+    ('Aggressive Hybrid Fund', etc. — 36 cols, exit load in 'Remark'). The
+    extractor parses the header row 12 to find columns by name rather than
+    by hardcoded index, so both layouts work.
+
+    Aggregate roll-up sheets ('Home', 'Debt' standalone, 'Hybrid', 'Silver',
+    'Gold', any sheet whose name contains 'Oriented' or starts with
+    'Solution') are skipped — their funds appear in the per-category sheets
+    too, and including them would double-count.
+
+    DATA QUALITY NOTE — Monitor TER is the regular plan expense ratio
+    whereas the Whitelisting Excel ter_pct field appears to carry the
+    direct plan TER. e.g. HDFC Focused Fund: Monitor 1.6% vs Whitelisting
+    0.47%. Both fields are kept on the fund record (`ter_pct` from
+    Whitelisting, `monitor_ter_pct` from Monitor); fund-detail.html displays
+    `monitor_ter_pct` since that's the partner-facing regular plan number.
+
+    Returns: {scheme_name: {ytd_pct, return_1m_pct, return_1y_pct,
+        return_3y_pct, return_5y_pct, return_10y_pct, exit_load,
+        monitor_ter_pct}}
+    """
+    SKIP_SHEETS = {"Home", "Debt", "Silver", "Gold", "Hybrid"}
+
+    def _is_data_sheet(name: str, ws) -> bool:
+        if name in SKIP_SHEETS:
+            return False
+        if "Oriented" in name:
+            return False                       # Equity Oriented / Debt Oriented / Solution Oriented,…
+        if name.startswith("Solution"):
+            return False
+        v = ws.cell(row=12, column=1).value
+        return v == "Scheme Name"
+
+    def _parse_headers(ws) -> dict[str, int]:
+        """Header row 12 → {column-name → 1-indexed col number}."""
+        headers: dict[str, int] = {}
+        for c in range(1, ws.max_column + 1):
+            v = ws.cell(row=12, column=c).value
+            if v is None:
+                continue
+            headers[str(v).strip()] = c
+        return headers
+
+    out: dict[str, dict] = {}
+    wb = openpyxl.load_workbook(monitor_path, read_only=True, data_only=True)
+    skipped_sheets: list[str] = []
+    for sheet_name in wb.sheetnames:
+        ws = wb[sheet_name]
+        if not _is_data_sheet(sheet_name, ws):
+            skipped_sheets.append(sheet_name)
+            continue
+        H = _parse_headers(ws)
+        c_name = H.get("Scheme Name")
+        if c_name is None:
+            continue
+        # Monitor calls these columns the same in both equity and hybrid layouts
+        c_ytd  = H.get("YTD")
+        c_1m   = H.get("1 Month")
+        c_1y   = H.get("1 Year")
+        c_3y   = H.get("3 Years")
+        c_5y   = H.get("5 Years")
+        c_10y  = H.get("10 Years")
+        # Equity sheets: "Ratio" exists; hybrid sheets: also "Ratio"
+        c_ter  = H.get("Ratio")
+        # Equity layout: '[Exit Load]'; hybrid layout: 'Remark'
+        c_exit = H.get("[Exit Load]") or H.get("Remark")
+
+        for r in range(13, ws.max_row + 1):
+            name_v = ws.cell(row=r, column=c_name).value
+            scheme = _safe_str(name_v)
+            if not scheme:
+                continue
+            # Ignore numeric rows / footers
+            if not isinstance(name_v, str):
+                continue
+
+            def f(c):
+                if c is None:
+                    return None
+                return _safe_float(ws.cell(row=r, column=c).value)
+
+            row_data = {
+                "ytd_pct":        _round(f(c_ytd),  4),
+                "return_1m_pct":  _round(f(c_1m),   4),
+                "return_1y_pct":  _round(f(c_1y),   4),
+                "return_3y_pct":  _round(f(c_3y),   4),
+                "return_5y_pct":  _round(f(c_5y),   4),
+                "return_10y_pct": _round(f(c_10y),  4),
+                "monitor_ter_pct": _round(f(c_ter), 4),
+                "exit_load": _safe_str(ws.cell(row=r, column=c_exit).value) if c_exit else None,
+            }
+            # Last write wins on duplicate scheme names — shouldn't happen
+            # given we skip aggregate roll-ups, but be defensive.
+            out[scheme] = row_data
+    wb.close()
+    return out
+
+
 def _trailing_returns_from_series(series: list[tuple[_dt.date, float]],
                                   cycle_date: _dt.date,
                                   targets: dict[str, _dt.date]) -> dict:
@@ -1179,7 +1283,11 @@ def _trailing_returns_from_series(series: list[tuple[_dt.date, float]],
 
 
 def build_funds(
-    wb, contract: dict, cycle_meta: dict, warnings: list[str]
+    wb,
+    contract: dict,
+    cycle_meta: dict,
+    warnings: list[str],
+    monitor_data: dict | None = None,
 ) -> tuple[list[dict], dict, dict]:
     eq_set = set(contract["categories"]["equity"])
     hb_set = set(contract["categories"]["hybrid"])
@@ -1378,6 +1486,25 @@ def build_funds(
             ("alpha_3y_pct", _round(a3, 4) if a3 is not None else None),
             ("alpha_5y_pct", _round(a5, 4) if a5 is not None else None),
         ])
+        # Monitor file overlay (Fix-List 5 §A) — point-to-point returns,
+        # exit load, and the regular-plan TER. Joined by Scheme Name (col 0
+        # of Monitor) → fund_name. All fields render as null when no Monitor
+        # data was supplied at convert-time, OR when the fund's name doesn't
+        # match a Monitor row. Note: Monitor TER (regular plan) often differs
+        # from the Whitelisting Excel's ter_pct (looks like direct plan) —
+        # both are preserved; fund-detail.html displays monitor_ter_pct.
+        m_row = (monitor_data or {}).get(d["fund_name"]) if d["fund_name"] else None
+        record["monitor_returns"] = OrderedDict([
+            ("ytd_pct",        m_row.get("ytd_pct")        if m_row else None),
+            ("return_1m_pct",  m_row.get("return_1m_pct")  if m_row else None),
+            ("return_1y_pct",  m_row.get("return_1y_pct")  if m_row else None),
+            ("return_3y_pct",  m_row.get("return_3y_pct")  if m_row else None),
+            ("return_5y_pct",  m_row.get("return_5y_pct")  if m_row else None),
+            ("return_10y_pct", m_row.get("return_10y_pct") if m_row else None),
+        ])
+        record["exit_load"]        = m_row.get("exit_load")        if m_row else None
+        record["monitor_ter_pct"]  = m_row.get("monitor_ter_pct")  if m_row else None
+
         record["verdict"] = None
         record["verdict_reasons"] = None
         record["analyst_note"] = None
@@ -1435,12 +1562,26 @@ def build_funds(
 # Main
 # ---------------------------------------------------------------------------
 
-def convert(xlsx_path: Path) -> Path:
+def convert(xlsx_path: Path, monitor_path: Path | None = None) -> Path:
     if not xlsx_path.exists():
         raise SchemaError(f"Input file not found: {xlsx_path}")
 
     contract = load_contract()
     print(f"[converter] loaded contract: {CONTRACT_PATH.name} ({contract['contract_version']})", file=sys.stderr)
+
+    # Optional Monitor overlay — Fix-List 5 §A
+    monitor_data: dict | None = None
+    if monitor_path is not None:
+        if not monitor_path.exists():
+            print(
+                f"[converter] WARNING: monitor file not found at {monitor_path}; "
+                f"monitor_returns / exit_load / monitor_ter_pct will all be null",
+                file=sys.stderr,
+            )
+        else:
+            print(f"[converter] reading Monitor overlay: {monitor_path.name}", file=sys.stderr)
+            monitor_data = extract_monitor_data(monitor_path)
+            print(f"[converter]   extracted {len(monitor_data)} scheme rows from Monitor", file=sys.stderr)
 
     wb = openpyxl.load_workbook(xlsx_path, read_only=True, data_only=True)
     print(f"[converter] opened workbook: {xlsx_path.name} ({len(wb.sheetnames)} sheets)", file=sys.stderr)
@@ -1459,9 +1600,25 @@ def convert(xlsx_path: Path) -> Path:
 
     # 4. Funds — also returns the in-memory NAV maps so we can emit the
     # separate nav-series-YYYY-MM-DD.json file without re-reading the
-    # workbook (Fund Detail Fix-List 1 §A.3).
+    # workbook (Fund Detail Fix-List 1 §A.3). monitor_data is overlaid
+    # per-fund by name match (Fund Detail Fix-List 5 §A).
     warnings: list[str] = []
-    funds, nav_by_amfi, bm_by_name = build_funds(wb, contract, cycle_meta, warnings)
+    funds, nav_by_amfi, bm_by_name = build_funds(
+        wb, contract, cycle_meta, warnings, monitor_data=monitor_data,
+    )
+
+    # Report Monitor match rate (helps catch name-mismatch problems early)
+    if monitor_data is not None:
+        matched = sum(1 for f in funds if f.get("monitor_returns", {}).get("ytd_pct") is not None
+                                          or f.get("exit_load") is not None
+                                          or f.get("monitor_ter_pct") is not None)
+        unmatched = len(funds) - matched
+        print(
+            f"[converter] Monitor overlay: {matched}/{len(funds)} funds matched by Scheme Name "
+            f"({unmatched} unmatched — typically 1-3yr Warning / New Fund Monitoring funds "
+            f"with names not yet in the Monitor file)",
+            file=sys.stderr,
+        )
     summary["fund_count"] = len(funds)
     print(f"[converter] built {len(funds)} fund records", file=sys.stderr)
 
@@ -1528,11 +1685,15 @@ def convert(xlsx_path: Path) -> Path:
 def main(argv: list[str] | None = None) -> int:
     argv = argv if argv is not None else sys.argv[1:]
     if not argv:
-        print("usage: excel_to_json_screener.py <path-to-xlsx>", file=sys.stderr)
+        print(
+            "usage: excel_to_json_screener.py <whitelisting.xlsx> [<monitor.xlsx>]",
+            file=sys.stderr,
+        )
         return 2
     path = Path(argv[0])
+    monitor_path = Path(argv[1]) if len(argv) > 1 and argv[1] else None
     try:
-        convert(path)
+        convert(path, monitor_path=monitor_path)
     except SchemaError as e:
         print(f"\nSCHEMA ERROR: {e}\n", file=sys.stderr)
         return 1
