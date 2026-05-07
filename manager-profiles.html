@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Centricity MF Screener — Manager Profiles</title>
+<meta name="viewport" content="width=1680">
+<link rel="icon" href="assets/logo.png">
+<link rel="stylesheet" href="css/centricity.css">
+<link rel="stylesheet" href="css/manager-profiles.css">
+<script defer src="js/data-loader.js"></script>
+<script defer src="js/state.js"></script>
+<script defer src="js/manager-profiles.js"></script>
+</head>
+<body>
+
+<header class="appbar" role="banner">
+  <div class="left">
+    <div class="logo-cell"><img src="assets/logo.png" alt="Centricity WealthTech"></div>
+  </div>
+  <nav aria-label="primary">
+    <a href="index.html">Home</a>
+    <a href="screener.html">Screener</a>
+    <a href="compare.html">Compare</a>
+    <a href="overlap.html">Overlap</a>
+    <div class="nav-dropdown">
+      <a href="#" class="dropdown-trigger active">Others &#9662;</a>
+      <div class="nav-dropdown-menu">
+        <a href="manager-profiles.html" class="active">Manager Profiles</a>
+        <a href="archive.html">Archive</a>
+        <a href="watchlist.html">Watchlist</a>
+        <a href="alerts.html">Alerts</a>
+      </div>
+    </div>
+  </nav>
+  <div class="right">
+    <label class="search">
+      <span style="opacity:.6">⌕</span>
+      <input type="text" placeholder="Search funds, AMCs, managers…" aria-label="Search">
+    </label>
+  </div>
+</header>
+
+<div class="crumb">
+  <a href="index.html">Home</a>
+  <span class="sep">›</span>
+  <span>Manager Profiles</span>
+</div>
+
+<main class="mp-main" id="mpMain">
+
+  <section class="mp-head">
+    <span class="eyebrow" id="mpEyebrow">Manager Profiles · As on —</span>
+    <h1>Manager <em>Profiles</em></h1>
+    <p class="h-sub">
+      Every fund manager currently running a fund in our universe. Click a name to see the funds they
+      manage today, the funds they've previously managed, and any biographical context the Products
+      Team has scraped from public AMC / VRO sources.
+    </p>
+  </section>
+
+  <div class="mp-layout">
+
+    <!-- LEFT: manager picker -->
+    <aside class="mp-picker">
+      <div class="picker-head">
+        <div class="picker-title-row">
+          <h3>Managers</h3>
+          <span class="picker-counter" id="mpPickerCounter">0</span>
+        </div>
+        <div class="picker-search-wrap">
+          <input type="text" id="mpSearch" class="picker-search"
+                 placeholder="Search by name or AMC…" aria-label="Search managers">
+        </div>
+        <div class="picker-amc-wrap">
+          <button type="button" class="picker-amc-btn" id="mpAmcBtn">
+            All AMCs <span class="caret">▾</span>
+          </button>
+          <div class="picker-amc-panel" id="mpAmcPanel" hidden></div>
+        </div>
+        <div class="picker-sort-row">
+          <label>Sort by:
+            <select id="mpSortBy">
+              <option value="aum">AUM managed</option>
+              <option value="name">Name</option>
+              <option value="tenure">Longest tenure</option>
+              <option value="funds">Funds running</option>
+            </select>
+          </label>
+        </div>
+      </div>
+      <div class="picker-list" id="mpManagerList">
+        <p class="picker-pending">Loading manager universe…</p>
+      </div>
+    </aside>
+
+    <!-- RIGHT: profile card -->
+    <section class="mp-card-wrap" id="mpCardWrap">
+
+      <div class="mp-card-empty" id="mpCardEmpty">
+        <div class="ring-motif" aria-hidden="true"></div>
+        <h3>Select a manager from the list</h3>
+        <p>Filter by AMC or search by name in the left panel. The profile card renders here with
+          their currently managed funds, previously managed funds, and any biographical context
+          scraped from public sources.</p>
+      </div>
+
+      <div class="mp-card" id="mpCard" hidden>
+        <div class="mp-card-head">
+          <div class="mp-avatar" id="mpAvatar">—</div>
+          <div class="mp-name-block">
+            <h2 id="mpName">—</h2>
+            <div class="mp-meta">
+              <span class="mp-amc" id="mpAmc">—</span>
+              <span class="mp-sep">·</span>
+              <span class="mp-experience" id="mpExperience"></span>
+            </div>
+          </div>
+          <div class="mp-source" id="mpSource"></div>
+        </div>
+
+        <div class="mp-bio" id="mpBio" hidden></div>
+
+        <div class="mp-stats" id="mpStats">
+          <div class="mp-stat">
+            <span class="k">Currently managing</span>
+            <span class="v" id="mpStatCurrent">—</span>
+          </div>
+          <div class="mp-stat">
+            <span class="k">Total AUM</span>
+            <span class="v" id="mpStatAum">—</span>
+          </div>
+          <div class="mp-stat">
+            <span class="k">Longest current tenure</span>
+            <span class="v" id="mpStatTenure">—</span>
+          </div>
+          <div class="mp-stat">
+            <span class="k">Previously managed</span>
+            <span class="v" id="mpStatPrev">—</span>
+          </div>
+        </div>
+
+        <h3 class="mp-section-h">Currently Managing</h3>
+        <div class="mp-funds-table-wrap" id="mpCurrentMount"></div>
+
+        <h3 class="mp-section-h">Previously Managed</h3>
+        <div class="mp-funds-table-wrap" id="mpPrevMount"></div>
+
+        <p class="mp-foot" id="mpFoot"></p>
+      </div>
+
+    </section>
+
+  </div>
+
+</main>
+
+<footer class="appfoot" role="contentinfo">
+  <div class="left">
+    <span class="gold">CENTRICITY WEALTHTECH</span>
+    <span>·</span>
+    <span>Products Team</span>
+    <span>·</span>
+    <span>Confidential</span>
+  </div>
+  <div class="right" id="footUpdated">Last updated · —</div>
+</footer>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+</body>
+</html>

@@ -252,27 +252,35 @@ def main(argv: list[str]) -> int:
         print(f"ERROR: input file not found: {xlsx_path}", file=sys.stderr)
         return 1
 
+    # Filename embeds the workbook's "as on date" — extract it from the
+    # filename if possible, else fall back to today. The same value is
+    # used as the `as_of_date` written into the JSON (Fix-List 9 ISSUE
+    # caught: the eyebrow on manager-profiles.html surfaces this date,
+    # so it must match the Morningstar snapshot, not the script run).
+    m = re.search(r"(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]+)\s+(\d{4})", xlsx_path.name)
+    if m:
+        try:
+            day = int(m.group(1))
+            mon_name = m.group(2)
+            year = int(m.group(3))
+            month_num = datetime.strptime(mon_name[:3], "%b").month
+            as_of = date(year, month_num, day)
+        except (ValueError, KeyError):
+            as_of = date.today()
+    else:
+        as_of = date.today()
+
     if len(argv) >= 3:
         output_path = Path(argv[2]).expanduser().resolve()
     else:
-        # Filename embeds the workbook's "as on date" — extract it from the
-        # filename if possible, else use today.
-        m = re.search(r"(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]+)\s+(\d{4})", xlsx_path.name)
-        if m:
-            try:
-                day = int(m.group(1))
-                mon_name = m.group(2)
-                year = int(m.group(3))
-                month_num = datetime.strptime(mon_name[:3], "%b").month
-                as_of = date(year, month_num, day)
-            except (ValueError, KeyError):
-                as_of = date.today()
-        else:
-            as_of = date.today()
         output_path = REPO_ROOT / "data" / f"manager-history-{as_of.isoformat()}.json"
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    emit(xlsx_path, output_path, today=date.today())
+    # `today` here is the workbook's reference date — tenures compute
+    # forward from each manager's start UP TO this snapshot date, not
+    # the day the script runs. Avoids drift when the script is rerun
+    # on the same source weeks later.
+    emit(xlsx_path, output_path, today=as_of)
     return 0
 
 
