@@ -684,6 +684,90 @@ select:focus-visible,
 }
 
 /* ============================================================
+   12a. GLOBAL SEARCH DROPDOWN (js/search.js — Fix-List 12)
+        Anchored under header.appbar .search; extends LEFT from the input's
+        right edge so the 360-px panel doesn't clip on smaller viewports.
+   ============================================================ */
+.search-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 420px;
+  max-height: 312px;
+  overflow-y: auto;
+  background: #FFFFFF;
+  border: 1px solid var(--grey-light);
+  box-shadow: var(--shadow-md);
+  border-radius: 3px;
+  z-index: 60;
+  font-family: 'Cambria', Georgia, 'Times New Roman', serif;
+  font-size: 13px;
+  color: var(--ink);
+}
+.search-dropdown[hidden] { display: none; }
+
+.search-dropdown .search-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--grey-light);
+  color: var(--ink);
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.search-dropdown .search-row:last-child { border-bottom: 0; }
+.search-dropdown .search-row .sr-name {
+  flex: 1 1 auto;
+  color: var(--gold);
+  font-weight: 600;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.search-dropdown .search-row .sr-cat {
+  flex: 0 0 auto;
+  color: var(--text-mid);
+  font-size: 11.5px;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.search-dropdown .search-row .sr-score {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  font-size: 11.5px;
+  color: var(--gold-deep);
+  font-weight: 600;
+  background: var(--tan-softer);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.search-dropdown .search-row:hover {
+  background: #FDF8F2;
+}
+.search-dropdown .search-row.active,
+.search-dropdown .search-row.active:hover {
+  background: var(--gold);
+}
+.search-dropdown .search-row.active .sr-name,
+.search-dropdown .search-row.active .sr-cat,
+.search-dropdown .search-row.active .sr-score {
+  color: #FFFFFF;
+  background: transparent;
+}
+.search-empty {
+  padding: 14px 14px;
+  color: var(--text-mid);
+  font-size: 12px;
+  text-align: center;
+  font-style: italic;
+}
+
+/* ============================================================
    13. PRINT — used by the html2pdf.js export pipeline (js/exports.js).
        Strips the sticky header/footer noise and shows a clean print frame.
    ============================================================ */
