@@ -107,12 +107,13 @@
       // the bar chart still draws (those datasets just have null values).
       _renderReturnsBarChartWhenReady();
     });
-    // Analytics JSON for the Portfolio section (Fix-List 5 §C9)
+    // Analytics JSON for the Portfolio section (Fix-List 5 §C9 + Fix-List 6 §3)
     loadAnalyticsForFund(fund.scheme_code).then(entry => {
       renderAnalyticsHoldings(entry);
     }).catch((e) => {
       console.warn('[fund-detail] analytics JSON unavailable', e);
-      // Leave the placeholder visible (already rendered as default markup)
+      showSectorDonutEmpty();
+      // Compact holdings table mount stays at "Holdings data pending."
     });
   }
 
@@ -230,16 +231,20 @@
       fundVals[5] = null;
     }
 
-    // Benchmark — 1Y/3Y/5Y from screener-converter benchmark_returns;
-    // YTD/1M/10Y from nav-series (lazy, populated by updateBenchCellsAfterNavLoad)
+    // Benchmark row — Fix-List 6 §1D: prefer benchmark_monitor_returns
+    // (Monitor's index row at the bottom of each category sheet — full
+    // 6-period set). Fall back to converter's benchmark_returns for 1Y/3Y/5Y
+    // when Monitor benchmark match is missing (and to nav-series-derived
+    // YTD/1M/10Y after _navSeries resolves).
+    const bmm = fund.benchmark_monitor_returns || {};
     const br = fund.benchmark_returns || {};
     const benchVals = [
-      null,                         // YTD — populated when nav-series loads
-      null,                         // 1M
-      br.return_1y_pct,
-      br.return_3y_pct,
-      br.return_5y_pct,
-      null,                         // 10Y
+      bmm.ytd_pct        != null ? bmm.ytd_pct        : null,
+      bmm.return_1m_pct  != null ? bmm.return_1m_pct  : null,
+      bmm.return_1y_pct  != null ? bmm.return_1y_pct  : br.return_1y_pct,
+      bmm.return_3y_pct  != null ? bmm.return_3y_pct  : br.return_3y_pct,
+      bmm.return_5y_pct  != null ? bmm.return_5y_pct  : br.return_5y_pct,
+      bmm.return_10y_pct != null ? bmm.return_10y_pct : null,
     ];
 
     // Category avg from peers' monitor_returns — needs ≥ 3 peers with the field
@@ -252,34 +257,54 @@
     }
     const catVals = PERF_FIELDS.map(f => catAvg(f.monitorKey));
 
-    _perfState = { fund, cycle, benchmarkName, peerCount, fundVals, benchVals, catVals };
+    // Excess Return row — Fix-List 6 §2A: Fund − Benchmark per period.
+    // Em-dash when either is null.
+    const excessVals = fundVals.map((fv, i) => {
+      const bv = benchVals[i];
+      if (fv == null || bv == null) return null;
+      return fv - bv;
+    });
+
+    _perfState = { fund, cycle, benchmarkName, peerCount, fundVals, benchVals, catVals, excessVals };
     _renderReturnsTable();
     _renderReturnsBarChartWhenReady();
   }
 
   /**
-   * Invoked after `_navSeries` resolves — fills in benchmark YTD / 1M / 10Y
-   * from the monthly index series and re-renders both the returns table
-   * and the grouped bar chart.
+   * Invoked after `_navSeries` resolves. Now that the benchmark row uses
+   * Monitor index rows (Fix-List 6 §1D), nav-series is the LAST-RESORT
+   * fallback for YTD/1M/10Y — only fills cells that are still null.
    */
   function updateBenchCellsAfterNavLoad() {
     if (!_perfState || !_navSeries || !Array.isArray(_navSeries.bench)) return;
     const cycleDate = _cycle.cycle_meta.cycle_date;
     const bench = _navSeries.bench;
-    _perfState.benchVals[0] = _benchYtdPctFromMonthly(bench, cycleDate);
-    _perfState.benchVals[1] = _benchOneMonthPctFromMonthly(bench, cycleDate);
-    _perfState.benchVals[5] = _benchTenYearCagrFromMonthly(bench, cycleDate);
+    if (_perfState.benchVals[0] == null) _perfState.benchVals[0] = _benchYtdPctFromMonthly(bench, cycleDate);
+    if (_perfState.benchVals[1] == null) _perfState.benchVals[1] = _benchOneMonthPctFromMonthly(bench, cycleDate);
+    if (_perfState.benchVals[5] == null) _perfState.benchVals[5] = _benchTenYearCagrFromMonthly(bench, cycleDate);
+    // Recompute excess after the bench fill
+    _perfState.excessVals = _perfState.fundVals.map((fv, i) => {
+      const bv = _perfState.benchVals[i];
+      if (fv == null || bv == null) return null;
+      return fv - bv;
+    });
     _renderReturnsTable();
     _renderReturnsBarChartWhenReady();
   }
 
   function _renderReturnsTable() {
     if (!_perfState) return;
-    const { fund, benchmarkName, fundVals, benchVals, catVals } = _perfState;
-    const fmt = (v) => fmtPctOnePlace(v);
+    const { fund, benchmarkName, fundVals, benchVals, catVals, excessVals } = _perfState;
     const cell = (v) => (v == null || isNaN(v))
       ? '<td>—</td>'
-      : `<td class="${v < 0 ? 'neg' : ''}">${fmt(v)}</td>`;
+      : `<td class="${v < 0 ? 'neg' : ''}">${fmtPct(v, 2)}</td>`;
+    // Excess row uses signed format: positive in default colour, negative
+    // in --red. Both with explicit sign (Unicode minus/plus) — Fix-List 6 §2A.
+    const excessCell = (v) => {
+      if (v == null || isNaN(v)) return '<td>—</td>';
+      const cls = v < 0 ? 'neg' : '';
+      return `<td class="${cls}">${fmtPctSigned(v, 2)}</td>`;
+    };
 
     document.getElementById('perfTbody').innerHTML = `
       <tr class="row-fund">
@@ -293,6 +318,10 @@
       <tr class="row-cat">
         <td>${escapeHtml(fund.category)} · Category Avg</td>
         ${catVals.map(cell).join('')}
+      </tr>
+      <tr class="row-excess">
+        <td><b>Excess Return</b></td>
+        ${excessVals.map(excessCell).join('')}
       </tr>`;
   }
 
@@ -351,7 +380,7 @@
             backgroundColor: '#000', titleColor: '#BD9568', bodyColor: '#fff',
             borderColor: '#6B3F1A', borderWidth: 1,
             callbacks: {
-              label: (ctx) => `${ctx.dataset.label}: ${ctx.raw == null ? '—' : fmtPctOnePlace(ctx.raw)}`,
+              label: (ctx) => `${ctx.dataset.label}: ${ctx.raw == null ? '—' : fmtPct(ctx.raw, 2)}`,
             },
           },
         },
@@ -417,10 +446,33 @@
     return Math.round(cagr * 100 * 10000) / 10000;
   }
 
-  function fmtPctOnePlace(v) {
+  /**
+   * Page-wide percentage formatter — Fix-List 6 §2B switched ALL return
+   * displays from 1dp to 2dp. Negatives use the Unicode minus (U+2212),
+   * which the .neg CSS class colours red.
+   *   fmtPct(12.345)        -> "12.35%"
+   *   fmtPct(-3.456)        -> "−3.46%"
+   *   fmtPct(null)          -> "—"
+   *   fmtPct(7.5, 1)        -> "7.5%"   (override decimals if needed)
+   */
+  function fmtPct(v, dp) {
     if (v == null || isNaN(v)) return '—';
+    if (dp == null) dp = 2;
     const sign = v < 0 ? '−' : '';
-    return sign + Math.abs(v).toFixed(1) + '%';
+    return sign + Math.abs(v).toFixed(dp) + '%';
+  }
+  /**
+   * Always-signed variant for Excess Return cells where +/− is the point.
+   *   fmtPctSigned(2.84)   -> "+2.84%"
+   *   fmtPctSigned(-1.07)  -> "−1.07%"
+   *   fmtPctSigned(0)      -> "0.00%"
+   */
+  function fmtPctSigned(v, dp) {
+    if (v == null || isNaN(v)) return '—';
+    if (dp == null) dp = 2;
+    if (v === 0) return (0).toFixed(dp) + '%';
+    const sign = v < 0 ? '−' : '+';
+    return sign + Math.abs(v).toFixed(dp) + '%';
   }
   function pctCls(v) {
     return (v != null && !isNaN(v) && v < 0) ? 'neg' : '';
@@ -491,8 +543,9 @@
   function _rollLabel(i) {
     return ['Average', 'Median', '% Periods > 12%', 'Best 3Y', 'Worst 3Y', '% Beat Benchmark'][i] || '';
   }
-  function pctFmt(v)    { return DataLoader.fmtPct(v); }                 // signed
-  function pctPosFmt(v) { return `${DataLoader.fmtNum(v, 1)}%`; }         // unsigned
+  // Fix-List 6 §2B: rolling-return + capture cards display 2dp.
+  function pctFmt(v)    { return DataLoader.fmtPct(v, 2); }                 // signed
+  function pctPosFmt(v) { return `${DataLoader.fmtNum(v, 2)}%`; }            // unsigned
 
   /* ============================================================
    * 02 — RISK
@@ -528,12 +581,13 @@
         cmp: `3Y trailing · Rf ${RF_RATE_DISPLAY}<br>Cat avg · <b>${nullOrNum(catSharpe, 2)}</b>`,
       },
       {
-        lbl: 'Down Capture', v: downCap, fmt: v => `${DataLoader.fmtNum(v, 1)}%`,
-        cmp: `Benchmark · <b>100.0%</b><br>Cat avg · <b>${nullOrPct(catDownCap, 1)}</b>`,
+        // Fix-List 6 §2B — capture ratios in 2dp
+        lbl: 'Down Capture', v: downCap, fmt: v => `${DataLoader.fmtNum(v, 2)}%`,
+        cmp: `Benchmark · <b>100.00%</b><br>Cat avg · <b>${nullOrPct(catDownCap, 2)}</b>`,
       },
       {
-        lbl: 'Up Capture', v: upCap, fmt: v => `${DataLoader.fmtNum(v, 1)}%`,
-        cmp: `Benchmark · <b>100.0%</b><br>Cat avg · <b>${nullOrPct(catUpCap, 1)}</b>`,
+        lbl: 'Up Capture', v: upCap, fmt: v => `${DataLoader.fmtNum(v, 2)}%`,
+        cmp: `Benchmark · <b>100.00%</b><br>Cat avg · <b>${nullOrPct(catUpCap, 2)}</b>`,
       },
       {
         lbl: 'Capture Ratio', v: captureRatio, fmt: v => DataLoader.fmtNum(v, 2),
@@ -618,52 +672,117 @@
 
   /* ============================================================
    * 04 — PORTFOLIO
+   * Fix-List 6 §3 rebuild: m-cap donut + (hybrid donut) + sector donut on
+   * the left; compact top-holdings table on the right. Bar charts retired.
    * ============================================================ */
+  // Sector palette — exact rotation order specified by §3
+  const SECTOR_PALETTE = [
+    '#BD9568', '#DBC8B2', '#0E0E0E', '#BFBFBF', '#6B4F2A',
+    '#A07850', '#D4B896', '#8C7B6B', '#4A3728', '#E8D5C0',
+  ];
+  // M-cap mix palette — fixed assignment (Large = black; Mid = gold;
+  // Small = light tan; Others = mid grey)
+  const MCAP_PALETTE = ['#0E0E0E', '#BD9568', '#DBC8B2', '#BFBFBF'];
+  // Hybrid (Equity / Debt / Others) palette
+  const HYBRID_PALETTE = ['#6B3F1A', '#0E0E0E', '#BFBFBF'];
+
+  let _mcapDonutInstance = null;
+  let _hybridDonutInstance = null;
+  let _sectorDonutInstance = null;
+
   function renderPortfolio(fund) {
     const m = fund.mcap_split || {};
-    const segs = [
-      { cls: 'large', label: 'Large',  pct: m.large_pct },
-      { cls: 'mid',   label: 'Mid',    pct: m.mid_pct   },
-      { cls: 'small', label: 'Small',  pct: m.small_pct },
-      { cls: 'cash',  label: 'Others/Cash', pct: m.others_pct },
+    const mcapData = [
+      { label: 'Large-cap', value: m.large_pct },
+      { label: 'Mid-cap',   value: m.mid_pct   },
+      { label: 'Small-cap', value: m.small_pct },
+      { label: 'Others',    value: m.others_pct },
     ];
-    document.getElementById('mcapBars').innerHTML = renderBars(segs);
+    _renderDonutWhenReady('mcapDonut', mcapData, MCAP_PALETTE, 'mcapLegend', 'mcap');
 
-    // Hybrid extension — only show when sub_class === 'Hybrid' AND data present
+    // Hybrid card visibility
     const h = fund.hybrid_extension || {};
-    const wrap = document.getElementById('hybridMixWrap');
+    const hybridCard = document.getElementById('hybridMixCard');
     if (fund.sub_category_class === 'Hybrid' &&
         (h.equity_pct != null || h.debt_pct != null || h.others_pct_hybrid != null)) {
-      wrap.hidden = false;
-      const hSegs = [
-        { cls: 'equity',   label: 'Equity', pct: h.equity_pct },
-        { cls: 'debt',     label: 'Debt',   pct: h.debt_pct   },
-        { cls: 'others-h', label: 'Others', pct: h.others_pct_hybrid },
+      hybridCard.hidden = false;
+      const hData = [
+        { label: 'Equity', value: h.equity_pct },
+        { label: 'Debt',   value: h.debt_pct },
+        { label: 'Others', value: h.others_pct_hybrid },
       ];
-      document.getElementById('hybridBars').innerHTML = renderBars(hSegs);
+      _renderDonutWhenReady('hybridDonut', hData, HYBRID_PALETTE, 'hybridLegend', 'hybrid');
     } else {
-      wrap.hidden = true;
+      hybridCard.hidden = true;
     }
+    // Sector + holdings filled in renderAnalyticsHoldings() once the
+    // analytics file loads — initial state is the empty placeholder.
   }
-  /**
-   * Fix-List 5 §C8 — segments < 6% put their label OUTSIDE the bar
-   * (anchored to the segment via `.seg-out` overlay) so the colour band
-   * is always visible even on a 1-2% slice. A `min-width: 4px` floor
-   * keeps the colour visible on near-zero allocations.
-   */
-  function renderBars(segs) {
-    const visible = segs.map(s => ({
-      cls: s.cls,
-      label: s.label,
-      pct: s.pct != null ? Math.max(0, Number(s.pct)) : 0,
-    })).filter(s => s.pct > 0.01);
-    return visible.map(s => {
-      const inside = s.pct > 6;
-      const labelHtml = inside
-        ? `${escapeHtml(s.label)} ${DataLoader.fmtNum(s.pct, 1)}%`
-        : `<span class="seg-out">${escapeHtml(s.label)} ${DataLoader.fmtNum(s.pct, 1)}%</span>`;
-      return `<div class="seg ${s.cls} ${inside ? 'inside' : 'outside'}" style="width:${s.pct.toFixed(2)}%">${labelHtml}</div>`;
-    }).join('');
+
+  function _renderDonutWhenReady(canvasId, dataPoints, palette, legendId, key) {
+    ensureChartJs().then(() => _renderDonutChart(canvasId, dataPoints, palette, legendId, key)).catch(() => {/* silent */});
+  }
+
+  function _renderDonutChart(canvasId, dataPoints, palette, legendId, key) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const filtered = dataPoints.filter(d => d.value != null && d.value > 0);
+    if (filtered.length === 0) {
+      // Hide canvas, show empty state if a sibling element exists for this card
+      canvas.style.display = 'none';
+      return;
+    }
+    canvas.style.display = '';
+    const labels = filtered.map(d => d.label);
+    const values = filtered.map(d => Number(d.value));
+    const colours = filtered.map((_, i) => palette[i % palette.length]);
+
+    const ctx = canvas.getContext('2d');
+    const oldInstance = key === 'mcap'   ? _mcapDonutInstance
+                      : key === 'hybrid' ? _hybridDonutInstance
+                      : _sectorDonutInstance;
+    if (oldInstance) oldInstance.destroy();
+
+    const config = {
+      type: 'doughnut',
+      data: {
+        labels, datasets: [{
+          data: values, backgroundColor: colours, borderColor: '#fff',
+          borderWidth: 2, hoverOffset: 6,
+        }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        cutout: '62%',
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#000', titleColor: '#BD9568', bodyColor: '#fff',
+            borderColor: '#6B3F1A', borderWidth: 1,
+            callbacks: {
+              label: (ctx) => `${ctx.label}  ${DataLoader.fmtNum(ctx.raw, 2)}%`,
+            },
+          },
+        },
+      },
+    };
+    const inst = new window.Chart(ctx, config);
+    if (key === 'mcap')   _mcapDonutInstance   = inst;
+    if (key === 'hybrid') _hybridDonutInstance = inst;
+    if (key === 'sector') _sectorDonutInstance = inst;
+
+    // Custom legend for m-cap / hybrid (sector chart uses tooltip-only)
+    if (legendId) {
+      const legendEl = document.getElementById(legendId);
+      if (legendEl) {
+        legendEl.innerHTML = filtered.map((d, i) => `
+          <div class="dlegend-row">
+            <span class="dlegend-sw" style="background:${colours[i]}"></span>
+            <span class="dlegend-lbl">${escapeHtml(d.label)}</span>
+            <b class="dlegend-pct">${DataLoader.fmtNum(d.value, 2)}%</b>
+          </div>`).join('');
+      }
+    }
   }
 
   /* ============================================================
@@ -751,21 +870,29 @@
         </div>`;
       return;
     }
-    const concernsBody = insights.concerns.length
-      ? `<ul>${insights.concerns.map(s => `<li>${s}</li>`).join('')}</ul>`
-      : `<p class="v-empty">No material concerns identified in this cycle's data.</p>`;
+    // Fix-List 6 §4B — Strengths always renders. "Areas to Watch" is
+    // OMITTED entirely when concerns is empty (no heading, no list).
     const strengthsBody = insights.strengths.length
       ? `<ul>${insights.strengths.map(s => `<li>${s}</li>`).join('')}</ul>`
       : `<p class="v-empty">No standout strengths above thresholds in this cycle's data.</p>`;
-    grid.innerHTML = `
+
+    const strengthsCol = `
       <div class="v-col">
         <h4>Strengths</h4>
         ${strengthsBody}
-      </div>
-      <div class="v-col cons">
-        <h4>Areas to Watch</h4>
-        ${concernsBody}
       </div>`;
+
+    const concernsCol = insights.concerns.length
+      ? `<div class="v-col cons">
+           <h4>Areas to Watch</h4>
+           <ul>${insights.concerns.map(s => `<li>${s}</li>`).join('')}</ul>
+         </div>`
+      : '';
+
+    // When concerns is empty, the strengths column spans the full grid
+    grid.style.gridTemplateColumns = insights.concerns.length ? '1fr 1fr' : '1fr';
+    grid.innerHTML = strengthsCol + concernsCol;
+
     document.getElementById('verdictFoot').textContent =
       'Auto-generated from fund-side metrics. Centricity Investment Committee narrative arrives in Phase 5.';
   }
@@ -775,7 +902,8 @@
     const concerns = [];
     const peers = (cycle.funds || []).filter(f => f.category === fund.category);
 
-    function pct1(v) { return DataLoader.fmtNum(v, 1) + '%'; }
+    // Fix-List 6 §2B — verdict insights also use 2dp for return values
+    function pct1(v) { return DataLoader.fmtNum(v, 2) + '%'; }
     function escape(s) { return escapeHtml(String(s)); }
 
     // ---- Strengths ----
@@ -1140,15 +1268,18 @@
     return entry;
   }
 
+  /**
+   * Fix-List 6 §3 — sector data drives a donut chart (tooltip-only, no
+   * inline labels) and the holdings table replaces the placeholder.
+   */
   function renderAnalyticsHoldings(entry) {
-    const wrap = document.querySelector('.holdings-placeholder');
-    if (!wrap || !entry) return;
+    if (!entry) return;
     const sectors = entry.sector_allocation || [];
     const topHoldings = entry.top_20_holdings || [];
     const top10Concentration = entry.top_10_concentration_pct;
     const dateStr = _analyticsDate ? DataLoader.fmtDate(_analyticsDate) : '—';
 
-    // Cap sector list at 10; if more, fold the rest into "Others"
+    // ---- Sector donut (left column, 3rd card) ----
     let sectorRows = sectors;
     if (sectorRows.length > 10) {
       const head = sectorRows.slice(0, 10);
@@ -1156,43 +1287,52 @@
       const tailSum = tail.reduce((s, x) => s + (x.holding_pct || 0), 0);
       sectorRows = head.concat([{ sector: `Others (${tail.length})`, holding_pct: Math.round(tailSum * 100) / 100 }]);
     }
-    const maxSectorPct = Math.max(...sectorRows.map(s => s.holding_pct || 0), 1);
+    const sectorTitle = document.getElementById('sectorDonutTitle');
+    if (sectorTitle) sectorTitle.textContent = `Sector Allocation · as on ${dateStr}`;
+    const sectorEmpty = document.getElementById('sectorDonutEmpty');
+    if (sectorEmpty) sectorEmpty.hidden = true;
+    const sectorData = sectorRows.map(s => ({ label: s.sector || '—', value: s.holding_pct }));
+    _renderDonutWhenReady('sectorDonut', sectorData, SECTOR_PALETTE, null, 'sector');
 
-    const sectorBars = sectorRows.map(s => {
-      const widthPct = ((s.holding_pct || 0) / maxSectorPct) * 100;
-      return `
-        <div class="sector-row">
-          <span class="sector-label">${escapeHtml(s.sector || '—')}</span>
-          <span class="sector-bar"><i style="width:${widthPct.toFixed(2)}%"></i></span>
-          <span class="sector-pct"><b>${DataLoader.fmtNum(s.holding_pct, 1)}%</b></span>
-        </div>`;
-    }).join('');
+    // ---- Compact holdings table (right column) ----
+    const mount = document.getElementById('holdingsTableMount');
+    const holdingsTitle = document.getElementById('holdingsTitle');
+    if (holdingsTitle) holdingsTitle.textContent = `Top ${topHoldings.length} Holdings · as on ${dateStr}`;
 
     const holdingsRows = topHoldings.map(h => `
       <tr>
-        <td class="num">${h.rank}</td>
-        <td><b>${escapeHtml(h.company || '—')}</b></td>
-        <td>${escapeHtml(h.sector || '—')}</td>
-        <td>${escapeHtml(h.mcap_type || '—')}</td>
-        <td class="num"><b>${DataLoader.fmtNum(h.holding_pct, 2)}%</b></td>
+        <td class="num rank">${h.rank}</td>
+        <td class="company"><b>${escapeHtml(h.company || '—')}</b></td>
+        <td class="sector">${escapeHtml(h.sector || '—')}</td>
+        <td class="mcap">${escapeHtml(h.mcap_type || '—')}</td>
+        <td class="num weight"><b>${DataLoader.fmtNum(h.holding_pct, 2)}%</b></td>
       </tr>`).join('');
 
-    wrap.innerHTML = `
-      <div class="block-sub-h" style="margin-bottom:8px">Sector Allocation</div>
-      <div class="sector-list">${sectorBars}</div>
-      <div class="block-sub-h" style="margin:24px 0 8px">Top ${topHoldings.length} Holdings</div>
-      <div class="holdings-table-wrap">
-        <table class="holdings-tbl">
+    mount.innerHTML = `
+      <div class="holdings-table-wrap-v2">
+        <table class="holdings-tbl-v2">
           <thead><tr><th>#</th><th>Company</th><th>Sector</th><th>M-Cap</th><th class="num">Weight</th></tr></thead>
           <tbody>${holdingsRows}</tbody>
         </table>
-      </div>
-      <div class="holdings-callout">
-        Top 10 holdings = <b>${DataLoader.fmtNum(top10Concentration, 1)}%</b> of portfolio
+      </div>`;
+
+    const callout = document.getElementById('holdingsCallout');
+    if (callout) {
+      callout.hidden = false;
+      callout.innerHTML = `
+        Top 10 concentration: <b>${DataLoader.fmtNum(top10Concentration, 2)}%</b>
         ${entry.cash_and_equiv_pct != null && entry.cash_and_equiv_pct > 0
-          ? ` · Cash &amp; equiv (TREPS / Repo / G-Sec): <b>${DataLoader.fmtNum(entry.cash_and_equiv_pct, 1)}%</b>` : ''}
-      </div>
-      <div class="holdings-asof">Holdings as on ${escapeHtml(dateStr)}</div>`;
+          ? ` · Cash &amp; equiv (TREPS / Repo / G-Sec): <b>${DataLoader.fmtNum(entry.cash_and_equiv_pct, 2)}%</b>` : ''}`;
+    }
+  }
+
+  /** When analytics-load fails we still want to mark the sector card as
+   *  empty (donut canvas hidden, ring-motif placeholder shown). */
+  function showSectorDonutEmpty() {
+    const canvas = document.getElementById('sectorDonut');
+    if (canvas) canvas.style.display = 'none';
+    const empty = document.getElementById('sectorDonutEmpty');
+    if (empty) empty.hidden = false;
   }
 
   /* ============================================================

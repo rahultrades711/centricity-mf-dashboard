@@ -245,8 +245,10 @@ table.perf tbody tr:hover { background: var(--tan-soft); }
 table.perf .row-fund td:first-child { color: var(--brown); font-weight: 700; }
 table.perf .row-bench td { color: var(--text-mid); }
 table.perf .row-cat td { color: var(--text-mid); font-style: italic; }
+/* Fix-List 6 §2A — Excess Return is the 4th row, with a gold separator above */
 table.perf .row-excess { border-top: 2px solid var(--gold); }
-table.perf .row-excess td:first-child { color: var(--black); }
+table.perf .row-excess td:first-child { color: var(--black); font-weight: 700; font-style: normal; }
+table.perf .row-excess td { font-weight: 700; }
 table.perf .delta-pos { color: var(--green); font-weight: 700; }
 table.perf .delta-neg { color: var(--red); font-weight: 700; }
 table.perf .neg { color: var(--red); }
@@ -410,7 +412,96 @@ table.perf .neg { color: var(--red); }
   text-align: right; font-weight: 700;
 }
 
-/* ============ PORTFOLIO ============ */
+/* ============ PORTFOLIO — Fix-List 6 §3 rebuild ============ */
+.portfolio-grid-v2 {
+  display: grid; grid-template-columns: 38% 62%; gap: 24px;
+}
+.port-left, .port-right {
+  display: flex; flex-direction: column; gap: 16px;
+}
+.port-card {
+  border: 1px solid var(--rule); border-radius: 4px;
+  padding: 16px 18px; background: #fafaf7;
+}
+.port-card-h {
+  font-size: 12px; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--gold); font-weight: 700; margin-bottom: 12px;
+}
+.donut-wrap {
+  position: relative; height: 200px;
+  display: flex; align-items: center; justify-content: center;
+}
+.donut-wrap canvas { max-height: 200px; }
+.donut-empty {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; color: var(--text-mid);
+}
+.donut-empty[hidden] { display: none; }
+.donut-empty .ring-motif { width: 70px; height: 70px; }
+.donut-empty p { margin: 0; font-size: 12px; }
+
+.donut-legend {
+  margin-top: 12px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.dlegend-row {
+  display: grid; grid-template-columns: 14px 1fr auto;
+  gap: 10px; align-items: center;
+  font-size: 12px; padding: 3px 0;
+}
+.dlegend-sw {
+  display: block; width: 14px; height: 14px; border-radius: 2px;
+}
+.dlegend-lbl { color: var(--ink); }
+.dlegend-pct {
+  font-variant-numeric: tabular-nums;
+  color: var(--black); font-weight: 700;
+}
+
+/* Compact holdings table (right column) */
+.holdings-pending {
+  font-size: 12.5px; color: var(--text-mid); font-style: italic; padding: 8px 0;
+}
+.holdings-table-wrap-v2 { overflow-x: auto; }
+table.holdings-tbl-v2 {
+  width: 100%; border-collapse: collapse; font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+table.holdings-tbl-v2 thead th {
+  background: var(--black); color: #fff;
+  text-align: left; padding: 8px 10px; font-weight: 700;
+  font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+}
+table.holdings-tbl-v2 thead th.num { text-align: right; }
+table.holdings-tbl-v2 tbody td {
+  padding: 5px 10px; border-bottom: 1px solid var(--rule);
+  height: 28px; line-height: 1.2;
+}
+table.holdings-tbl-v2 tbody td.num { text-align: right; }
+table.holdings-tbl-v2 tbody td.rank { color: var(--text-mid); width: 28px; }
+table.holdings-tbl-v2 tbody td.weight { color: var(--black); white-space: nowrap; }
+table.holdings-tbl-v2 tbody td.sector,
+table.holdings-tbl-v2 tbody td.mcap { color: var(--text-mid); }
+table.holdings-tbl-v2 tbody tr:nth-child(odd)  td { background: #ffffff; }
+table.holdings-tbl-v2 tbody tr:nth-child(even) td { background: #F9F7F4; }
+table.holdings-tbl-v2 tbody tr:hover td { background: var(--tan-soft); }
+
+.holdings-callout-v2 {
+  margin-top: 12px; padding: 10px 14px;
+  background: rgba(189, 149, 104, .10);
+  border-left: 3px solid var(--gold);
+  font-size: 12.5px; color: var(--ink);
+  border-radius: 0 3px 3px 0;
+}
+.holdings-callout-v2 b { font-weight: 700; }
+.holdings-callout-v2[hidden] { display: none; }
+
+@media (max-width: 1280px) {
+  .portfolio-grid-v2 { grid-template-columns: 1fr; }
+}
+
+/* Legacy bar-chart portfolio rules (Fix-List 5 §C8) — superseded by donuts */
 .portfolio-grid {
   display: grid; grid-template-columns: 1fr 1.4fr; gap: 30px;
 }
@@ -576,13 +667,24 @@ table.holdings-tbl tbody tr:hover td { background: var(--tan-soft); }
   background: #000; color: #fff; border-radius: 6px;
   padding: 32px 34px; border: 1px solid var(--brown);
 }
-/* Fix-List 5 §C2 — pin element name to match the specificity of the
- * universal `section.block h2` rule (0,0,2,1). Without `section.` these
- * were 0,0,1,1 and lost the cascade, leaving the Verdict heading in
- * default-black on a black background. Same fix for h2 em + h-sub. */
-section.verdict-block h2 { color: #fff; margin-bottom: 6px; }
-section.verdict-block h2 em { color: var(--gold); }
-section.verdict-block .h-sub { color: rgba(255, 255, 255, .65); }
+/* Fix-List 6 §4A — definitive text-visibility fix.
+ * Every text node inside the verdict-block defaults to white. !important
+ * to override any global cascade that sneaks in (e.g., section.block h2,
+ * cost .sub .neg, etc.). h2 em keeps the Warm Gold accent. */
+section.verdict-block,
+section.verdict-block * { color: #fff !important; }
+section.verdict-block h2,
+section.verdict-block h2 em,
+section.verdict-block .h-sub,
+section.verdict-block .verdict-foot,
+section.verdict-block .v-col h4,
+section.verdict-block .v-col li,
+section.verdict-block .v-empty { color: #fff !important; }
+section.verdict-block h2 em { color: var(--gold) !important; }
+section.verdict-block .h-sub { color: rgba(255, 255, 255, .70) !important; }
+section.verdict-block .v-col h4 { color: var(--gold) !important; }
+section.verdict-block .v-col li b { color: #fff !important; font-weight: 700; }
+section.verdict-block .verdict-foot { color: rgba(255, 255, 255, .55) !important; }
 /* Verdict insights — Fix-List 5 §C11 */
 .verdict-grid {
   display: grid; grid-template-columns: 1fr 1fr; gap: 28px;

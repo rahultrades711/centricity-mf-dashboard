@@ -379,6 +379,20 @@
         "_added": "2026-05-07 (Fund Detail Fix-List 5 §A, additive)",
         "_overview": "Regular-plan TER as reported in the MF Monitor 'Ratio' column. Distinct from `ter_pct` above — the Whitelisting Excel ter_pct field appears to carry the direct-plan TER (e.g., HDFC Focused: 0.47 in Whitelisting vs 1.6 in Monitor). Both fields are preserved on the record; fund-detail.html displays `monitor_ter_pct` since that's the partner-facing regular-plan number. Per Fund Detail Fix-List 5 §A data-quality note: do NOT overwrite ter_pct — keep both, document the discrepancy."
       },
+      "benchmark_monitor_returns": {
+        "type": "object",
+        "_added": "2026-05-07 (Fund Detail Fix-List 6 §1, additive)",
+        "_overview": "Point-to-point returns for the fund's benchmark INDEX, sourced from the index rows at the bottom of each Monitor category sheet (rows after the 'BenchMark' marker). Joined to the fund record by matching `fund.benchmark` (e.g. 'NIFTY 50 - TRI') against the index name in those rows; tries exact match first, then strips/adds a ' - TRI' suffix as fallback. All values null when no Monitor file was supplied at convert-time, when the fund has no benchmark, OR when the benchmark name doesn't match any Monitor index row.",
+        "shape": {
+          "ytd_pct":        "float|null — Monitor index 'YTD' column",
+          "return_1m_pct":  "float|null — Monitor index '1 Month'",
+          "return_1y_pct":  "float|null — Monitor index '1 Year'",
+          "return_3y_pct":  "float|null — Monitor index '3 Years'",
+          "return_5y_pct":  "float|null — Monitor index '5 Years'",
+          "return_10y_pct": "float|null — Monitor index '10 Years' (null when the index series is < 10y)"
+        },
+        "_note": "Fund Detail's returns table prefers `benchmark_monitor_returns` over the converter-derived `benchmark_returns` because it has the full 6-period set (YTD / 1M / 10Y are missing from `benchmark_returns`). Falls back to `benchmark_returns` for 1Y/3Y/5Y when the Monitor row is unavailable."
+      },
       "rolling_3y_stats": {
         "type": "object|null",
         "_added": "2026-05-06 (Fund Detail Fix-List 1 §A.2, additive)",

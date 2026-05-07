@@ -1148,8 +1148,14 @@ def emit_nav_series_file(
 
 def extract_monitor_data(monitor_path: Path) -> dict:
     """
-    Read the MF Monitor workbook and return a dict keyed by Scheme Name with
-    point-to-point returns + exit load + Monitor TER.
+    Read the MF Monitor workbook and return a dict with TWO sub-dicts:
+
+        {
+          "fund_returns":  {<scheme_name>: {ytd_pct, return_1m_pct, ...,
+                            exit_load, monitor_ter_pct}, ...},
+          "index_returns": {<index_name>: {ytd_pct, return_1m_pct, ...,
+                            return_10y_pct}, ...}
+        }
 
     Sheet structure varies between equity sheets ('Focused Fund', 'Large Cap
     Fund', etc. — 23 cols, exit load in '[Exit Load]') and hybrid sheets
@@ -1157,10 +1163,17 @@ def extract_monitor_data(monitor_path: Path) -> dict:
     extractor parses the header row 12 to find columns by name rather than
     by hardcoded index, so both layouts work.
 
+    Index rows (Fix-List 6 §1A) live BELOW the fund rows on every category
+    sheet, after a marker row whose col 0 is the literal "BenchMark". They
+    use the same column layout as fund rows. We detect them by flipping into
+    "index mode" once we encounter "BenchMark" as col 0 of any row, and
+    treat every subsequent non-blank row as an index until end-of-sheet.
+
     Aggregate roll-up sheets ('Home', 'Debt' standalone, 'Hybrid', 'Silver',
     'Gold', any sheet whose name contains 'Oriented' or starts with
     'Solution') are skipped — their funds appear in the per-category sheets
-    too, and including them would double-count.
+    too, and including them would double-count. Index rows on those skipped
+    sheets are also skipped (they appear in per-category sheets too).
 
     DATA QUALITY NOTE — Monitor TER is the regular plan expense ratio
     whereas the Whitelisting Excel ter_pct field appears to carry the
@@ -1168,10 +1181,6 @@ def extract_monitor_data(monitor_path: Path) -> dict:
     0.47%. Both fields are kept on the fund record (`ter_pct` from
     Whitelisting, `monitor_ter_pct` from Monitor); fund-detail.html displays
     `monitor_ter_pct` since that's the partner-facing regular plan number.
-
-    Returns: {scheme_name: {ytd_pct, return_1m_pct, return_1y_pct,
-        return_3y_pct, return_5y_pct, return_10y_pct, exit_load,
-        monitor_ter_pct}}
     """
     SKIP_SHEETS = {"Home", "Debt", "Silver", "Gold", "Hybrid"}
 
@@ -1195,7 +1204,8 @@ def extract_monitor_data(monitor_path: Path) -> dict:
             headers[str(v).strip()] = c
         return headers
 
-    out: dict[str, dict] = {}
+    fund_out: dict[str, dict] = {}
+    index_out: dict[str, dict] = {}
     wb = openpyxl.load_workbook(monitor_path, read_only=True, data_only=True)
     skipped_sheets: list[str] = []
     for sheet_name in wb.sheetnames:
@@ -1214,24 +1224,41 @@ def extract_monitor_data(monitor_path: Path) -> dict:
         c_3y   = H.get("3 Years")
         c_5y   = H.get("5 Years")
         c_10y  = H.get("10 Years")
-        # Equity sheets: "Ratio" exists; hybrid sheets: also "Ratio"
         c_ter  = H.get("Ratio")
-        # Equity layout: '[Exit Load]'; hybrid layout: 'Remark'
         c_exit = H.get("[Exit Load]") or H.get("Remark")
 
+        in_benchmark_section = False
         for r in range(13, ws.max_row + 1):
             name_v = ws.cell(row=r, column=c_name).value
             scheme = _safe_str(name_v)
             if not scheme:
                 continue
-            # Ignore numeric rows / footers
             if not isinstance(name_v, str):
+                continue
+            # The "BenchMark" header row separates fund rows from index rows
+            if scheme.lower() == "benchmark":
+                in_benchmark_section = True
                 continue
 
             def f(c):
                 if c is None:
                     return None
                 return _safe_float(ws.cell(row=r, column=c).value)
+
+            if in_benchmark_section:
+                # Index row — capture the 6 returns we'll use on Fund Detail.
+                # Last write wins across sheets (NIFTY 50 - TRI appears in
+                # multiple per-category sheets — values are identical).
+                idx_data = {
+                    "ytd_pct":        _round(f(c_ytd),  4),
+                    "return_1m_pct":  _round(f(c_1m),   4),
+                    "return_1y_pct":  _round(f(c_1y),   4),
+                    "return_3y_pct":  _round(f(c_3y),   4),
+                    "return_5y_pct":  _round(f(c_5y),   4),
+                    "return_10y_pct": _round(f(c_10y),  4),
+                }
+                index_out[scheme] = idx_data
+                continue
 
             row_data = {
                 "ytd_pct":        _round(f(c_ytd),  4),
@@ -1243,11 +1270,9 @@ def extract_monitor_data(monitor_path: Path) -> dict:
                 "monitor_ter_pct": _round(f(c_ter), 4),
                 "exit_load": _safe_str(ws.cell(row=r, column=c_exit).value) if c_exit else None,
             }
-            # Last write wins on duplicate scheme names — shouldn't happen
-            # given we skip aggregate roll-ups, but be defensive.
-            out[scheme] = row_data
+            fund_out[scheme] = row_data
     wb.close()
-    return out
+    return {"fund_returns": fund_out, "index_returns": index_out}
 
 
 def _trailing_returns_from_series(series: list[tuple[_dt.date, float]],
@@ -1282,12 +1307,40 @@ def _trailing_returns_from_series(series: list[tuple[_dt.date, float]],
     return out
 
 
+def _lookup_index_returns(benchmark_name: str | None, index_data: dict | None) -> dict | None:
+    """
+    Match `fund.benchmark` (e.g. "NIFTY 50 - TRI") to a Monitor index row.
+
+    Tries exact match first, then strips a trailing " - TRI" / " TRI" suffix
+    and retries (handles edge cases where the screener carries the TRI
+    variant but the Monitor lists the price-return version, or vice versa).
+
+    Returns None when no match is found — the page falls back to
+    fund.benchmark_returns (CAGR) for 1Y/3Y/5Y and renders em-dash for
+    YTD / 1M / 10Y.
+    """
+    if not benchmark_name or not index_data:
+        return None
+    if benchmark_name in index_data:
+        return index_data[benchmark_name]
+    # Try without " - TRI"
+    stripped = benchmark_name.replace(" - TRI", "").replace(" TRI", "").strip()
+    if stripped and stripped in index_data:
+        return index_data[stripped]
+    # Try adding " - TRI" if not already there
+    with_tri = benchmark_name + " - TRI" if " TRI" not in benchmark_name else benchmark_name
+    if with_tri in index_data:
+        return index_data[with_tri]
+    return None
+
+
 def build_funds(
     wb,
     contract: dict,
     cycle_meta: dict,
     warnings: list[str],
     monitor_data: dict | None = None,
+    monitor_index_data: dict | None = None,
 ) -> tuple[list[dict], dict, dict]:
     eq_set = set(contract["categories"]["equity"])
     hb_set = set(contract["categories"]["hybrid"])
@@ -1505,6 +1558,22 @@ def build_funds(
         record["exit_load"]        = m_row.get("exit_load")        if m_row else None
         record["monitor_ter_pct"]  = m_row.get("monitor_ter_pct")  if m_row else None
 
+        # Benchmark Monitor returns (Fix-List 6 §1B) — index rows from the
+        # bottom of each Monitor category sheet, joined to fund.benchmark.
+        # Powers the Fund Detail returns table's full benchmark row
+        # (YTD / 1M / 10Y previously had to come from nav-series; now they
+        # come from Monitor directly, with the same shape and freshness as
+        # the fund row).
+        idx_row = _lookup_index_returns(d["benchmark"], monitor_index_data)
+        record["benchmark_monitor_returns"] = OrderedDict([
+            ("ytd_pct",        idx_row.get("ytd_pct")        if idx_row else None),
+            ("return_1m_pct",  idx_row.get("return_1m_pct")  if idx_row else None),
+            ("return_1y_pct",  idx_row.get("return_1y_pct")  if idx_row else None),
+            ("return_3y_pct",  idx_row.get("return_3y_pct")  if idx_row else None),
+            ("return_5y_pct",  idx_row.get("return_5y_pct")  if idx_row else None),
+            ("return_10y_pct", idx_row.get("return_10y_pct") if idx_row else None),
+        ])
+
         record["verdict"] = None
         record["verdict_reasons"] = None
         record["analyst_note"] = None
@@ -1569,19 +1638,27 @@ def convert(xlsx_path: Path, monitor_path: Path | None = None) -> Path:
     contract = load_contract()
     print(f"[converter] loaded contract: {CONTRACT_PATH.name} ({contract['contract_version']})", file=sys.stderr)
 
-    # Optional Monitor overlay — Fix-List 5 §A
-    monitor_data: dict | None = None
+    # Optional Monitor overlay — Fix-List 5 §A + Fix-List 6 §1A
+    monitor_fund_data: dict | None = None
+    monitor_index_data: dict | None = None
     if monitor_path is not None:
         if not monitor_path.exists():
             print(
                 f"[converter] WARNING: monitor file not found at {monitor_path}; "
-                f"monitor_returns / exit_load / monitor_ter_pct will all be null",
+                f"monitor_returns / exit_load / monitor_ter_pct / "
+                f"benchmark_monitor_returns will all be null",
                 file=sys.stderr,
             )
         else:
             print(f"[converter] reading Monitor overlay: {monitor_path.name}", file=sys.stderr)
-            monitor_data = extract_monitor_data(monitor_path)
-            print(f"[converter]   extracted {len(monitor_data)} scheme rows from Monitor", file=sys.stderr)
+            monitor_payload = extract_monitor_data(monitor_path)
+            monitor_fund_data  = monitor_payload["fund_returns"]
+            monitor_index_data = monitor_payload["index_returns"]
+            print(
+                f"[converter]   extracted {len(monitor_fund_data)} fund rows + "
+                f"{len(monitor_index_data)} index rows from Monitor",
+                file=sys.stderr,
+            )
 
     wb = openpyxl.load_workbook(xlsx_path, read_only=True, data_only=True)
     print(f"[converter] opened workbook: {xlsx_path.name} ({len(wb.sheetnames)} sheets)", file=sys.stderr)
@@ -1600,23 +1677,33 @@ def convert(xlsx_path: Path, monitor_path: Path | None = None) -> Path:
 
     # 4. Funds — also returns the in-memory NAV maps so we can emit the
     # separate nav-series-YYYY-MM-DD.json file without re-reading the
-    # workbook (Fund Detail Fix-List 1 §A.3). monitor_data is overlaid
-    # per-fund by name match (Fund Detail Fix-List 5 §A).
+    # workbook (Fund Detail Fix-List 1 §A.3). monitor_fund_data overlays
+    # per-fund (Fix-List 5 §A); monitor_index_data overlays
+    # benchmark_monitor_returns per fund (Fix-List 6 §1B).
     warnings: list[str] = []
     funds, nav_by_amfi, bm_by_name = build_funds(
-        wb, contract, cycle_meta, warnings, monitor_data=monitor_data,
+        wb, contract, cycle_meta, warnings,
+        monitor_data=monitor_fund_data,
+        monitor_index_data=monitor_index_data,
     )
 
     # Report Monitor match rate (helps catch name-mismatch problems early)
-    if monitor_data is not None:
+    if monitor_fund_data is not None:
         matched = sum(1 for f in funds if f.get("monitor_returns", {}).get("ytd_pct") is not None
                                           or f.get("exit_load") is not None
                                           or f.get("monitor_ter_pct") is not None)
         unmatched = len(funds) - matched
         print(
-            f"[converter] Monitor overlay: {matched}/{len(funds)} funds matched by Scheme Name "
+            f"[converter] Monitor fund overlay: {matched}/{len(funds)} funds matched by Scheme Name "
             f"({unmatched} unmatched — typically 1-3yr Warning / New Fund Monitoring funds "
             f"with names not yet in the Monitor file)",
+            file=sys.stderr,
+        )
+        bm_matched = sum(1 for f in funds if f.get("benchmark_monitor_returns", {}).get("ytd_pct") is not None
+                                            or f.get("benchmark_monitor_returns", {}).get("return_10y_pct") is not None)
+        print(
+            f"[converter] Monitor benchmark overlay: {bm_matched}/{len(funds)} funds matched their "
+            f"benchmark to a Monitor index row",
             file=sys.stderr,
         )
     summary["fund_count"] = len(funds)

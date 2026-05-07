@@ -185,41 +185,44 @@
       </div>
     </section>
 
-    <!-- 04 PORTFOLIO -->
+    <!-- 04 PORTFOLIO — Fix-List 6 §3 rebuild: donut charts (left) + compact holdings table (right) -->
     <section class="block" id="portfolio">
       <h2>Sector Allocation, Top Holdings & <em>Market-Cap</em> Mix</h2>
-      <p class="h-sub" id="portfolioSubtitle">Market-cap allocation from the cycle JSON. Holdings & sector breakdown populates when the Analytics pipeline ships in v1.1.</p>
+      <p class="h-sub" id="portfolioSubtitle">Market-cap allocation from the cycle JSON. Holdings & sector breakdown from the latest Analytics file.</p>
 
-      <div class="portfolio-grid">
-        <!-- LEFT — m-cap stack and (for hybrid) instrument mix -->
-        <div>
-          <div class="block-sub-h" style="margin-bottom:8px">Market-Cap Mix</div>
-          <div class="mc-bars" id="mcapBars"></div>
-          <div class="mc-legend">
-            <span><i style="background:#0E0E0E"></i>Large-cap</span>
-            <span><i style="background:var(--brown)"></i>Mid-cap</span>
-            <span><i style="background:var(--gold)"></i>Small-cap</span>
-            <span><i style="background:var(--grey-light)"></i>Others / Cash</span>
+      <div class="portfolio-grid-v2">
+        <!-- LEFT — donut charts -->
+        <div class="port-left">
+          <div class="port-card">
+            <div class="port-card-h">Market-Cap Mix</div>
+            <div class="donut-wrap"><canvas id="mcapDonut"></canvas></div>
+            <div class="donut-legend" id="mcapLegend"></div>
           </div>
 
-          <div id="hybridMixWrap" hidden style="margin-top:18px">
-            <div class="block-sub-h" style="margin-bottom:8px">Equity / Debt / Others (Hybrid)</div>
-            <div class="mc-bars" id="hybridBars"></div>
-            <div class="mc-legend">
-              <span><i style="background:var(--brown)"></i>Equity</span>
-              <span><i style="background:#0E0E0E"></i>Debt</span>
-              <span><i style="background:var(--grey-light)"></i>Others</span>
+          <div class="port-card" id="hybridMixCard" hidden>
+            <div class="port-card-h">Equity / Debt / Others</div>
+            <div class="donut-wrap"><canvas id="hybridDonut"></canvas></div>
+            <div class="donut-legend" id="hybridLegend"></div>
+          </div>
+
+          <div class="port-card" id="sectorDonutCard">
+            <div class="port-card-h" id="sectorDonutTitle">Sector Allocation</div>
+            <div class="donut-wrap"><canvas id="sectorDonut"></canvas></div>
+            <div class="donut-empty" id="sectorDonutEmpty" hidden>
+              <div class="ring-motif"></div>
+              <p>Sector data pending. Analytics pipeline v1.1.</p>
             </div>
           </div>
         </div>
 
-        <!-- RIGHT — analytics-pending placeholder (sector donut + top-10 holdings) -->
-        <div class="holdings-placeholder">
-          <div class="block-sub-h">Sector Allocation & Top 10 Holdings</div>
-          <div class="empty-state">
-            <div class="ring-motif" aria-hidden="true"></div>
-            <h3>Holdings & sector data — coming in v1.1</h3>
-            <p>Holdings, sector allocation, and full stock list populate when the Analytics pipeline (<code>scripts/excel_to_json_analytics.py</code>) ships. Joined to Screener funds via Scheme-Name → AMFI translation per ISSUE-0008.</p>
+        <!-- RIGHT — compact top-holdings table -->
+        <div class="port-right">
+          <div class="port-card">
+            <div class="port-card-h" id="holdingsTitle">Top Holdings</div>
+            <div id="holdingsTableMount">
+              <p class="holdings-pending">Holdings data pending. Analytics pipeline v1.1.</p>
+            </div>
+            <div class="holdings-callout-v2" id="holdingsCallout" hidden></div>
           </div>
         </div>
       </div>
