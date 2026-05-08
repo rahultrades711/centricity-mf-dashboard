@@ -94,12 +94,25 @@
       </div>
 
       <div class="pb-field">
-        <label class="pb-label" for="instCount">Target number of funds / instruments</label>
-        <div class="pb-slider-row">
-          <input type="range" id="instCount" min="5" max="30" step="1" value="10">
-          <span class="num-badge" id="instCountVal">10</span>
+        <label class="pb-label">Number of funds / instruments<span class="req">*</span></label>
+        <div class="pb-count-row">
+          <div class="pb-count-field">
+            <label for="instMin">Min</label>
+            <input type="number" id="instMin" min="3" max="30" step="1" value="8">
+          </div>
+          <span class="pb-count-sep">–</span>
+          <div class="pb-count-field">
+            <label for="instMax">Max</label>
+            <input type="number" id="instMax" min="3" max="30" step="1" value="15">
+          </div>
         </div>
-        <div class="pb-help">Final count may be fewer if eligible Ranked / Focused funds are limited in your selected categories.</div>
+        <div class="pb-count-rules">
+          <label class="pb-checkbox-label">
+            <input type="checkbox" id="optimiseFunds" checked>
+            <span>Optimise to minimum funds — if fewer than Min are needed, build with what's available rather than padding from lower tiers</span>
+          </label>
+        </div>
+        <div class="pb-help">Hard cap of 2 funds per SEBI category. Engine targets between Min and Max; if eligible funds are exhausted before Max it stops at the achievable count and notes the cause.</div>
       </div>
 
       <div class="pb-step-foot">
@@ -115,6 +128,7 @@
       <div class="pb-mode-row">
         <button class="mode-pill active" data-alloc-mode="auto">Auto</button>
         <button class="mode-pill"        data-alloc-mode="manual">Manual</button>
+        <button class="mode-pill"        data-alloc-mode="partial">Manual (Partial)</button>
       </div>
 
       <div id="allocAutoView" class="pb-sub-view">
@@ -133,6 +147,23 @@
         <div class="pb-error" id="allocSumErr" hidden>Total = <span id="allocSumNum">0</span>%. Must equal 100%.</div>
       </div>
 
+      <div id="allocPartialView" class="pb-sub-view" hidden>
+        <div class="pb-help" style="margin-top:0;">Type a value for any bucket you want to fix. Tick <em>Auto</em> on the rest — those values are computed proportionally from your risk × horizon defaults so the total reaches 100%.</div>
+        <div class="pb-grid-4 mcap-grid">
+          <div><label>Equity %</label><div class="mcap-in-wrap"><input type="number" class="alloc-pin" data-bucket="equity" min="0" max="100" step="5" value="60"><label class="mcap-auto-tog"><input type="checkbox" class="alloc-pauto" data-bucket="equity"> Auto</label></div></div>
+          <div><label>Debt %</label><div class="mcap-in-wrap"><input type="number" class="alloc-pin" data-bucket="debt" min="0" max="100" step="5" value="30"><label class="mcap-auto-tog"><input type="checkbox" class="alloc-pauto" data-bucket="debt"> Auto</label></div></div>
+          <div><label>Commodities %</label><div class="mcap-in-wrap"><input type="number" class="alloc-pin" data-bucket="commodities" min="0" max="100" step="5" value="5"><label class="mcap-auto-tog"><input type="checkbox" class="alloc-pauto" data-bucket="commodities"> Auto</label></div></div>
+          <div><label>REITs / InvITs %</label><div class="mcap-in-wrap"><input type="number" class="alloc-pin" data-bucket="reits" min="0" max="100" step="5" value="5"><label class="mcap-auto-tog"><input type="checkbox" class="alloc-pauto" data-bucket="reits"> Auto</label></div></div>
+        </div>
+        <div class="pb-sum-bar"><span>Total</span><span id="allocPartialSum">100%</span></div>
+        <div class="pb-error" id="allocPartialSumErr" hidden>Total = <span id="allocPartialSumNum">0</span>%. Must equal 100%.</div>
+      </div>
+
+      <label class="pb-checkbox-label" style="margin: 14px 0 4px;">
+        <input type="checkbox" id="includeGlobalMF" disabled>
+        <span>Include Global / International MF <span class="badge" style="background:var(--grey-light);color:var(--text-mid);font-size:9.5px;padding:1px 6px;border-radius:8px;letter-spacing:.08em;text-transform:uppercase;margin-left:6px;">Coming Soon</span></span>
+      </label>
+
       <h4 class="pb-sub-h">Products</h4>
       <p class="pb-help" style="margin-top:-2px;">Greyed items are coming soon. They stay selected so you see the full picture; the engine ignores them and notes the redistribution.</p>
       <div class="pb-products" id="pbProducts"></div>
@@ -141,7 +172,6 @@
       <div class="pb-checkrow" id="pbOpenClosed">
         <label><input type="checkbox" data-oc="open"   checked> Open Ended</label>
         <label><input type="checkbox" data-oc="closed">       Close Ended</label>
-        <label><input type="checkbox" data-oc="interval">     Interval</label>
       </div>
 
       <div class="pb-step-foot">
@@ -188,18 +218,26 @@
 
       <div class="pb-mode-row">
         <button class="mode-pill active" data-sector-mode="auto">Auto</button>
-        <button class="mode-pill"        data-sector-mode="custom">Custom</button>
+        <button class="mode-pill"        data-sector-mode="manual_full">Manual (Full)</button>
+        <button class="mode-pill"        data-sector-mode="manual_partial">Manual (Partial)</button>
       </div>
 
       <div id="sectorAutoView" class="pb-sub-view">
         <div class="pb-help" style="margin-top:0;">No sector constraint. The engine picks the highest-scoring funds without sector preference.</div>
       </div>
 
-      <div id="sectorCustomView" class="pb-sub-view" hidden>
-        <div class="pb-help" style="margin-top:0;">Set targets only for sectors you care about. Leave others blank — they stay unconstrained. The deviation report shows actual vs target after generation.</div>
-        <div class="pb-sector-list" id="pbSectorList"></div>
-        <div class="pb-sum-bar"><span>Sum of constrained sectors</span><span id="sectorSum">0%</span></div>
-        <div class="pb-error" id="sectorSumErr" hidden>Sum exceeds 100%. Reduce one or more targets.</div>
+      <div id="sectorFullView" class="pb-sub-view" hidden>
+        <div class="pb-help" style="margin-top:0;">Set a target for any sector you want to favour. Sum can be ≤ 100% (sectors don't have to total 100). Blank rows are unconstrained.</div>
+        <div class="pb-sector-list" id="pbSectorListFull"></div>
+        <div class="pb-sum-bar"><span>Sum of constrained sectors</span><span id="sectorFullSum">0%</span></div>
+        <div class="pb-error" id="sectorFullSumErr" hidden>Sum exceeds 100%. Reduce one or more targets.</div>
+      </div>
+
+      <div id="sectorPartialView" class="pb-sub-view" hidden>
+        <div class="pb-help" style="margin-top:0;">Tick <em>Auto</em> on sectors to leave them unconstrained. Untick + type a value to target that sector. Blank rows on unticked sectors are also unconstrained.</div>
+        <div class="pb-sector-list pb-sector-list-partial" id="pbSectorListPartial"></div>
+        <div class="pb-sum-bar"><span>Sum of typed sectors</span><span id="sectorPartialSum">0%</span></div>
+        <div class="pb-error" id="sectorPartialSumErr" hidden>Sum exceeds 100%. Reduce one or more targets.</div>
       </div>
 
       <div class="pb-step-foot">
@@ -254,7 +292,10 @@
         <div class="kpi-cell"><span class="lbl">As of</span><span class="v" id="sumCycle">—</span></div>
       </div>
       <div class="pb-out-summary-right">
-        <label class="pb-amount">Total ₹<input type="number" id="totalInvAmount" min="100000" step="50000" value="5000000"></label>
+        <div class="pb-amount-block">
+          <label class="pb-amount">Total ₹<input type="number" id="totalInvAmount" min="100000" step="50000" value="5000000"></label>
+          <div class="pb-amount-words" id="totalAmtWords">—</div>
+        </div>
         <button class="pb-btn ghost" id="regenBtn" title="Re-run engine with current wizard inputs">Regenerate</button>
         <button class="pb-btn ghost" id="shareBtn" title="Copy URL with current state">Copy link</button>
       </div>
@@ -277,6 +318,7 @@
       <div class="pb-table-block">
         <h4>Selected Funds</h4>
         <div class="pb-tbl-wrap" id="pbFundsTblWrap"></div>
+        <div class="pb-alloc-note err" id="pbAllocNote" hidden>⚠ Total allocation is <span id="pbAllocNoteVal">—</span>%. Adjust funds to reach 100%.</div>
         <div class="pb-warnings" id="pbWarnings"></div>
       </div>
     </div>
@@ -289,7 +331,7 @@
           <button class="window-btn" data-window="3y">3Y</button>
           <button class="window-btn active" data-window="max">Max</button>
         </div>
-        <canvas id="navChart" height="320"></canvas>
+        <div class="pb-nav-chart-wrap"><canvas id="navChart"></canvas></div>
         <div class="pb-chart-cap" id="navChartCap">—</div>
       </div>
       <div class="pb-table-block">
@@ -302,7 +344,7 @@
       <div class="pb-anly-grid">
         <div class="pb-anly-card"><h4>Asset Allocation</h4><canvas id="anlyAcDonut" width="220" height="220"></canvas><div class="pb-donut-legend" id="anlyAcLegend"></div></div>
         <div class="pb-anly-card"><h4>M-Cap Allocation</h4><canvas id="anlyMcDonut" width="220" height="220"></canvas><div class="pb-donut-legend" id="anlyMcLegend"></div></div>
-        <div class="pb-anly-card pb-anly-wide"><h4>Sector Allocation (top 10)</h4><div id="anlySectors"></div></div>
+        <div class="pb-anly-card pb-anly-wide"><h4>Sector Allocation (top 10)</h4><div id="anlySectors"></div><div class="pb-anly-counts" id="anlyCountLine">Portfolio spans <b id="anlySecCount">—</b> unique sectors · <b id="anlyStockCount">—</b> unique stocks</div></div>
         <div class="pb-anly-card pb-anly-wide"><h4>Top 10 Stocks (aggregated)</h4><div id="anlyStocks"></div></div>
         <div class="pb-anly-card pb-anly-wide"><h4>AMC Allocation</h4><div id="anlyAmcs"></div></div>
         <div class="pb-anly-card"><h4>Credit Quality</h4><div class="pb-cs-empty">Coming soon — populates when Debt allocation data is added.</div></div>
@@ -317,9 +359,26 @@
     </div>
 
     <div class="pb-tab-pane" data-tab-pane="funds" hidden>
-      <div class="pb-funds-perf" id="pbFundsPerf"></div>
-      <h4 style="margin-top:32px;">Benchmark Coverage</h4>
-      <table class="pb-bench-tbl" id="pbBenchTbl"></table>
+      <div class="pb-funds-tbl-wrap">
+        <table class="pb-funds-perf-tbl">
+          <thead>
+            <tr>
+              <th data-fcol="fund_name">Fund</th>
+              <th>Incep.</th>
+              <th>AUM (₹Cr)</th>
+              <th>Allocation</th>
+              <th>1M</th>
+              <th>1Y</th>
+              <th>3Y</th>
+              <th>5Y</th>
+              <th>10Y</th>
+              <th>3Y Rolling</th>
+              <th>M-Cap</th>
+            </tr>
+          </thead>
+          <tbody id="pbFundsPerfBody"></tbody>
+        </table>
+      </div>
     </div>
 
   </section>

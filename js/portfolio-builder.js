@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Centricity MF Screener Dashboard — portfolio-builder.js (v2)
  *
  * 5-step wizard → tier-aware selection engine → real-time quants panel.
@@ -202,23 +202,70 @@
     small: 'Small Cap', flexi: 'Multi-Cap / Flexi',
   };
 
+  /* Fund role descriptors (Funds table column) */
+  const FUND_ROLE = {
+    'Large Cap':              'Anchor',
+    'Large & Mid Cap':        'Core',
+    'Flexi Cap':              'Core',
+    'Multi Cap':              'Core',
+    'Focused':                'High-Conviction',
+    'ELSS':                   'Tax & Growth',
+    'Value-Contra':           'Contrarian',
+    'Aggressive Hybrid':      'Balanced Growth',
+    'BAF':                    'Dynamic',
+    'DAF':                    'Dynamic',
+    'Equity Savings':         'Conservative',
+    'Multi Asset Allocation': 'Diversifier',
+    'Mid Cap':                'Growth',
+    'Small Cap':              'Aggressive',
+    'Sector-Thematic':        'Tactical',
+    'Banking-FinServ':        'Tactical',
+    'Healthcare-Pharma':      'Tactical',
+    'FMCG-Consumption':       'Tactical',
+    'Infrastructure':         'Tactical',
+    'Manufacturing':          'Tactical',
+    'Technology':             'Tactical',
+    'ESG':                    'Tactical',
+    'MNC':                    'Tactical',
+    'PSU':                    'Tactical',
+    'Defence':                'Tactical',
+    'Special-Opp':            'Satellite',
+  };
+  function getFundRole(f) {
+    return FUND_ROLE[f.category] || (f.sub_category_class === 'Hybrid' ? 'Balanced' : 'Core');
+  }
+
+  /* Display order for grouped Fund Performances table */
+  const CATEGORY_ORDER = [
+    'Large Cap', 'Large & Mid Cap', 'Flexi Cap', 'Multi Cap', 'Focused',
+    'Mid Cap', 'Small Cap', 'ELSS', 'Value-Contra', 'Special-Opp',
+    'Sector-Thematic', 'Banking-FinServ', 'Healthcare-Pharma', 'FMCG-Consumption',
+    'Infrastructure', 'Manufacturing', 'Technology', 'ESG', 'MNC', 'PSU', 'Defence',
+    'Aggressive Hybrid', 'BAF', 'DAF', 'Multi Asset Allocation', 'Equity Savings',
+  ];
+
   /* ============================================================
      STATE
      ============================================================ */
   const _state = {
     risk: null,
     horizon: null,
-    instrumentCount: 10,
-    allocMode: 'auto',
-    allocManual: { equity: 60, debt: 30, commodities: 5, reits: 5 },
-    selectedProducts: { equity_mf: true, hybrid_mf: true },  // available + checked by default
-    openClosedTypes: { open: true, closed: false, interval: false },
+    instMin: 8,
+    instMax: 15,
+    optimiseFunds: true,
+    allocMode: 'auto',                       // 'auto' | 'manual' | 'partial'
+    allocManual:        { equity: 60, debt: 30, commodities: 5, reits: 5 },
+    allocPartialFlags:  { equity: false, debt: false, commodities: false, reits: false },
+    includeGlobalMF: false,
+    selectedProducts: { equity_mf: true, hybrid_mf: true },
+    openClosedTypes: { open: true, closed: false },
     mcapMode: 'auto',
-    mcapManual: { large: 40, mid: 25, small: 20, flexi: 15 },
-    mcapAutoFlags: { large: false, mid: false, small: false, flexi: false },  // partial-mode
-    sectorMode: 'auto',
-    sectorTargets: {},  // {sectorName: pct}
-    forceFunds: [],     // [{scheme_code, fund_name, amc, category}]
+    mcapManual:    { large: 40, mid: 25, small: 20, flexi: 15 },
+    mcapAutoFlags: { large: false, mid: false, small: false, flexi: false },
+    sectorMode: 'auto',                      // 'auto' | 'manual_full' | 'manual_partial'
+    sectorTargets: {},                       // typed targets only
+    sectorAutoFlags: {},                     // partial mode: {sectorName: true} when Auto
+    forceFunds: [],
     totalAmount: 5000000,
   };
 
@@ -227,6 +274,8 @@
   let _activeStep = 1;
   let _activeTab = 'overview';
   let _navWindow = 'max';
+  let _sortCol = null;         // funds-table sort column key
+  let _sortDir = 1;            // 1 asc, -1 desc
 
   /* Lazy-loaded data */
   let _cycle = null;
@@ -318,16 +367,32 @@
       updateStep1Next();
       refreshAutoTables();
     }));
-    const slider = document.getElementById('instCount');
-    const badge = document.getElementById('instCountVal');
-    slider.addEventListener('input', () => {
-      _state.instrumentCount = +slider.value;
-      badge.textContent = slider.value;
+    const minIn = document.getElementById('instMin');
+    const maxIn = document.getElementById('instMax');
+    function syncCounts() {
+      let mn = Math.max(3, Math.min(30, parseInt(minIn.value, 10) || 3));
+      let mx = Math.max(3, Math.min(30, parseInt(maxIn.value, 10) || 3));
+      const validRange = mx >= mn;
+      minIn.classList.toggle('err', !validRange || mn > mx);
+      maxIn.classList.toggle('err', !validRange);
+      _state.instMin = mn;
+      _state.instMax = mx;
+      updateStep1Next();
+    }
+    minIn.addEventListener('input',  syncCounts);
+    minIn.addEventListener('change', () => { minIn.value = _state.instMin; });
+    maxIn.addEventListener('input',  syncCounts);
+    maxIn.addEventListener('change', () => { maxIn.value = _state.instMax; });
+    document.getElementById('optimiseFunds').addEventListener('change', (e) => {
+      _state.optimiseFunds = e.target.checked;
     });
     document.getElementById('step1Next').addEventListener('click', () => goToStep(2));
   }
   function updateStep1Next() {
-    document.getElementById('step1Next').disabled = !(_state.risk && _state.horizon);
+    const valid = (_state.risk && _state.horizon &&
+                   _state.instMin >= 3 && _state.instMax <= 30 &&
+                   _state.instMax >= _state.instMin);
+    document.getElementById('step1Next').disabled = !valid;
     updateGenerateBtn();
   }
 
@@ -335,12 +400,14 @@
      STEP 2 — Allocation
      ============================================================ */
   function initStep2() {
-    /* Mode toggle */
+    /* Mode toggle (auto / manual / partial) */
     document.querySelectorAll('[data-alloc-mode]').forEach(b => b.addEventListener('click', () => {
       _state.allocMode = b.dataset.allocMode;
       document.querySelectorAll('[data-alloc-mode]').forEach(x => x.classList.toggle('active', x === b));
-      document.getElementById('allocAutoView').hidden = _state.allocMode !== 'auto';
-      document.getElementById('allocManualView').hidden = _state.allocMode !== 'manual';
+      document.getElementById('allocAutoView').hidden    = _state.allocMode !== 'auto';
+      document.getElementById('allocManualView').hidden  = _state.allocMode !== 'manual';
+      document.getElementById('allocPartialView').hidden = _state.allocMode !== 'partial';
+      refreshAllocPartialMode();
       validateAllocSum();
     }));
     /* Manual inputs */
@@ -349,6 +416,22 @@
       _state.allocManual[b] = +inp.value || 0;
       validateAllocSum();
     }));
+    /* Partial inputs + Auto checkboxes */
+    document.querySelectorAll('.alloc-pin').forEach(inp => inp.addEventListener('input', () => {
+      const b = inp.dataset.bucket;
+      _state.allocManual[b] = +inp.value || 0;
+      validateAllocSum();
+    }));
+    document.querySelectorAll('.alloc-pauto').forEach(c => c.addEventListener('change', () => {
+      _state.allocPartialFlags[c.dataset.bucket] = c.checked;
+      refreshAllocPartialMode();
+      validateAllocSum();
+    }));
+    /* Global MF placeholder (disabled — Coming Soon; checkbox state still tracked) */
+    const globalMfEl = document.getElementById('includeGlobalMF');
+    if (globalMfEl) globalMfEl.addEventListener('change', (e) => {
+      _state.includeGlobalMF = e.target.checked;
+    });
     /* Products */
     renderProducts();
     /* Open/closed */
@@ -358,6 +441,46 @@
     /* Back & Next */
     document.querySelector('[data-back="2"]').addEventListener('click', () => goToStep(1));
     document.getElementById('step2Next').addEventListener('click', () => goToStep(3));
+  }
+
+  /* Sync the partial-mode inputs: Auto-flagged ones display computed values + disabled. */
+  function refreshAllocPartialMode() {
+    if (_state.allocMode !== 'partial') return;
+    const computed = computePartialAutoAlloc();
+    document.querySelectorAll('.alloc-pin').forEach(inp => {
+      const b = inp.dataset.bucket;
+      if (_state.allocPartialFlags[b]) {
+        inp.value = computed[b];
+        inp.disabled = true;
+        inp.classList.add('is-auto');
+      } else {
+        inp.disabled = false;
+        inp.classList.remove('is-auto');
+      }
+    });
+  }
+
+  /* Distribute (100 − sum of typed buckets) proportionally to profile defaults
+     across Auto-flagged AC buckets. Mirrors computePartialAutoMcap(). */
+  function computePartialAutoAlloc() {
+    const profDef = (_state.risk && _state.horizon)
+      ? ALLOC_MATRIX_AC[_state.risk][_state.horizon]
+      : { equity: 25, debt: 25, commodities: 25, reits: 25 };
+    const buckets = ['equity', 'debt', 'commodities', 'reits'];
+    const manualSum = buckets
+      .filter(b => !_state.allocPartialFlags[b])
+      .reduce((s, b) => s + (+_state.allocManual[b] || 0), 0);
+    const remaining = Math.max(0, 100 - manualSum);
+    const autoBuckets = buckets.filter(b => _state.allocPartialFlags[b]);
+    const profSum = autoBuckets.reduce((s, b) => s + profDef[b], 0);
+    const out = { equity: 0, debt: 0, commodities: 0, reits: 0 };
+    if (profSum > 0 && autoBuckets.length) {
+      autoBuckets.forEach(b => { out[b] = Math.round((profDef[b] / profSum) * remaining); });
+      const sumOut = autoBuckets.reduce((s, b) => s + out[b], 0);
+      const diff = remaining - sumOut;
+      if (diff !== 0) out[autoBuckets[0]] += diff;
+    }
+    return out;
   }
 
   function renderProducts() {
@@ -388,15 +511,39 @@
   }
 
   function validateAllocSum() {
-    const sum = Object.values(_state.allocManual).reduce((s, v) => s + (+v || 0), 0);
-    const sumEl = document.getElementById('allocSum');
-    const errEl = document.getElementById('allocSumErr');
-    sumEl.textContent = sum + '%';
-    sumEl.classList.toggle('ok',  sum === 100);
-    sumEl.classList.toggle('bad', sum !== 100);
-    document.getElementById('allocSumNum').textContent = sum;
-    errEl.hidden = (sum === 100);
-    document.getElementById('step2Next').disabled = (_state.allocMode === 'manual' && sum !== 100);
+    /* Manual mode — straight sum of typed inputs */
+    if (_state.allocMode === 'manual') {
+      const sum = Object.values(_state.allocManual).reduce((s, v) => s + (+v || 0), 0);
+      const sumEl = document.getElementById('allocSum');
+      const errEl = document.getElementById('allocSumErr');
+      sumEl.textContent = sum + '%';
+      sumEl.classList.toggle('ok',  sum === 100);
+      sumEl.classList.toggle('bad', sum !== 100);
+      document.getElementById('allocSumNum').textContent = sum;
+      errEl.hidden = (sum === 100);
+      document.getElementById('step2Next').disabled = (sum !== 100);
+      return;
+    }
+    /* Partial mode — fold computed auto values, then assess true sum */
+    if (_state.allocMode === 'partial') {
+      const c = computePartialAutoAlloc();
+      ['equity', 'debt', 'commodities', 'reits'].forEach(b => {
+        if (_state.allocPartialFlags[b]) _state.allocManual[b] = c[b];
+      });
+      const sum = ['equity', 'debt', 'commodities', 'reits']
+        .reduce((s, b) => s + (+_state.allocManual[b] || 0), 0);
+      const sumEl = document.getElementById('allocPartialSum');
+      const errEl = document.getElementById('allocPartialSumErr');
+      sumEl.textContent = sum + '%';
+      sumEl.classList.toggle('ok',  sum === 100);
+      sumEl.classList.toggle('bad', sum !== 100);
+      document.getElementById('allocPartialSumNum').textContent = sum;
+      errEl.hidden = (sum === 100);
+      document.getElementById('step2Next').disabled = (sum !== 100);
+      return;
+    }
+    /* Auto mode — always valid */
+    document.getElementById('step2Next').disabled = false;
   }
 
   /* ============================================================
@@ -470,20 +617,24 @@
     if (_state.mcapMode === 'auto') {
       document.getElementById('step3Next').disabled = false; return;
     }
-    /* Re-fold auto values into _state.mcapManual so engine reads the right thing */
+    /* Re-fold auto values into _state.mcapManual so the engine reads the right thing.
+       True-sum guard (PB v2 §1D): even when partial mode forces auto buckets to 0
+       (because manual entries already exceed 100), we still compute the TRUE sum
+       across all four buckets — manual + computed-auto. If that ≠ 100, block Next. */
     if (_state.mcapMode === 'manual_partial') {
       const c = computePartialAutoMcap();
       Object.keys(c).forEach(b => { if (_state.mcapAutoFlags[b]) _state.mcapManual[b] = c[b]; });
     }
-    const sum = Object.values(_state.mcapManual).reduce((s, v) => s + (+v || 0), 0);
+    const trueSum = ['large', 'mid', 'small', 'flexi']
+      .reduce((s, b) => s + (+_state.mcapManual[b] || 0), 0);
     const sumEl = document.getElementById('mcapSum');
     const errEl = document.getElementById('mcapSumErr');
-    sumEl.textContent = sum + '%';
-    sumEl.classList.toggle('ok',  sum === 100);
-    sumEl.classList.toggle('bad', sum !== 100);
-    document.getElementById('mcapSumNum').textContent = sum;
-    errEl.hidden = (sum === 100);
-    document.getElementById('step3Next').disabled = (sum !== 100);
+    sumEl.textContent = trueSum + '%';
+    sumEl.classList.toggle('ok',  trueSum === 100);
+    sumEl.classList.toggle('bad', trueSum !== 100);
+    document.getElementById('mcapSumNum').textContent = trueSum;
+    errEl.hidden = (trueSum === 100);
+    document.getElementById('step3Next').disabled = (trueSum !== 100);
   }
 
   /* ============================================================
@@ -493,15 +644,22 @@
     document.querySelectorAll('[data-sector-mode]').forEach(b => b.addEventListener('click', () => {
       _state.sectorMode = b.dataset.sectorMode;
       document.querySelectorAll('[data-sector-mode]').forEach(x => x.classList.toggle('active', x === b));
-      document.getElementById('sectorAutoView').hidden = _state.sectorMode !== 'auto';
-      document.getElementById('sectorCustomView').hidden = _state.sectorMode !== 'custom';
+      document.getElementById('sectorAutoView').hidden    = _state.sectorMode !== 'auto';
+      document.getElementById('sectorFullView').hidden    = _state.sectorMode !== 'manual_full';
+      document.getElementById('sectorPartialView').hidden = _state.sectorMode !== 'manual_partial';
+      renderSectorList();
+      validateSectorSum();
     }));
     document.querySelector('[data-back="4"]').addEventListener('click', () => goToStep(3));
     document.getElementById('step4Next').addEventListener('click', () => goToStep(5));
   }
 
+  /* Renders into the active mode's container. Auto mode has no list. */
   function renderSectorList() {
-    const wrap = document.getElementById('pbSectorList');
+    if (_state.sectorMode === 'auto') return;
+    const isPartial = _state.sectorMode === 'manual_partial';
+    const wrapId = isPartial ? 'pbSectorListPartial' : 'pbSectorListFull';
+    const wrap = document.getElementById(wrapId);
     if (!wrap) return;
     /* Count funds per sector for tooltip context */
     const counts = {};
@@ -510,13 +668,27 @@
         (f.sector_allocation || []).forEach(s => { counts[s.sector] = (counts[s.sector] || 0) + 1; });
       });
     }
+    /* Default Auto-flag = true on first render in partial mode */
+    if (isPartial) {
+      _allSectors.forEach(s => {
+        if (_state.sectorAutoFlags[s] === undefined) _state.sectorAutoFlags[s] = true;
+      });
+    }
     wrap.innerHTML = _allSectors.map(s => {
       const cnt = counts[s] || 0;
-      const cur = _state.sectorTargets[s] || '';
-      return '<div class="lbl">' + escapeHtml(s) +
-             '<span class="cnt">(' + cnt + ' funds)</span></div>' +
-             '<input type="number" min="0" max="100" step="1" placeholder="—" data-sec="' +
-             escapeHtml(s) + '" value="' + (cur === '' ? '' : cur) + '">';
+      const cur = _state.sectorTargets[s];
+      const curStr = (cur === undefined || cur === null) ? '' : cur;
+      const isAuto = isPartial && !!_state.sectorAutoFlags[s];
+      const lbl = '<div class="lbl">' + escapeHtml(s) +
+                  '<span class="cnt">(' + cnt + ' funds)</span></div>';
+      const inp = '<input type="number" min="0" max="100" step="1" placeholder="—" data-sec="' +
+                  escapeHtml(s) + '" value="' + curStr + '"' +
+                  (isAuto ? ' disabled' : '') + '>';
+      const tog = isPartial
+        ? '<label class="auto-tog"><input type="checkbox" data-sec-auto="' +
+          escapeHtml(s) + '"' + (isAuto ? ' checked' : '') + '> Auto</label>'
+        : '';
+      return lbl + inp + tog;
     }).join('');
     wrap.querySelectorAll('input[data-sec]').forEach(inp => inp.addEventListener('input', () => {
       const v = inp.value === '' ? null : +inp.value;
@@ -524,13 +696,35 @@
       else _state.sectorTargets[inp.dataset.sec] = v;
       validateSectorSum();
     }));
+    wrap.querySelectorAll('input[data-sec-auto]').forEach(c => c.addEventListener('change', () => {
+      const sec = c.dataset.secAuto;
+      _state.sectorAutoFlags[sec] = c.checked;
+      if (c.checked) delete _state.sectorTargets[sec];
+      renderSectorList();
+      validateSectorSum();
+    }));
   }
 
   function validateSectorSum() {
-    const sum = Object.values(_state.sectorTargets).reduce((s, v) => s + (+v || 0), 0);
-    document.getElementById('sectorSum').textContent = sum + '%';
-    const err = document.getElementById('sectorSumErr');
-    err.hidden = (sum <= 100);
+    if (_state.sectorMode === 'auto') {
+      document.getElementById('step4Next').disabled = false;
+      return;
+    }
+    /* In partial mode, only typed (non-Auto) targets count toward the sum */
+    let activeTargets = _state.sectorTargets;
+    if (_state.sectorMode === 'manual_partial') {
+      activeTargets = {};
+      Object.keys(_state.sectorTargets).forEach(s => {
+        if (!_state.sectorAutoFlags[s]) activeTargets[s] = _state.sectorTargets[s];
+      });
+    }
+    const sum = Object.values(activeTargets).reduce((s, v) => s + (+v || 0), 0);
+    const sumElId = (_state.sectorMode === 'manual_partial') ? 'sectorPartialSum' : 'sectorFullSum';
+    const errElId = (_state.sectorMode === 'manual_partial') ? 'sectorPartialSumErr' : 'sectorFullSumErr';
+    const sumEl = document.getElementById(sumElId);
+    const errEl = document.getElementById(errElId);
+    if (sumEl) sumEl.textContent = sum + '%';
+    if (errEl) errEl.hidden = (sum <= 100);
     document.getElementById('step4Next').disabled = (sum > 100);
   }
 
@@ -728,8 +922,15 @@
     try {
       _portfolio = runSelectionEngine();
       saveLastWizardState();
-      renderOutput();
-      showToast('Portfolio generated · ' + _portfolio.funds.length + ' funds');
+      if (!_portfolio.funds.length) {
+        document.getElementById('pbOutEmpty').hidden = false;
+        document.getElementById('pbOutEmpty').querySelector('h3').textContent = 'No funds matched your criteria';
+        document.getElementById('pbOutEmpty').querySelector('p').textContent = 'No Ranked or Focused funds found for your selected m-cap and product mix. Try broadening the m-cap allocation, adding more product types, or reducing the instrument count target.';
+        showToast('No eligible funds — broaden criteria');
+      } else {
+        renderOutput();
+        showToast('Portfolio generated · ' + _portfolio.funds.length + ' funds');
+      }
     } catch (e) {
       console.error('[pb] generation failed', e);
       showToast('Generation failed: ' + (e.message || e));
@@ -765,22 +966,30 @@
     });
 
     /* Step 4 — open/closed filter (graceful: field absent → treat as open) */
-    if (!_state.openClosedTypes.open && (_state.openClosedTypes.closed || _state.openClosedTypes.interval)) {
-      /* Only close-ended/interval requested. Currently no funds have such markers — would empty universe. Leave as-is. */
+    if (!_state.openClosedTypes.open && _state.openClosedTypes.closed) {
+      /* Only close-ended requested. Currently no funds have such markers — would empty universe. Leave as-is. */
     }
 
     /* Step 5 — resolve target asset allocation */
-    const targetAC = (_state.allocMode === 'auto')
-      ? Object.assign({}, ALLOC_MATRIX_AC[_state.risk][_state.horizon])
-      : Object.assign({}, _state.allocManual);
+    let targetAC;
+    if (_state.allocMode === 'auto') {
+      targetAC = Object.assign({}, ALLOC_MATRIX_AC[_state.risk][_state.horizon]);
+    } else if (_state.allocMode === 'manual') {
+      targetAC = Object.assign({}, _state.allocManual);
+    } else {
+      /* partial: blend of typed + computed-auto */
+      const c = computePartialAutoAlloc();
+      targetAC = { equity: 0, debt: 0, commodities: 0, reits: 0 };
+      ['equity', 'debt', 'commodities', 'reits'].forEach(b => {
+        targetAC[b] = _state.allocPartialFlags[b] ? c[b] : (+_state.allocManual[b] || 0);
+      });
+    }
     /* Coming-soon redistribution: collapse all non-equity into equity (since debt/comm/reits aren't live) */
     const equityShareTarget = (targetAC.equity || 0) + (targetAC.debt || 0) +
                               (targetAC.commodities || 0) + (targetAC.reits || 0);
-    const liveTargetEquity = 100;  // entire 100% goes through Equity bucket for now
     const csNote = (targetAC.debt > 0 || targetAC.commodities > 0 || targetAC.reits > 0);
     out.comingSoonNote = csNote;
     out.deviation.targetAC = targetAC;
-    out.deviation.actualLiveBucketShare = liveTargetEquity;
 
     /* Step 6 — resolve m-cap target */
     let targetMC;
@@ -814,8 +1023,15 @@
       buckets[b].push(f);
     });
 
-    /* Step 8 — sector alignment bonus (if custom mode) */
-    const sectorTargets = (_state.sectorMode === 'custom') ? _state.sectorTargets : {};
+    /* Step 8 — sector alignment bonus (manual modes only) */
+    let sectorTargets = {};
+    if (_state.sectorMode === 'manual_full') {
+      sectorTargets = _state.sectorTargets;
+    } else if (_state.sectorMode === 'manual_partial') {
+      Object.keys(_state.sectorTargets).forEach(s => {
+        if (!_state.sectorAutoFlags[s]) sectorTargets[s] = _state.sectorTargets[s];
+      });
+    }
     if (_analytics && Object.keys(sectorTargets).length) {
       universe.forEach(f => {
         const aFund = _analytics.funds[String(f.scheme_code)];
@@ -853,45 +1069,92 @@
       forcedSchemes.add(f.scheme_code);
     });
 
-    /* Step 9 + 11 — per-bucket selection with overlap dedup */
-    const totalCount = _state.instrumentCount;
+    /* Step 9 + 11 — per-bucket selection with overlap dedup + 2-per-category cap.
+       Engine targets up to instMax fund slots distributed by m-cap weights.
+       Hard rule: at most 2 funds per SEBI category (across all buckets). */
+    const targetMax = Math.max(_state.instMin, _state.instMax);
+    const targetMin = _state.instMin;
     const selected = [];
+    const catCount = {};                 // SEBI category → count of funds selected
+    const bucketShortfalls = [];         // {bucket, requested, achieved}
+
+    function tryPick(cand, b, pickedHere) {
+      if ((catCount[cand.category] || 0) >= 2) return false;     // 2-per-category cap
+      for (const exist of pickedHere.concat(selected)) {
+        if (computeOverlap(cand.scheme_code, exist.scheme_code) > 50) return false;
+      }
+      cand._bucket = b;
+      cand._alternates = [];                                     // filled below
+      pickedHere.push(cand);
+      catCount[cand.category] = (catCount[cand.category] || 0) + 1;
+      return true;
+    }
 
     Object.keys(buckets).forEach(b => {
       const target = targetMC[b] || 0;
       if (target <= 0) return;
       const eligibles = buckets[b].filter(f => !forcedSchemes.has(f.scheme_code));
       eligibles.sort(sortFn);
-      let nBucket = Math.max(1, Math.round(totalCount * (target / 100)));
-      /* Try to pick nBucket funds, swapping high-overlap pairs */
+      const nBucket = Math.max(1, Math.round(targetMax * (target / 100)));
       const pickedHere = [];
       const alternates = eligibles.slice();
       while (pickedHere.length < nBucket && alternates.length) {
         const cand = alternates.shift();
-        /* Overlap dedup vs already-selected (in this bucket + globally) */
-        let highOverlap = false;
-        for (const exist of pickedHere.concat(selected)) {
-          const ov = computeOverlap(cand.scheme_code, exist.scheme_code);
-          if (ov > 50) { highOverlap = true; break; }
-        }
-        if (highOverlap) continue;
-        cand._bucket = b;
-        cand._alternates = alternates.slice(0, 5);
-        pickedHere.push(cand);
+        if (!tryPick(cand, b, pickedHere)) continue;
       }
+      /* Pre-load up to 5 alternates per fund for the swap popover */
+      pickedHere.forEach(p => { p._alternates = alternates.slice(0, 5); });
+      /* Equal-split bucket weight across actual picks */
       pickedHere.forEach(p => {
-        const w = target / Math.max(1, pickedHere.length);
-        p._weight = w;
+        p._weight = target / Math.max(1, pickedHere.length);
         selected.push(p);
       });
-      /* Track shortfall */
       if (pickedHere.length < nBucket) {
-        out.warnings.push({
-          type: 'warn',
-          msg: 'Bucket "' + MC_LABEL[b] + '": requested ' + nBucket +
-               ' funds, only ' + pickedHere.length + ' satisfied (after overlap dedup + tier).',
-        });
+        bucketShortfalls.push({ bucket: b, requested: nBucket, achieved: pickedHere.length });
       }
+    });
+
+    /* Phase 2: if total < instMin and !optimiseFunds, top up from any bucket
+       (still respecting 2-per-cat + overlap). Pulls from REVIEW / UNRANKED tiers. */
+    if (selected.length < targetMin && !_state.optimiseFunds) {
+      const allEligibles = universe
+        .filter(f => !forcedSchemes.has(f.scheme_code))
+        .filter(f => !selected.find(s => s.scheme_code === f.scheme_code))
+        .sort(sortFn);
+      for (const cand of allEligibles) {
+        if (selected.length >= targetMin) break;
+        const b = CATEGORY_MCAP_BUCKET[cand.category] || 'flexi';
+        const proxy = [];
+        if (tryPick(cand, b, proxy)) {
+          /* Give it a small fixed weight from the largest existing bucket */
+          cand._weight = Math.max(2, 100 / (selected.length + 1));
+          selected.push(proxy[0]);
+        }
+      }
+    }
+
+    /* fundCountNote — info banner explaining shortfall vs requested range */
+    if (selected.length < targetMin) {
+      let cause = bucketShortfalls.length
+        ? bucketShortfalls.map(s => MC_LABEL[s.bucket] + ' (' + s.achieved + '/' + s.requested + ')').join(', ')
+        : 'limited eligible funds in your selected categories';
+      out.fundCountNote = 'Engine selected ' + selected.length + ' funds — fewer than your minimum of ' + targetMin + '. ' +
+                          (_state.optimiseFunds
+                            ? 'Optimise to minimum is ON, so the engine stopped at the achievable count rather than padding from lower tiers. '
+                            : 'Even with Optimise OFF the engine couldn\'t reach the minimum. ') +
+                          'Bottleneck: ' + cause + '. Cap of 2 funds per SEBI category may also be a contributing factor.';
+    } else if (selected.length > _state.instMax) {
+      /* Should never trigger because we cap at instMax, but keep the safety log */
+      out.fundCountNote = 'Engine selected ' + selected.length + ' funds — capped at your maximum of ' + _state.instMax + '.';
+    }
+
+    /* Convert shortfalls to user-visible warnings (older format) */
+    bucketShortfalls.forEach(s => {
+      out.warnings.push({
+        type: 'warn',
+        msg: 'Bucket "' + MC_LABEL[s.bucket] + '": targeted ' + s.requested +
+             ' funds, achieved ' + s.achieved + ' (overlap dedup + 2-per-category cap).',
+      });
     });
 
     /* Add forced funds with weight from their bucket's allocation */
@@ -1017,8 +1280,11 @@
     }));
     document.getElementById('totalInvAmount').addEventListener('input', (e) => {
       _state.totalAmount = +e.target.value || 0;
+      updateAmountWords();
       renderActiveTab();
     });
+    /* Initial render of the words line */
+    updateAmountWords();
     document.getElementById('regenBtn').addEventListener('click', () => generatePortfolio());
     document.getElementById('shareBtn').addEventListener('click', () => copyShareLink());
     document.querySelectorAll('#navWindowToggles .window-btn').forEach(b => b.addEventListener('click', () => {
@@ -1067,7 +1333,6 @@
       ['Blended Score', (blendScore != null ? (blendScore * 100).toFixed(1) + '%' : '—'), 'Excel-locked Centricity score, weighted by allocation'],
       ['Weighted Avg TER', (ter != null ? ter.toFixed(2) + '%' : '—'), 'Regular-plan TER from MF Monitor'],
       ['Weighted Mgr Tenure', (tenure != null ? tenure.toFixed(1) + ' yrs' : '—'), 'On the resolved current main manager'],
-      ['Weighted Avg AUM', (aum != null ? '₹' + DataLoader.fmtINR(aum) + ' Cr' : '—'), 'Indian comma grouping'],
     ];
     document.getElementById('overviewKpiRow').innerHTML = kpis.map(k =>
       '<div class="pb-kpi"><div class="lbl">' + escapeHtml(k[0]) + '</div>' +
@@ -1086,38 +1351,89 @@
   function renderFundsTable() {
     const wrap = document.getElementById('pbFundsTblWrap');
     const totalAmt = _state.totalAmount;
+
+    /* Apply current sort if set (defensive copy — engine order otherwise) */
+    let funds = _portfolio.funds.slice();
+    if (_sortCol) {
+      funds.sort((a, b) => {
+        let av, bv;
+        switch (_sortCol) {
+          case 'role':     av = getFundRole(a);             bv = getFundRole(b); break;
+          case 'fund':     av = (a.fund_name || '').toLowerCase(); bv = (b.fund_name || '').toLowerCase(); break;
+          case 'category': av = (a.category  || '').toLowerCase(); bv = (b.category  || '').toLowerCase(); break;
+          case 'mcap':     av = MC_LABEL[a._bucket] || ''; bv = MC_LABEL[b._bucket] || ''; break;
+          case 'alloc':    av = a._weight || 0;            bv = b._weight || 0;            break;
+          case 'amount':   av = a._weight || 0;            bv = b._weight || 0;            break;
+          default:         return 0;
+        }
+        if (av < bv) return -1 * _sortDir;
+        if (av > bv) return  1 * _sortDir;
+        return 0;
+      });
+    }
+    /* Map back to original index for editAllocation/swap/remove (those operate on _portfolio.funds[i]) */
+    const indexedFunds = funds.map(f => ({ f, origIdx: _portfolio.funds.indexOf(f) }));
+
     const totalW = _portfolio.funds.reduce((s, f) => s + (f._weight || 0), 0);
-    const rows = _portfolio.funds.map((f, i) => {
+    const rows = indexedFunds.map(({ f, origIdx }) => {
       const rs = (f._weight || 0) * totalAmt / 100;
-      const tier = f._tier || 'UNRANKED';
-      return '<tr data-i="' + i + '">' +
-             '<td><span class="tier-pill tier-' + tier + '">' + tier + '</span></td>' +
-             '<td class="col-nm"><a class="fund-link" href="fund-detail.html?scheme=' + f.scheme_code + '">' +
+      const role = getFundRole(f);
+      return '<tr data-i="' + origIdx + '">' +
+             '<td><span class="role-pill">' + escapeHtml(role) + '</span></td>' +
+             '<td class="col-nm"><a class="fund-link" href="fund-detail.html?scheme=' + f.scheme_code + '" target="_blank" rel="noopener">' +
                escapeHtml(f.fund_name) + '</a><div class="fund-meta">' + escapeHtml(f.amc) + '</div></td>' +
              '<td>' + escapeHtml(f.category) + '</td>' +
              '<td>' + escapeHtml(MC_LABEL[f._bucket] || '—') + '</td>' +
-             '<td><input type="number" class="alloc-edit" min="0" max="100" step="2" value="' + (f._weight || 0).toFixed(0) + '" data-i="' + i + '"></td>' +
+             '<td><input type="number" class="alloc-edit" min="0" max="100" step="2" value="' + (f._weight || 0).toFixed(0) + '" data-i="' + origIdx + '"></td>' +
              '<td>' + formatINR(rs) + '</td>' +
-             '<td>' + DataLoader.fmtScorePct(f.centricity_score) + '</td>' +
-             '<td><button class="pb-act-btn swap" data-i="' + i + '" title="Swap">⇄</button>' +
-                 '<button class="pb-act-btn rm"   data-i="' + i + '" title="Remove">✕</button></td>' +
+             '<td><button class="pb-act-btn swap" data-i="' + origIdx + '" title="Swap">⇄</button>' +
+                 '<button class="pb-act-btn rm"   data-i="' + origIdx + '" title="Remove">✕</button></td>' +
              '</tr>';
     }).join('');
+
+    function arrow(col) {
+      if (_sortCol !== col) return '<span class="arr">▲▼</span>';
+      return '<span class="arr">' + (_sortDir > 0 ? '▲' : '▼') + '</span>';
+    }
+    function thCls(col) { return _sortCol === col ? 'sorted' : ''; }
     const totSumCls = (Math.round(totalW) === 100) ? 'ok' : 'bad';
     wrap.innerHTML =
       '<table class="pb-tbl"><thead><tr>' +
-      '<th>Tier</th><th>Fund</th><th>Category</th><th>M-Cap</th>' +
-      '<th>Allocation %</th><th>₹ Amount</th><th>Score</th><th></th></tr></thead>' +
+      '<th data-sort="role"     class="' + thCls('role')     + '">Role '       + arrow('role')     + '</th>' +
+      '<th data-sort="fund"     class="' + thCls('fund')     + '">Fund '       + arrow('fund')     + '</th>' +
+      '<th data-sort="category" class="' + thCls('category') + '">Category '   + arrow('category') + '</th>' +
+      '<th data-sort="mcap"     class="' + thCls('mcap')     + '">M-Cap '      + arrow('mcap')     + '</th>' +
+      '<th data-sort="alloc"    class="' + thCls('alloc')    + '">Allocation % ' + arrow('alloc')  + '</th>' +
+      '<th data-sort="amount"   class="' + thCls('amount')   + '">₹ Amount '   + arrow('amount')   + '</th>' +
+      '<th></th></tr></thead>' +
       '<tbody>' + rows + '</tbody>' +
       '<tfoot><tr><td colspan="4" class="col-nm">Total</td>' +
       '<td class="' + totSumCls + '">' + totalW.toFixed(0) + '%</td>' +
-      '<td>' + formatINR(totalAmt) + '</td><td colspan="2"></td></tr></tfoot></table>';
+      '<td>' + formatINR(totalAmt) + '</td><td></td></tr></tfoot></table>';
 
-    /* Wire allocation editing */
+    /* Allocation note below table when total != 100 */
+    const noteEl = document.getElementById('pbAllocNote');
+    if (Math.round(totalW) !== 100) {
+      document.getElementById('pbAllocNoteVal').textContent = totalW.toFixed(0);
+      noteEl.hidden = false;
+    } else {
+      noteEl.hidden = true;
+    }
+
+    /* Sort header clicks */
+    wrap.querySelectorAll('th[data-sort]').forEach(th => th.addEventListener('click', () => {
+      const col = th.dataset.sort;
+      if (_sortCol === col) { _sortDir = -_sortDir; }
+      else { _sortCol = col; _sortDir = 1; }
+      renderFundsTable();
+    }));
+    /* Wire allocation editing — clamp negatives, round 2% step on blur */
     wrap.querySelectorAll('input.alloc-edit').forEach(inp => {
       inp.addEventListener('change', () => {
         const i = +inp.dataset.i;
-        const newW = Math.max(0, Math.min(100, +inp.value || 0));
+        let newW = +inp.value || 0;
+        if (newW < 0) newW = 0;
+        newW = Math.min(100, newW);
         editAllocation(i, newW);
       });
     });
@@ -1129,10 +1445,13 @@
 
   function renderWarnings() {
     const wrap = document.getElementById('pbWarnings');
-    if (!_portfolio.warnings.length && !_portfolio.comingSoonNote) {
-      wrap.innerHTML = ''; return;
-    }
+    const hasAny = !!(_portfolio.warnings.length || _portfolio.comingSoonNote || _portfolio.fundCountNote);
+    if (!hasAny) { wrap.innerHTML = ''; return; }
     let html = '';
+    if (_portfolio.fundCountNote) {
+      html += '<div class="pb-warn-row info"><span class="ic">🔵</span><span>' +
+              escapeHtml(_portfolio.fundCountNote) + '</span></div>';
+    }
     if (_portfolio.comingSoonNote) {
       html += '<div class="pb-warn-row warn"><span class="ic">🟡</span><span>Debt, Commodities, REITs/InvITs, AIF, PMS and Direct Equity are not live yet — the entire allocation goes to Equity / Hybrid MF for now. The deviation report shows what was redistributed.</span></div>';
     }
@@ -1153,6 +1472,11 @@
     if (sumOthers > 0) {
       others.forEach(f => { f._weight = Math.max(0, (f._weight || 0) - diff * ((f._weight || 0) / sumOthers)); });
     }
+    /* Round all weights to 2% steps + normalise to 100 so displayed inputs sum correctly */
+    let ws = _portfolio.funds.map(f => Math.max(0, Math.round((f._weight || 0) / 2) * 2));
+    const wsSum = ws.reduce((s, w) => s + w, 0);
+    if (wsSum !== 100 && wsSum > 0) { const mi = ws.indexOf(Math.max(...ws)); ws[mi] += 100 - wsSum; }
+    _portfolio.funds.forEach((f, i) => { f._weight = ws[i]; });
     /* Re-render */
     renderActiveTab();
   }
@@ -1274,7 +1598,11 @@
     }
     if (!_navSeries.series) { return; }
     const cap = document.getElementById('navChartCap');
-    const ctx = document.getElementById('navChart').getContext('2d');
+    const canvas = document.getElementById('navChart');
+    const ctx = canvas.getContext('2d');
+    /* Destroy + clear before re-creating — fixes height-creep on re-render */
+    if (_chartInstances.nav) { _chartInstances.nav.destroy(); delete _chartInstances.nav; }
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     /* Build per-fund series maps */
     const fundSeries = _portfolio.funds.map(f => {
@@ -1353,7 +1681,6 @@
                     DataLoader.fmtINR(lastP) + '</b> · Blended Benchmark: <b>₹' +
                     DataLoader.fmtINR(lastB) + '</b> · ' + labels.length + ' months tracked.';
 
-    if (_chartInstances.nav) { _chartInstances.nav.destroy(); }
     _chartInstances.nav = new Chart(ctx, {
       type: 'line',
       data: { labels, datasets: [
@@ -1405,16 +1732,19 @@
              '<span class="sct">' + escapeHtml(s.sector || '') + '</span>' +
              '<span class="pct">' + s.pct.toFixed(2) + '%</span></div>';
     }).join('') || '<div class="pb-cs-empty">Stock-level data unavailable.</div>';
-    /* AMCs */
+    /* AMCs — bar width = absolute allocation %, not relative-to-max (ISSUE-0019 rule) */
     const amcMix = getAmcMix();
-    const maxA = amcMix[0] ? amcMix[0].pct : 1;
     document.getElementById('anlyAmcs').innerHTML = amcMix.map(a => {
       const warn = a.pct > 35 ? ' warn' : '';
-      const w = (a.pct / maxA * 100).toFixed(0) + '%';
       return '<div class="amc-row' + warn + '"><span class="nm">' + escapeHtml(a.name) + '</span>' +
-             '<span class="bar-wrap"><span class="bar" style="width:' + w + '"></span></span>' +
+             '<span class="bar-wrap"><span class="bar" style="width:' + a.pct.toFixed(1) + '%"></span></span>' +
              '<span class="pct">' + a.pct.toFixed(1) + '%</span></div>';
     }).join('');
+    /* Unique-counts summary line below sector list */
+    const secCntEl = document.getElementById('anlySecCount');
+    const stkCntEl = document.getElementById('anlyStockCount');
+    if (secCntEl) secCntEl.textContent = sectorMix.length;
+    if (stkCntEl) stkCntEl.textContent = stockMix.length;
   }
 
   /* -- PLAN VS PORTFOLIO -- */
@@ -1431,45 +1761,61 @@
     const targetAC = dev.targetAC || {};
 
     let rows = [];
-    const status = (delta) => {
+    /* Cell class for the Δ column. Status icons removed per PB v2 §2G —
+       colour on the Δ cell now communicates magnitude. */
+    const deltaClass = (delta) => {
       const ad = Math.abs(delta || 0);
-      if (ad <= 5) return ['✓', 'ok'];
-      if (ad <= 15) return ['!', 'warn'];
-      return ['✗', 'err'];
+      if (ad <= 5) return '';
+      if (ad <= 15) return 'warn';
+      return 'bad';
     };
 
     /* AC rows */
     [['Equity + Hybrid (live)', 100, actualEqHy], ['Debt', targetAC.debt || 0, 0], ['Commodities', targetAC.commodities || 0, 0], ['REITs / InvITs', targetAC.reits || 0, 0]]
       .forEach(([lbl, t, a]) => {
         const d = a - t;
-        const [icn, cls] = (lbl === 'Equity + Hybrid (live)') ? ['✓', 'ok'] : (t === 0) ? ['—', 'ok'] : status(d);
-        rows.push('<tr><td>' + escapeHtml(lbl) + '</td><td>' + (t || 0).toFixed(0) + '%</td>' +
+        const cls = (lbl === 'Equity + Hybrid (live)' || t === 0) ? '' : deltaClass(d);
+        rows.push('<tr><td>' + escapeHtml(lbl) + '</td>' +
+                  '<td>' + (t || 0).toFixed(0) + '%</td>' +
                   '<td>' + (a || 0).toFixed(0) + '%</td>' +
-                  '<td' + (cls === 'err' ? ' class="bad"' : '') + '>' + (d > 0 ? '+' : '') + d.toFixed(0) + '%</td>' +
-                  '<td class="status">' + icn + '</td></tr>');
+                  '<td' + (cls ? ' class="' + cls + '"' : '') + '>' +
+                  (d > 0 ? '+' : '') + d.toFixed(0) + '%</td></tr>');
       });
 
-    /* Instrument count */
-    const targetN = _state.instrumentCount;
+    /* Instrument count — target shown as Min–Max range */
     const actualN = f.length;
-    const dN = actualN - targetN;
-    const [iN, cN] = (Math.abs(dN) <= 1) ? ['✓', 'ok'] : (Math.abs(dN) <= 3) ? ['!', 'warn'] : ['✗', 'err'];
-    rows.push('<tr><td>Number of instruments</td><td>' + targetN + '</td><td>' + actualN + '</td><td>' + (dN > 0 ? '+' : '') + dN + '</td><td class="status">' + iN + '</td></tr>');
+    const inRange = (actualN >= _state.instMin && actualN <= _state.instMax);
+    const dN = inRange ? 0 : (actualN < _state.instMin ? actualN - _state.instMin : actualN - _state.instMax);
+    const cN = inRange ? '' : (Math.abs(dN) <= 2 ? 'warn' : 'bad');
+    rows.push('<tr><td>Number of instruments</td>' +
+              '<td>' + _state.instMin + '–' + _state.instMax + '</td>' +
+              '<td>' + actualN + '</td>' +
+              '<td' + (cN ? ' class="' + cN + '"' : '') + '>' +
+              (inRange ? '✓ in range' : (dN > 0 ? '+' : '') + dN) + '</td></tr>');
 
     /* M-Cap rows */
     ['large', 'mid', 'small', 'flexi'].forEach(b => {
       const t = targetMC[b] || 0;
       const a = actualMC[b] || 0;
       const d = a - t;
-      const [icn, cls] = status(d);
-      rows.push('<tr><td>' + MC_LABEL[b] + '</td><td>' + t.toFixed(0) + '%</td>' +
+      const cls = deltaClass(d);
+      rows.push('<tr><td>' + MC_LABEL[b] + '</td>' +
+                '<td>' + t.toFixed(0) + '%</td>' +
                 '<td>' + a.toFixed(0) + '%</td>' +
-                '<td' + (cls === 'err' ? ' class="bad"' : '') + '>' + (d > 0 ? '+' : '') + d.toFixed(0) + '%</td>' +
-                '<td class="status">' + icn + '</td></tr>');
+                '<td' + (cls ? ' class="' + cls + '"' : '') + '>' +
+                (d > 0 ? '+' : '') + d.toFixed(0) + '%</td></tr>');
     });
 
-    /* Sector rows (only for custom-mode targets) */
-    if (_state.sectorMode === 'custom' && Object.keys(_state.sectorTargets).length) {
+    /* Sector rows — manual_full or manual_partial active typed targets only */
+    let activeSecTargets = {};
+    if (_state.sectorMode === 'manual_full') {
+      activeSecTargets = _state.sectorTargets;
+    } else if (_state.sectorMode === 'manual_partial') {
+      Object.keys(_state.sectorTargets).forEach(s => {
+        if (!_state.sectorAutoFlags[s]) activeSecTargets[s] = _state.sectorTargets[s];
+      });
+    }
+    if (Object.keys(activeSecTargets).length) {
       const actualSec = {};
       const totalW = f.reduce((s, x) => s + x._weight, 0);
       f.forEach(x => {
@@ -1479,20 +1825,21 @@
           actualSec[s.sector] = (actualSec[s.sector] || 0) + (x._weight / totalW) * s.holding_pct;
         });
       });
-      Object.keys(_state.sectorTargets).forEach(sec => {
-        const t = _state.sectorTargets[sec];
+      Object.keys(activeSecTargets).forEach(sec => {
+        const t = activeSecTargets[sec];
         const a = actualSec[sec] || 0;
         const d = a - t;
-        const [icn, cls] = status(d);
-        rows.push('<tr><td>Sector: ' + escapeHtml(sec) + '</td><td>' + t.toFixed(0) + '%</td>' +
+        const cls = deltaClass(d);
+        rows.push('<tr><td>Sector: ' + escapeHtml(sec) + '</td>' +
+                  '<td>' + t.toFixed(0) + '%</td>' +
                   '<td>' + a.toFixed(1) + '%</td>' +
-                  '<td' + (cls === 'err' ? ' class="bad"' : '') + '>' + (d > 0 ? '+' : '') + d.toFixed(1) + '%</td>' +
-                  '<td class="status">' + icn + '</td></tr>');
+                  '<td' + (cls ? ' class="' + cls + '"' : '') + '>' +
+                  (d > 0 ? '+' : '') + d.toFixed(1) + '%</td></tr>');
       });
     }
 
     document.getElementById('planTbl').innerHTML =
-      '<thead><tr><th>Parameter</th><th>Target</th><th>Actual</th><th>Δ</th><th>Status</th></tr></thead>' +
+      '<thead><tr><th>Parameter</th><th>Target</th><th>Actual</th><th>Δ</th></tr></thead>' +
       '<tbody>' + rows.join('') + '</tbody>';
 
     /* Auto-flags */
@@ -1500,11 +1847,19 @@
     if (_portfolio.comingSoonNote) {
       flags.push('Debt MF, Bonds, AIF, PMS, Direct Equity, Commodities, and REITs/InvITs are not yet available in this version. Your portfolio is built entirely from Equity and Hybrid MF. The non-equity allocation has been redistributed proportionally to Equity. They will be incorporated automatically once the relevant data pipelines are live.');
     }
-    if (Math.abs(dN) > 1) {
-      flags.push('You requested ' + targetN + ' instruments; the engine selected ' + actualN + '. Difference reflects bucket-level rounding to integer fund counts and overlap dedup that prevented near-duplicate selections.');
+    if (!inRange) {
+      flags.push('You requested ' + _state.instMin + '–' + _state.instMax + ' instruments; the engine selected ' + actualN + '. Difference reflects the 2-fund-per-category cap, bucket-level rounding to integer fund counts, and overlap dedup that prevented near-duplicate selections.');
     }
-    /* Sector misses */
-    if (_state.sectorMode === 'custom') {
+    /* Sector misses — manual_full + manual_partial typed targets */
+    let activeSecForFlags = {};
+    if (_state.sectorMode === 'manual_full') {
+      activeSecForFlags = _state.sectorTargets;
+    } else if (_state.sectorMode === 'manual_partial') {
+      Object.keys(_state.sectorTargets).forEach(s => {
+        if (!_state.sectorAutoFlags[s]) activeSecForFlags[s] = _state.sectorTargets[s];
+      });
+    }
+    if (Object.keys(activeSecForFlags).length) {
       const totalW = f.reduce((s, x) => s + x._weight, 0);
       const actualSec = {};
       f.forEach(x => {
@@ -1514,8 +1869,8 @@
           actualSec[s.sector] = (actualSec[s.sector] || 0) + (x._weight / totalW) * s.holding_pct;
         });
       });
-      Object.keys(_state.sectorTargets).forEach(sec => {
-        const t = _state.sectorTargets[sec], a = actualSec[sec] || 0;
+      Object.keys(activeSecForFlags).forEach(sec => {
+        const t = activeSecForFlags[sec], a = actualSec[sec] || 0;
         if (Math.abs(a - t) > 5) {
           flags.push('Sector "' + sec + '" target was ' + t + '%; achieved ' + a.toFixed(1) +
                      '%. Constrained by limited Ranked / Focused funds with high ' + sec + ' weight in the eligible m-cap buckets.');
@@ -1548,64 +1903,102 @@
       '<div class="pb-plan-flag">' + escapeHtml(t) + '</div>').join('');
   }
 
-  /* -- FUND PERFORMANCES -- */
+  /* -- FUND PERFORMANCES — grouped table -- */
   function renderFundsTab() {
-    const wrap = document.getElementById('pbFundsPerf');
-    const periods = ['ytd_pct', 'return_1m_pct', 'return_1y_pct', 'return_3y_pct', 'return_5y_pct', 'return_10y_pct'];
-    const labels  = ['YTD', '1M', '1Y', '3Y', '5Y', '10Y'];
+    const body = document.getElementById('pbFundsPerfBody');
+    if (!body) return;
+    const totalAmt = _state.totalAmount;
 
-    wrap.innerHTML = _portfolio.funds.map(f => {
-      const r = f.monitor_returns || {};
-      const b = f.benchmark_monitor_returns || {};
-      const valCells = periods.map(p => {
-        const v = r[p];
-        if (v == null) return '<div class="v">—</div>';
-        const cls = v < 0 ? 'neg' : 'pos';
-        return '<div class="v ' + cls + '">' + (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2) + '%</div>';
-      }).join('');
-      const headers = labels.map(l => '<div class="hd">' + l + '</div>').join('');
-      const benchLine = (f.benchmark)
-        ? 'Benchmark: ' + escapeHtml(f.benchmark) + ' · 1Y: ' + fmtV(b.return_1y_pct) +
-          ' · 3Y: ' + fmtV(b.return_3y_pct) + ' · 5Y: ' + fmtV(b.return_5y_pct)
-        : 'Benchmark: —';
-      return '<div class="pb-fund-card">' +
-             '<div class="pb-fund-card-h">' +
-               '<span class="nm">' + escapeHtml(f.fund_name) + '</span>' +
-               '<span class="meta">' + escapeHtml(f.category) + ' · <span class="tier-pill tier-' + f._tier + '">' + f._tier + '</span></span>' +
-               '<span class="alloc">' + (f._weight || 0).toFixed(0) + '%</span>' +
-             '</div>' +
-             '<div class="pb-fund-rtns">' +
-               '<div class="hd">Period</div>' + headers +
-               '<div class="row-lbl">' + escapeHtml(f.fund_name.split(' ').slice(0, 2).join(' ')) + '</div>' +
-               valCells +
-             '</div>' +
-             '<div class="pb-fund-bench">' + benchLine + '</div>' +
-             '</div>';
-    }).join('');
-
-    /* Benchmark coverage table */
-    const bencheSet = {};
-    _portfolio.funds.forEach(f => {
-      if (!f.benchmark) return;
-      if (bencheSet[f.benchmark]) return;
-      const b = f.benchmark_monitor_returns || {};
-      bencheSet[f.benchmark] = b;
-    });
-    const benches = Object.keys(bencheSet);
-    if (benches.length === 0) {
-      document.getElementById('pbBenchTbl').innerHTML = '<tbody><tr><td>—</td></tr></tbody>';
-      return;
+    function vcell(v) {
+      if (v == null) return '<td>—</td>';
+      const cls = v < 0 ? 'v-neg' : 'v-pos';
+      return '<td class="' + cls + '">' + (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2) + '%</td>';
     }
-    document.getElementById('pbBenchTbl').innerHTML =
-      '<thead><tr><th>Benchmark</th><th>1Y</th><th>3Y</th><th>5Y</th><th>10Y</th></tr></thead><tbody>' +
-      benches.map(bn => {
-        const b = bencheSet[bn];
-        return '<tr><td>' + escapeHtml(bn) + '</td>' +
-               '<td>' + fmtV(b.return_1y_pct) + '</td>' +
-               '<td>' + fmtV(b.return_3y_pct) + '</td>' +
-               '<td>' + fmtV(b.return_5y_pct) + '</td>' +
-               '<td>' + fmtV(b.return_10y_pct) + '</td></tr>';
-      }).join('') + '</tbody>';
+    function vcellOnly(v) {
+      if (v == null) return '—';
+      const cls = v < 0 ? 'v-neg' : 'v-pos';
+      return '<span class="' + cls + '">' + (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2) + '%</span>';
+    }
+
+    /* Group funds by sub_category_class then category, ordered per CATEGORY_ORDER. */
+    const equity = _portfolio.funds.filter(f => f.sub_category_class === 'Equity');
+    const hybrid = _portfolio.funds.filter(f => f.sub_category_class === 'Hybrid');
+
+    function buildGroupedRows(funds) {
+      const byCat = {};
+      funds.forEach(f => {
+        if (!byCat[f.category]) byCat[f.category] = [];
+        byCat[f.category].push(f);
+      });
+      const orderedCats = CATEGORY_ORDER.filter(c => byCat[c]);
+      Object.keys(byCat).forEach(c => { if (!orderedCats.includes(c)) orderedCats.push(c); });
+      let html = '';
+      orderedCats.forEach(cat => {
+        const inGroup = byCat[cat].slice().sort((a, b) => (b._weight || 0) - (a._weight || 0));
+        html += '<tr class="pb-cat-group-hdr"><td colspan="11">' + escapeHtml(cat) + '</td></tr>';
+        const benchesSeen = new Set();
+        inGroup.forEach(f => {
+          const r  = f.monitor_returns || {};
+          const incep = formatInception(f.inception_date);
+          const aum   = (f.aum_cr != null) ? formatINR(Math.round(f.aum_cr * 1e7)) : '—';
+          const aumShort = (f.aum_cr != null) ? DataLoader.fmtINR(f.aum_cr) : '—';
+          const w = f._weight || 0;
+          const rsAmt = w * totalAmt / 100;
+          const mc = f.mcap_split || {};
+          const mcMini = (Object.keys(mc).length === 0)
+            ? '—'
+            : 'L:<b>' + Math.round(mc.large_pct || 0) + '</b> M:<b>' +
+              Math.round(mc.mid_pct || 0) + '</b> S:<b>' +
+              Math.round(mc.small_pct || 0) + '</b> O:<b>' +
+              Math.round(mc.others_pct || 0) + '</b>';
+          html += '<tr class="fund-row">' +
+                  '<td><a class="fund-link" href="fund-detail.html?scheme=' + f.scheme_code + '" target="_blank" rel="noopener">' +
+                    escapeHtml(f.fund_name) + '</a></td>' +
+                  '<td>' + incep + '</td>' +
+                  '<td>' + aumShort + '</td>' +
+                  '<td class="pb-alloc-cell">' +
+                    '<span class="alloc-pct">' + w.toFixed(0) + '%</span>' +
+                    '<span class="alloc-amt">' + formatINR(rsAmt) + '</span></td>' +
+                  vcell(r.return_1m_pct) + vcell(r.return_1y_pct) + vcell(r.return_3y_pct) +
+                  vcell(r.return_5y_pct) + vcell(r.return_10y_pct) +
+                  '<td>' + ((f.rolling_3y_avg_pct != null) ? vcellOnly(f.rolling_3y_avg_pct) : '—') + '</td>' +
+                  '<td><span class="mcap-mini">' + mcMini + '</span></td>' +
+                  '</tr>';
+        });
+        /* One benchmark row per group (skip if all funds share same benchmark already shown) */
+        const firstWithBench = inGroup.find(x => x.benchmark);
+        if (firstWithBench && !benchesSeen.has(firstWithBench.benchmark)) {
+          benchesSeen.add(firstWithBench.benchmark);
+          const b = firstWithBench.benchmark_monitor_returns || {};
+          html += '<tr class="pb-bench-row">' +
+                  '<td class="bench-lbl">Benchmark: <em>' + escapeHtml(firstWithBench.benchmark) + '</em></td>' +
+                  '<td>—</td><td>—</td><td>—</td>' +
+                  vcell(b.return_1m_pct) + vcell(b.return_1y_pct) + vcell(b.return_3y_pct) +
+                  vcell(b.return_5y_pct) + vcell(b.return_10y_pct) +
+                  '<td>—</td><td>—</td></tr>';
+        }
+      });
+      return html;
+    }
+
+    let bodyHtml = '';
+    if (equity.length) {
+      bodyHtml += '<tr class="pb-subclass-hdr"><td colspan="11">Equity Funds</td></tr>';
+      bodyHtml += buildGroupedRows(equity);
+    }
+    if (hybrid.length) {
+      bodyHtml += '<tr class="pb-subclass-hdr"><td colspan="11">Hybrid Funds</td></tr>';
+      bodyHtml += buildGroupedRows(hybrid);
+    }
+    body.innerHTML = bodyHtml;
+  }
+
+  function formatInception(iso) {
+    if (!iso) return '—';
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso));
+    if (!m) return '—';
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return months[+m[2] - 1] + ' ' + m[1];
   }
 
   function fmtV(v) {
@@ -1728,6 +2121,56 @@
     return '₹' + DataLoader.fmtINR(rupees);
   }
 
+  /* Indian-comma full integer rupee format. ₹5,00,000 / ₹2,50,00,000. */
+  function formatINRFull(rupees) {
+    if (rupees == null || isNaN(rupees)) return '—';
+    try {
+      return '₹' + new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(Math.round(rupees));
+    } catch (e) {
+      return '₹' + DataLoader.fmtINR(rupees);
+    }
+  }
+
+  /* Indian numeric → words. Returns "Fifty Lakhs", "One Crore Twenty Lakhs", etc.
+     Uses Lakh / Crore (no Million / Billion). */
+  function rupeeWords(n) {
+    if (n == null || isNaN(n) || n < 0) return '';
+    n = Math.round(n);
+    if (n === 0) return 'Zero';
+    const ONES = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
+      'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+    const TENS = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+    function below100(x) {
+      if (x < 20) return ONES[x];
+      const t = Math.floor(x / 10), o = x % 10;
+      return TENS[t] + (o ? ' ' + ONES[o] : '');
+    }
+    function below1000(x) {
+      if (x < 100) return below100(x);
+      const h = Math.floor(x / 100), rest = x % 100;
+      return ONES[h] + ' Hundred' + (rest ? ' ' + below100(rest) : '');
+    }
+    /* Crore = 1e7, Lakh = 1e5, Thousand = 1e3 */
+    const cr = Math.floor(n / 1e7);
+    const lk = Math.floor((n % 1e7) / 1e5);
+    const th = Math.floor((n % 1e5) / 1e3);
+    const rest = n % 1e3;
+    const parts = [];
+    if (cr) parts.push(below1000(cr) + ' Crore' + (cr > 1 ? '' : ''));
+    if (lk) parts.push(below1000(lk) + ' Lakh' + (lk > 1 ? 's' : ''));
+    if (th) parts.push(below100(th) + ' Thousand');
+    if (rest) parts.push(below1000(rest));
+    return parts.join(' ');
+  }
+
+  function updateAmountWords() {
+    const el = document.getElementById('totalAmtWords');
+    if (!el) return;
+    const amt = _state.totalAmount;
+    if (!amt || amt <= 0) { el.textContent = '—'; return; }
+    el.textContent = formatINRFull(amt) + ' — ' + rupeeWords(amt);
+  }
+
   function shiftYM(ym, deltaMonths) {
     const [y, m] = ym.split('-').map(Number);
     const d = new Date(Date.UTC(y, m - 1 + deltaMonths, 1));
@@ -1784,13 +2227,20 @@
   function getWizardSnapshot() {
     return {
       risk: _state.risk, horizon: _state.horizon,
-      instrumentCount: _state.instrumentCount,
-      allocMode: _state.allocMode, allocManual: Object.assign({}, _state.allocManual),
+      instMin: _state.instMin, instMax: _state.instMax,
+      optimiseFunds: _state.optimiseFunds,
+      allocMode: _state.allocMode,
+      allocManual:       Object.assign({}, _state.allocManual),
+      allocPartialFlags: Object.assign({}, _state.allocPartialFlags),
+      includeGlobalMF: _state.includeGlobalMF,
       selectedProducts: Object.assign({}, _state.selectedProducts),
-      openClosedTypes: Object.assign({}, _state.openClosedTypes),
-      mcapMode: _state.mcapMode, mcapManual: Object.assign({}, _state.mcapManual),
+      openClosedTypes:  Object.assign({}, _state.openClosedTypes),
+      mcapMode: _state.mcapMode,
+      mcapManual:    Object.assign({}, _state.mcapManual),
       mcapAutoFlags: Object.assign({}, _state.mcapAutoFlags),
-      sectorMode: _state.sectorMode, sectorTargets: Object.assign({}, _state.sectorTargets),
+      sectorMode: _state.sectorMode,
+      sectorTargets:   Object.assign({}, _state.sectorTargets),
+      sectorAutoFlags: Object.assign({}, _state.sectorAutoFlags),
       forceFunds: _state.forceFunds.slice(),
       totalAmount: _state.totalAmount,
     };
@@ -1798,8 +2248,15 @@
 
   function loadWizardSnapshot(snap) {
     if (!snap) return;
+    /* Migrate v1 saved snapshots that used `instrumentCount` */
+    if (snap.instrumentCount && !snap.instMin) {
+      snap.instMin = Math.max(3, Math.min(30, snap.instrumentCount - 2));
+      snap.instMax = Math.max(snap.instMin, Math.min(30, snap.instrumentCount + 5));
+      delete snap.instrumentCount;
+    }
+    if (snap.sectorMode === 'custom') snap.sectorMode = 'manual_full';
     Object.assign(_state, snap);
-    /* Re-render UI */
+    /* Step 1 */
     if (snap.risk) {
       document.querySelectorAll('#riskPills .pill').forEach(p =>
         p.classList.toggle('active', p.dataset.risk === snap.risk));
@@ -1808,17 +2265,27 @@
       document.querySelectorAll('#horizonPills .pill').forEach(p =>
         p.classList.toggle('active', p.dataset.h === snap.horizon));
     }
-    document.getElementById('instCount').value = snap.instrumentCount || 10;
-    document.getElementById('instCountVal').textContent = snap.instrumentCount || 10;
+    document.getElementById('instMin').value = snap.instMin || 8;
+    document.getElementById('instMax').value = snap.instMax || 15;
+    const opt = document.getElementById('optimiseFunds');
+    if (opt) opt.checked = snap.optimiseFunds !== false;
+    /* Step 2 */
     document.querySelectorAll('[data-alloc-mode]').forEach(b =>
       b.classList.toggle('active', b.dataset.allocMode === snap.allocMode));
-    document.getElementById('allocAutoView').hidden = (snap.allocMode !== 'auto');
-    document.getElementById('allocManualView').hidden = (snap.allocMode !== 'manual');
+    document.getElementById('allocAutoView').hidden    = (snap.allocMode !== 'auto');
+    document.getElementById('allocManualView').hidden  = (snap.allocMode !== 'manual');
+    document.getElementById('allocPartialView').hidden = (snap.allocMode !== 'partial');
     Object.keys(snap.allocManual || {}).forEach(b => {
-      const inp = document.querySelector('.alloc-in[data-bucket="' + b + '"]');
-      if (inp) inp.value = snap.allocManual[b];
+      const inp1 = document.querySelector('.alloc-in[data-bucket="' + b + '"]');
+      if (inp1) inp1.value = snap.allocManual[b];
+      const inp2 = document.querySelector('.alloc-pin[data-bucket="' + b + '"]');
+      if (inp2) inp2.value = snap.allocManual[b];
     });
-    refreshAutoTables(); validateAllocSum();
+    Object.keys(snap.allocPartialFlags || {}).forEach(b => {
+      const c = document.querySelector('.alloc-pauto[data-bucket="' + b + '"]');
+      if (c) c.checked = !!snap.allocPartialFlags[b];
+    });
+    refreshAutoTables(); refreshAllocPartialMode(); validateAllocSum();
     /* Step 3 */
     document.querySelectorAll('[data-mcap-mode]').forEach(b =>
       b.classList.toggle('active', b.dataset.mcapMode === snap.mcapMode));
@@ -1828,17 +2295,23 @@
       const inp = document.querySelector('.mcap-in[data-bucket="' + b + '"]');
       if (inp) inp.value = snap.mcapManual[b];
     });
+    Object.keys(snap.mcapAutoFlags || {}).forEach(b => {
+      const c = document.querySelector('.mcap-auto[data-bucket="' + b + '"]');
+      if (c) c.checked = !!snap.mcapAutoFlags[b];
+    });
     refreshMcapManualMode(); validateMcapSum();
     /* Step 4 */
     document.querySelectorAll('[data-sector-mode]').forEach(b =>
       b.classList.toggle('active', b.dataset.sectorMode === snap.sectorMode));
-    document.getElementById('sectorAutoView').hidden = (snap.sectorMode !== 'auto');
-    document.getElementById('sectorCustomView').hidden = (snap.sectorMode !== 'custom');
+    document.getElementById('sectorAutoView').hidden    = (snap.sectorMode !== 'auto');
+    document.getElementById('sectorFullView').hidden    = (snap.sectorMode !== 'manual_full');
+    document.getElementById('sectorPartialView').hidden = (snap.sectorMode !== 'manual_partial');
     renderSectorList(); validateSectorSum();
     /* Step 5 */
     renderForceChips();
     /* Snap to step 1 */
     goToStep(1);
+    updateStep1Next();
     showToast('Loaded saved portfolio');
   }
 
@@ -1862,7 +2335,8 @@
     const params = new URLSearchParams();
     params.set('risk', _state.risk || '');
     params.set('horizon', _state.horizon || '');
-    params.set('n', _state.instrumentCount);
+    params.set('min', _state.instMin);
+    params.set('max', _state.instMax);
     params.set('amt', _state.totalAmount);
     if (_state.forceFunds.length) {
       params.set('force', _state.forceFunds.map(f => f.scheme_code).join(','));
