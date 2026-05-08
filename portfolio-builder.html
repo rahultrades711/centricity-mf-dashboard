@@ -64,7 +64,8 @@
       <li class="step"          data-step="2"><span class="dot">2</span><span class="lbl">Allocation</span></li>
       <li class="step"          data-step="3"><span class="dot">3</span><span class="lbl">M-Cap</span></li>
       <li class="step"          data-step="4"><span class="dot">4</span><span class="lbl">Sectors</span></li>
-      <li class="step"          data-step="5"><span class="dot">5</span><span class="lbl">Finalize</span></li>
+      <li class="step"          data-step="5"><span class="dot">5</span><span class="lbl">Precision</span></li>
+      <li class="step"          data-step="6"><span class="dot">6</span><span class="lbl">Finalize</span></li>
     </ol>
 
     <!-- STEP 1 — Profile -->
@@ -246,8 +247,56 @@
       </div>
     </section>
 
-    <!-- STEP 5 — Finalize -->
+    <!-- STEP 5 — Precision Mode -->
     <section class="pb-step" data-step-pane="5">
+      <h3 class="pb-step-h">Parameter Matching Preference</h3>
+      <p class="pb-help" style="margin-top:-2px;">Tell the engine how to balance fund quality (tier) against your sector / thematic targets.</p>
+
+      <div class="pb-precision-cards">
+
+        <label class="pb-precision-card">
+          <input type="radio" name="precisionMode" value="fit" checked>
+          <div class="pb-precision-inner">
+            <div class="pb-precision-title">Best Fit as per Parameters</div>
+            <div class="pb-precision-body">
+              <strong>Parameters first (90–100% importance).</strong> Funds ranked primarily by how well they satisfy your sector and thematic targets. Within equal sector match, engine prefers Focused → Ranked → Unranked funds. Tightest deviation from target m-cap mix.
+            </div>
+            <div class="pb-precision-use">Best when you have specific sector or thematic views (Power, Healthcare, Banking, etc.)</div>
+          </div>
+        </label>
+
+        <label class="pb-precision-card">
+          <input type="radio" name="precisionMode" value="focused">
+          <div class="pb-precision-inner">
+            <div class="pb-precision-title">Centricity Focused</div>
+            <div class="pb-precision-body">
+              <strong>Focused funds + parameters (75–90% importance).</strong> Selects from Centricity's focused list first, then tries to satisfy sector targets within that universe. If focused funds fall short on sector coverage, engine falls to Ranked then Unranked. Deviation 5–15% from target m-cap.
+            </div>
+            <div class="pb-precision-use">Best for curated portfolios anchored to Centricity's highest-conviction funds</div>
+          </div>
+        </label>
+
+        <label class="pb-precision-card">
+          <input type="radio" name="precisionMode" value="ranked">
+          <div class="pb-precision-inner">
+            <div class="pb-precision-title">Ranking Focused</div>
+            <div class="pb-precision-body">
+              <strong>Quality over parameters (75–90% importance).</strong> Ranked funds get top priority; sector targets are secondary. Engine selects best-ranked funds first, then tries to fulfil parameters; if Ranked universe falls short, falls to Focused then Unranked. Deviation 5–20% from target m-cap.
+            </div>
+            <div class="pb-precision-use">Best for standard diversified portfolios — quality is the primary driver</div>
+          </div>
+        </label>
+
+      </div>
+
+      <div class="pb-step-foot">
+        <button class="pb-btn ghost" data-back="5">← Back</button>
+        <button class="pb-btn primary" id="step5Next">Next →</button>
+      </div>
+    </section>
+
+    <!-- STEP 6 — Finalize -->
+    <section class="pb-step" data-step-pane="6">
       <h3 class="pb-step-h">Force-Include Funds <span class="pb-step-h-sub">(optional, max 5)</span></h3>
       <p class="pb-help" style="margin-top:-2px;">Funds added here bypass the eligibility filter and get included regardless of scoring. Their allocation is deducted from the relevant category before the engine runs.</p>
       <div class="pb-force-row">
@@ -264,7 +313,7 @@
       <div class="pb-saved-list" id="savedPortList"></div>
 
       <div class="pb-step-foot pb-final-foot">
-        <button class="pb-btn ghost" data-back="5">← Back</button>
+        <button class="pb-btn ghost" data-back="6">← Back</button>
         <button class="pb-btn primary big" id="generateBtn" disabled>GENERATE PORTFOLIO</button>
       </div>
       <div class="pb-reset-row">
@@ -318,21 +367,23 @@
       <div class="pb-table-block">
         <h4>Selected Funds</h4>
         <div class="pb-tbl-wrap" id="pbFundsTblWrap"></div>
-        <div class="pb-alloc-note err" id="pbAllocNote" hidden>⚠ Total allocation is <span id="pbAllocNoteVal">—</span>%. Adjust funds to reach 100%.</div>
+        <p class="pb-alloc-note" id="pbAllocNote"></p>
         <div class="pb-warnings" id="pbWarnings"></div>
       </div>
     </div>
 
     <div class="pb-tab-pane" data-tab-pane="returns" hidden>
       <div class="pb-chart-card">
-        <h4>Blended Portfolio Growth of ₹1,00,000</h4>
+        <h4>Blended Portfolio Growth of &#x20B9;1,00,000</h4>
         <div class="pb-chart-controls" id="navWindowToggles">
           <button class="window-btn" data-window="1y">1Y</button>
           <button class="window-btn" data-window="3y">3Y</button>
           <button class="window-btn active" data-window="max">Max</button>
         </div>
-        <div class="pb-nav-chart-wrap"><canvas id="navChart"></canvas></div>
-        <div class="pb-chart-cap" id="navChartCap">—</div>
+        <div class="pb-nav-chart-wrap">
+          <canvas id="navChart" height="320"></canvas>
+        </div>
+        <div class="pb-chart-cap" id="navChartCap">&#x2014;</div>
       </div>
       <div class="pb-table-block">
         <h4>Returns Summary</h4>
@@ -344,10 +395,10 @@
       <div class="pb-anly-grid">
         <div class="pb-anly-card"><h4>Asset Allocation</h4><canvas id="anlyAcDonut" width="220" height="220"></canvas><div class="pb-donut-legend" id="anlyAcLegend"></div></div>
         <div class="pb-anly-card"><h4>M-Cap Allocation</h4><canvas id="anlyMcDonut" width="220" height="220"></canvas><div class="pb-donut-legend" id="anlyMcLegend"></div></div>
-        <div class="pb-anly-card pb-anly-wide"><h4>Sector Allocation (top 10)</h4><div id="anlySectors"></div><div class="pb-anly-counts" id="anlyCountLine">Portfolio spans <b id="anlySecCount">—</b> unique sectors · <b id="anlyStockCount">—</b> unique stocks</div></div>
+        <div class="pb-anly-card pb-anly-wide"><h4>Sector Allocation (top 10)</h4><div class="anly-count-line" id="anlyCountLine"></div><div id="anlySectors"></div></div>
         <div class="pb-anly-card pb-anly-wide"><h4>Top 10 Stocks (aggregated)</h4><div id="anlyStocks"></div></div>
         <div class="pb-anly-card pb-anly-wide"><h4>AMC Allocation</h4><div id="anlyAmcs"></div></div>
-        <div class="pb-anly-card"><h4>Credit Quality</h4><div class="pb-cs-empty">Coming soon — populates when Debt allocation data is added.</div></div>
+        <div class="pb-anly-card"><h4>Credit Quality</h4><div class="pb-cs-empty">Coming soon &#x2014; populates when Debt allocation data is added.</div></div>
       </div>
     </div>
 
@@ -359,26 +410,11 @@
     </div>
 
     <div class="pb-tab-pane" data-tab-pane="funds" hidden>
-      <div class="pb-funds-tbl-wrap">
-        <table class="pb-funds-perf-tbl">
-          <thead>
-            <tr>
-              <th data-fcol="fund_name">Fund</th>
-              <th>Incep.</th>
-              <th>AUM (₹Cr)</th>
-              <th>Allocation</th>
-              <th>1M</th>
-              <th>1Y</th>
-              <th>3Y</th>
-              <th>5Y</th>
-              <th>10Y</th>
-              <th>3Y Rolling</th>
-              <th>M-Cap</th>
-            </tr>
-          </thead>
-          <tbody id="pbFundsPerfBody"></tbody>
-        </table>
-      </div>
+      <table class="pb-funds-perf-tbl" id="pbFundsPerfTbl"></table>
+    </div>
+
+    <div id="pbParamFallbackNote" class="pb-param-fallback-note" hidden>
+      ⚠ The sector parameters could not be precisely matched in Best Fit mode. Showing Centricity Focused portfolio instead.
     </div>
 
   </section>
@@ -390,12 +426,12 @@
 <footer class="appfoot" role="contentinfo">
   <div class="left">
     <span class="gold">CENTRICITY WEALTHTECH</span>
-    <span>·</span>
+    <span>&#xB7;</span>
     <span>Products Team</span>
-    <span>·</span>
+    <span>&#xB7;</span>
     <span>Confidential</span>
   </div>
-  <div class="right" id="footUpdated">Last updated · —</div>
+  <div class="right" id="footUpdated">Last updated &#xB7; &#x2014;</div>
 </footer>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>

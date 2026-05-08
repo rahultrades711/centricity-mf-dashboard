@@ -684,6 +684,20 @@ select:focus-visible,
 }
 
 /* ============================================================
+   11a. FUND-DETAIL TOP-25 PICKER — centered on the no-args page
+        Only the picker block carries .top25-picker so the rule does NOT
+        affect the regular fund-detail returns table on a loaded fund.
+   ============================================================ */
+.top25-picker {
+  max-width: 900px;
+  margin: 0 auto;
+}
+.top25-picker .perf-table-wrap {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+/* ============================================================
    12a. GLOBAL SEARCH DROPDOWN (js/search.js — Fix-List 12)
         Anchored under header.appbar .search; extends LEFT from the input's
         right edge so the 360-px panel doesn't clip on smaller viewports.

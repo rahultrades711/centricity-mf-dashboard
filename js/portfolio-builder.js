@@ -267,6 +267,7 @@
     sectorAutoFlags: {},                     // partial mode: {sectorName: true} when Auto
     forceFunds: [],
     totalAmount: 5000000,
+    precisionMode: 'fit',          // 'fit' | 'focused' | 'ranked'
   };
 
   /* Output state set by the engine. */
@@ -765,7 +766,15 @@
     });
 
     /* Generate */
+    /* Step 5 — Precision Mode */
     document.querySelector('[data-back="5"]').addEventListener('click', () => goToStep(4));
+    document.querySelectorAll('input[name="precisionMode"]').forEach(r => {
+      r.addEventListener('change', () => { _state.precisionMode = r.value; });
+    });
+    document.getElementById('step5Next').addEventListener('click', () => goToStep(6));
+
+    /* Step 6 — Finalize (back to precision) */
+    document.querySelector('[data-back="6"]').addEventListener('click', () => goToStep(5));
     document.getElementById('generateBtn').addEventListener('click', () => generatePortfolio());
 
     /* Stepper navigation back to completed steps */
@@ -879,9 +888,17 @@
     });
     refreshAutoTables();
     if (n === 4) renderSectorList();
+    if (n === 5) refreshPrecisionStep();
     updateGenerateBtn();
     /* Auto-scroll wizard panel to top */
     document.getElementById('pbWizard').scrollTop = 0;
+  }
+
+  function refreshPrecisionStep() {
+    /* Sync radio to current state (e.g., after loadWizardSnapshot) */
+    document.querySelectorAll('input[name="precisionMode"]').forEach(r => {
+      r.checked = (r.value === _state.precisionMode);
+    });
   }
 
   function updateGenerateBtn() {
@@ -922,6 +939,28 @@
     try {
       _portfolio = runSelectionEngine();
       saveLastWizardState();
+
+      /* Fit-mode fallback: if the user is in 'fit' mode AND has sector targets
+         but the engine produced no funds (or fewer than instMin) with any
+         sector bonus, the parameters are unreachable. Silently re-run in
+         'focused' mode and surface a polite note so partners aren't confused. */
+      const fallbackNoteEl = document.getElementById('pbParamFallbackNote');
+      let usedFallback = false;
+      if (_state.precisionMode === 'fit') {
+        const hasSectors = (_state.sectorMode === 'manual_full' || _state.sectorMode === 'manual_partial')
+                            && Object.keys(_state.sectorTargets || {}).length > 0;
+        const minTarget = _state.instMin || 3;
+        const noSectorMatched = _portfolio.funds.every(f => !((f._sectorBonus || 0) > 0));
+        if (hasSectors && noSectorMatched && _portfolio.funds.length < minTarget) {
+          const savedMode = _state.precisionMode;
+          _state.precisionMode = 'focused';
+          _portfolio = runSelectionEngine();
+          _state.precisionMode = savedMode;     // restore wizard state
+          usedFallback = true;
+        }
+      }
+      if (fallbackNoteEl) fallbackNoteEl.hidden = !usedFallback;
+
       if (!_portfolio.funds.length) {
         document.getElementById('pbOutEmpty').hidden = false;
         document.getElementById('pbOutEmpty').querySelector('h3').textContent = 'No funds matched your criteria';
@@ -929,7 +968,8 @@
         showToast('No eligible funds — broaden criteria');
       } else {
         renderOutput();
-        showToast('Portfolio generated · ' + _portfolio.funds.length + ' funds');
+        showToast('Portfolio generated · ' + _portfolio.funds.length + ' funds' +
+                  (usedFallback ? ' · fallback to Focused' : ''));
       }
     } catch (e) {
       console.error('[pb] generation failed', e);
@@ -945,13 +985,22 @@
     /* Step 1 — universe */
     let universe = _allFunds.slice();
 
-    /* Step 2 — tier classification */
+    /* Step 2 — tier classification
+       Priority order (per Centricity spec):
+         0 FOCUSED   — on the Focused Selling List (focused-funds.json)
+         1 RANKED    — centricity_score_status === 'Ranked'
+         2 UNRANKED  — all other statuses with > 1 yr track record
+         3 NEW_FUND  — inception date within the last 12 months (least preferred)
+    */
     const focusedSet = new Set(_focusedSchemes);
+    const _oneYrAgo = new Date();
+    _oneYrAgo.setFullYear(_oneYrAgo.getFullYear() - 1);
     universe.forEach(f => {
-      f._tier = (focusedSet.has(f.scheme_code))                ? 'FOCUSED'
-              : (f.centricity_score_status === 'Ranked')       ? 'RANKED'
-              : (f.verdict === 'REVIEW')                       ? 'REVIEW'
-              :                                                  'UNRANKED';
+      const isNew = f.inception_date && (new Date(f.inception_date) > _oneYrAgo);
+      f._tier = focusedSet.has(f.scheme_code)              ? 'FOCUSED'
+              : f.centricity_score_status === 'Ranked'     ? 'RANKED'
+              : isNew                                      ? 'NEW_FUND'
+              :                                             'UNRANKED';
     });
 
     /* Step 3 — product filter */
@@ -1042,21 +1091,49 @@
             bonus += (sectorTargets[s.sector] / 100) * (s.holding_pct / 100);
           }
         });
-        f._sectorBonus = bonus;  // small numeric add to score
+        /* In Best Fit mode the bonus must outweigh tier differences in sortFn.
+           We scale by 100 so values land in ~0–1 range (same ballpark as centricity_score). */
+        f._sectorBonus = bonus * 100;
       });
     } else {
       universe.forEach(f => { f._sectorBonus = 0; });
     }
 
-    const TIER_RANK = { FOCUSED: 0, RANKED: 1, REVIEW: 2, UNRANKED: 3 };
+    /* Three precision modes — sortFn picks one based on _state.precisionMode.
+       'fit'     → sector alignment wins absolutely (90–100% importance).
+       'focused' → FOCUSED tier first, score+sector tiebreak (75–90%).
+       'ranked'  → RANKED tier first (priority 0), FOCUSED at 1 (75–90%). */
+    const TIER_RANK_FIT     = { FOCUSED: 0, RANKED: 1, UNRANKED: 2, NEW_FUND: 3 };
+    const TIER_RANK_FOCUSED = { FOCUSED: 0, RANKED: 1, UNRANKED: 2, NEW_FUND: 3 };
+    const TIER_RANK_RANKED  = { FOCUSED: 1, RANKED: 0, UNRANKED: 2, NEW_FUND: 3 };
+    /* Backward-compat alias used elsewhere in the file */
+    const TIER_RANK = TIER_RANK_FIT;
     function sortFn(a, b) {
-      const ta = TIER_RANK[a._tier] ?? 9;
-      const tb = TIER_RANK[b._tier] ?? 9;
+      const hasSectors = Object.keys(sectorTargets).length > 0;
+      const mode = _state.precisionMode || 'fit';
+      if (mode === 'fit' && hasSectors) {
+        /* Sector alignment wins absolutely. */
+        const bd = (b._sectorBonus || 0) - (a._sectorBonus || 0);
+        if (Math.abs(bd) > 0.0005) return bd;
+        const ta = TIER_RANK_FIT[a._tier] ?? 9;
+        const tb = TIER_RANK_FIT[b._tier] ?? 9;
+        if (ta !== tb) return ta - tb;
+        const sc = (b.centricity_score ?? 0) - (a.centricity_score ?? 0);
+        if (Math.abs(sc) > 0.001) return sc;
+        return (b.risk_metrics?.sharpe_3y || 0) - (a.risk_metrics?.sharpe_3y || 0);
+      }
+      /* 'focused' / 'ranked' / 'fit-without-sectors' — tier-first ordering with
+         a precision-mode-specific TIER_RANK table. */
+      const TR = (mode === 'ranked') ? TIER_RANK_RANKED
+               : (mode === 'focused') ? TIER_RANK_FOCUSED
+               : TIER_RANK_FIT;
+      const ta = TR[a._tier] ?? 9;
+      const tb = TR[b._tier] ?? 9;
       if (ta !== tb) return ta - tb;
       const sa = (a.centricity_score ?? 0) + (a._sectorBonus || 0);
       const sb = (b.centricity_score ?? 0) + (b._sectorBonus || 0);
-      if (sb !== sa) return sb - sa;
-      return ((b.risk_metrics?.sharpe_3y || 0) - (a.risk_metrics?.sharpe_3y || 0));
+      if (Math.abs(sb - sa) > 0.001) return sb - sa;
+      return (b.risk_metrics?.sharpe_3y || 0) - (a.risk_metrics?.sharpe_3y || 0);
     }
 
     /* Step 10 — handle force-include first (deduct from buckets) */
@@ -1162,9 +1239,11 @@
       let b = CATEGORY_MCAP_BUCKET[f.category];
       if (!b) b = 'flexi';
       f._bucket = b;
-      f._tier = (focusedSet.has(f.scheme_code)) ? 'FOCUSED'
-              : (f.centricity_score_status === 'Ranked') ? 'RANKED'
-              : 'REVIEW';
+      const _fIsNew = f.inception_date && (new Date(f.inception_date) > _oneYrAgo);
+      f._tier = focusedSet.has(f.scheme_code)          ? 'FOCUSED'
+              : f.centricity_score_status === 'Ranked' ? 'RANKED'
+              : _fIsNew                                ? 'NEW_FUND'
+              :                                         'UNRANKED';
       f._isForced = true;
       f._alternates = [];
       /* Forced funds get average weight in their bucket */
@@ -1503,7 +1582,7 @@
 
     /* Re-derive candidates: same bucket, ranked by tier+score, exclude already-in-portfolio */
     const inSet = new Set(_portfolio.funds.map(x => x.scheme_code));
-    const TIER_RANK = { FOCUSED: 0, RANKED: 1, REVIEW: 2, UNRANKED: 3 };
+    const TIER_RANK = { FOCUSED: 0, RANKED: 1, UNRANKED: 2, NEW_FUND: 3 };
     const candidates = _allFunds.filter(x => {
       if (inSet.has(x.scheme_code)) return false;
       if (CATEGORY_MCAP_BUCKET[x.category] !== f._bucket) return false;
@@ -1511,9 +1590,10 @@
       if (x.sub_category_class !== f.sub_category_class) return false;
       return true;
     }).map(x => Object.assign({}, x, {
-      _tier: (_focusedSchemes.includes(x.scheme_code)) ? 'FOCUSED'
-           : (x.centricity_score_status === 'Ranked') ? 'RANKED'
-           : (x.verdict === 'REVIEW') ? 'REVIEW' : 'UNRANKED',
+      _tier: (_focusedSchemes.includes(x.scheme_code))      ? 'FOCUSED'
+           : (x.centricity_score_status === 'Ranked')        ? 'RANKED'
+           : (x.inception_date && new Date(x.inception_date) > _oneYrAgo) ? 'NEW_FUND'
+           :                                                    'UNRANKED',
     }));
     candidates.sort((a, b) => {
       const ta = TIER_RANK[a._tier], tb = TIER_RANK[b._tier];
@@ -1545,9 +1625,10 @@
       if (!cand) return;
       const w = _portfolio.funds[idx]._weight;
       const replaced = Object.assign({}, cand, {
-        _tier: (_focusedSchemes.includes(cand.scheme_code)) ? 'FOCUSED'
-             : (cand.centricity_score_status === 'Ranked') ? 'RANKED'
-             : (cand.verdict === 'REVIEW') ? 'REVIEW' : 'UNRANKED',
+        _tier: (_focusedSchemes.includes(cand.scheme_code))         ? 'FOCUSED'
+             : (cand.centricity_score_status === 'Ranked')           ? 'RANKED'
+             : (cand.inception_date && new Date(cand.inception_date) > _oneYrAgo) ? 'NEW_FUND'
+             :                                                          'UNRANKED',
         _bucket: f._bucket, _weight: w, _alternates: [],
       });
       _portfolio.funds[idx] = replaced;
@@ -1691,7 +1772,29 @@
       ]},
       options: {
         responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { position: 'bottom', labels: { font: { family: 'Cambria', size: 12 } } } },
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { position: 'bottom', labels: { font: { family: 'Cambria', size: 12 } } },
+          tooltip: {
+            mode: 'index', intersect: false,
+            backgroundColor: 'rgba(255, 255, 255, 0.96)',
+            borderColor: 'rgba(189, 149, 104, 0.4)', borderWidth: 1,
+            titleColor: '#000', bodyColor: '#333',
+            titleFont: { family: 'Cambria', size: 12, weight: 'bold' },
+            bodyFont:  { family: 'Cambria', size: 12 },
+            padding: 10,
+            callbacks: {
+              title: function (items) {
+                return (items && items[0]) ? formatYMShort(items[0].label) : '';
+              },
+              label: function (ctx) {
+                const v = ctx.parsed.y;
+                if (v == null) return null;
+                return ctx.dataset.label + ': ₹' + DataLoader.fmtINR(Math.round(v));
+              },
+            },
+          },
+        },
         scales: {
           x: { ticks: { maxRotation: 0, font: { family: 'Cambria', size: 10 },
               callback: function (v, i) {
@@ -1732,12 +1835,16 @@
              '<span class="sct">' + escapeHtml(s.sector || '') + '</span>' +
              '<span class="pct">' + s.pct.toFixed(2) + '%</span></div>';
     }).join('') || '<div class="pb-cs-empty">Stock-level data unavailable.</div>';
-    /* AMCs — bar width = absolute allocation %, not relative-to-max (ISSUE-0019 rule) */
+    /* AMCs — bar width scaled relative to the largest AMC's pct so the visual
+       fill is always meaningful. The .pct label still shows the actual
+       allocation %; only the bar width is rescaled. (PB v3 §5.) */
     const amcMix = getAmcMix();
+    const maxAmcPct = amcMix.length ? Math.max(...amcMix.map(a => a.pct)) : 1;
     document.getElementById('anlyAmcs').innerHTML = amcMix.map(a => {
       const warn = a.pct > 35 ? ' warn' : '';
+      const barW = ((a.pct / maxAmcPct) * 100).toFixed(1);
       return '<div class="amc-row' + warn + '"><span class="nm">' + escapeHtml(a.name) + '</span>' +
-             '<span class="bar-wrap"><span class="bar" style="width:' + a.pct.toFixed(1) + '%"></span></span>' +
+             '<span class="bar-wrap"><span class="bar" style="width:' + barW + '%"></span></span>' +
              '<span class="pct">' + a.pct.toFixed(1) + '%</span></div>';
     }).join('');
     /* Unique-counts summary line below sector list */
@@ -1817,7 +1924,7 @@
     }
     if (Object.keys(activeSecTargets).length) {
       const actualSec = {};
-      const totalW = f.reduce((s, x) => s + x._weight, 0);
+      const totalW = f.reduce((s, x) => s + x._weight, 0) || 1;
       f.forEach(x => {
         const aFund = (_analytics && _analytics.funds[String(x.scheme_code)]);
         if (!aFund) return;
@@ -1830,7 +1937,7 @@
         const a = actualSec[sec] || 0;
         const d = a - t;
         const cls = deltaClass(d);
-        rows.push('<tr><td>Sector: ' + escapeHtml(sec) + '</td>' +
+        rows.push('<tr><td>' + escapeHtml(sec) + '</td>' +
                   '<td>' + t.toFixed(0) + '%</td>' +
                   '<td>' + a.toFixed(1) + '%</td>' +
                   '<td' + (cls ? ' class="' + cls + '"' : '') + '>' +
@@ -1839,166 +1946,159 @@
     }
 
     document.getElementById('planTbl').innerHTML =
-      '<thead><tr><th>Parameter</th><th>Target</th><th>Actual</th><th>Δ</th></tr></thead>' +
+      '<thead><tr><th>Metric</th><th>Target</th><th>Actual</th><th>Δ</th></tr></thead>' +
       '<tbody>' + rows.join('') + '</tbody>';
 
-    /* Auto-flags */
+    /* Flags */
     const flags = [];
     if (_portfolio.comingSoonNote) {
-      flags.push('Debt MF, Bonds, AIF, PMS, Direct Equity, Commodities, and REITs/InvITs are not yet available in this version. Your portfolio is built entirely from Equity and Hybrid MF. The non-equity allocation has been redistributed proportionally to Equity. They will be incorporated automatically once the relevant data pipelines are live.');
+      flags.push('Debt MF, Bonds, AIF, PMS, Direct Equity, Commodities, and REITs/InvITs are not yet available. Your portfolio is built entirely from Equity and Hybrid MF. Non-equity allocation has been redistributed proportionally to Equity.');
     }
-    if (!inRange) {
-      flags.push('You requested ' + _state.instMin + '–' + _state.instMax + ' instruments; the engine selected ' + actualN + '. Difference reflects the 2-fund-per-category cap, bucket-level rounding to integer fund counts, and overlap dedup that prevented near-duplicate selections.');
+    const actualN2 = f.length;
+    if (actualN2 < _state.instMin || actualN2 > _state.instMax) {
+      flags.push('Engine selected ' + actualN2 + ' funds (target range ' + _state.instMin + '–' + _state.instMax + '). Difference reflects bucket rounding and overlap dedup constraints.');
     }
-    /* Sector misses — manual_full + manual_partial typed targets */
-    let activeSecForFlags = {};
-    if (_state.sectorMode === 'manual_full') {
-      activeSecForFlags = _state.sectorTargets;
-    } else if (_state.sectorMode === 'manual_partial') {
-      Object.keys(_state.sectorTargets).forEach(s => {
-        if (!_state.sectorAutoFlags[s]) activeSecForFlags[s] = _state.sectorTargets[s];
-      });
-    }
-    if (Object.keys(activeSecForFlags).length) {
-      const totalW = f.reduce((s, x) => s + x._weight, 0);
-      const actualSec = {};
+    if (Object.keys(activeSecTargets).length) {
+      const totalW3 = f.reduce((s, x) => s + x._weight, 0) || 1;
+      const actualSec3 = {};
       f.forEach(x => {
         const aFund = (_analytics && _analytics.funds[String(x.scheme_code)]);
         if (!aFund) return;
         (aFund.sector_allocation || []).forEach(s => {
-          actualSec[s.sector] = (actualSec[s.sector] || 0) + (x._weight / totalW) * s.holding_pct;
+          actualSec3[s.sector] = (actualSec3[s.sector] || 0) + (x._weight / totalW3) * s.holding_pct;
         });
       });
-      Object.keys(activeSecForFlags).forEach(sec => {
-        const t = activeSecForFlags[sec], a = actualSec[sec] || 0;
+      Object.keys(activeSecTargets).forEach(sec => {
+        const t = activeSecTargets[sec], a = actualSec3[sec] || 0;
         if (Math.abs(a - t) > 5) {
-          flags.push('Sector "' + sec + '" target was ' + t + '%; achieved ' + a.toFixed(1) +
-                     '%. Constrained by limited Ranked / Focused funds with high ' + sec + ' weight in the eligible m-cap buckets.');
+          flags.push('Sector "' + sec + '" target ' + t + '%; achieved ' + a.toFixed(1) + '%. Constrained by limited Ranked/Focused funds with high ' + sec + ' weight in eligible m-cap buckets.');
         }
       });
     }
-    /* M-Cap misses */
     ['large', 'mid', 'small', 'flexi'].forEach(b => {
-      const t = targetMC[b] || 0; const a = actualMC[b] || 0;
+      const t = targetMC[b] || 0, a = actualMC[b] || 0;
       if (t > 0 && Math.abs(a - t) > 8) {
-        flags.push(MC_LABEL[b] + ' target was ' + t.toFixed(0) + '%; achieved ' + a.toFixed(0) +
-                   '%. Bucket-level fund-count rounding + overlap dedup contribute to the gap.');
+        flags.push(MC_LABEL[b] + ' target ' + t.toFixed(0) + '%; achieved ' + a.toFixed(0) + '%. Bucket-level rounding and overlap dedup contribute to the gap.');
       }
     });
 
     /* Banner */
+    const badRows  = rows.filter(r => r.includes('class="bad"')).length;
+    const warnRows = rows.filter(r => r.includes('class="warn"')).length;
     const banner = document.getElementById('planBanner');
-    if (flags.length === 0) {
+    if (flags.length === 0 && badRows === 0) {
       banner.className = 'pb-plan-status ok';
-      banner.textContent = '✓ Portfolio closely matches your plan. No material deviations.';
-    } else if (flags.length <= 2) {
-      banner.className = 'pb-plan-status warn';
-      banner.textContent = '⚠ Minor deviations from your plan — see flags below.';
+      banner.innerHTML = '✓ Portfolio closely matches your plan — no material deviations.';
+    } else if (badRows > 0) {
+      banner.className = 'pb-plan-status bad';
+      banner.innerHTML = '⚠ ' + badRows + ' metric' + (badRows > 1 ? 's' : '') + ' materially off-target — see flags below.';
     } else {
-      banner.className = 'pb-plan-status err';
-      banner.textContent = '✗ Several constraints could not be fully satisfied. See flags.';
+      banner.className = 'pb-plan-status warn';
+      banner.innerHTML = '⚡ Minor deviations from plan — see flags below.';
     }
-
-    document.getElementById('planFlags').innerHTML = flags.map(t =>
-      '<div class="pb-plan-flag">' + escapeHtml(t) + '</div>').join('');
+    document.getElementById('planFlags').innerHTML = flags.length
+      ? flags.map(t => '<div class="pb-plan-flag">' + escapeHtml(t) + '</div>').join('')
+      : '<div class="pb-plan-flag ok">✓ No policy breaches detected.</div>';
   }
 
-  /* -- FUND PERFORMANCES — grouped table -- */
+  /* ============================================================
+     FUND PERFORMANCES — grouped table (v2)
+     ============================================================ */
   function renderFundsTab() {
-    const body = document.getElementById('pbFundsPerfBody');
-    if (!body) return;
-    const totalAmt = _state.totalAmount;
+    const f = _portfolio.funds;
+    const totalW = f.reduce((s, x) => s + x._weight, 0) || 1;
 
-    function vcell(v) {
-      if (v == null) return '<td>—</td>';
-      const cls = v < 0 ? 'v-neg' : 'v-pos';
-      return '<td class="' + cls + '">' + (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2) + '%</td>';
-    }
-    function vcellOnly(v) {
-      if (v == null) return '—';
-      const cls = v < 0 ? 'v-neg' : 'v-pos';
-      return '<span class="' + cls + '">' + (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2) + '%</span>';
+    const byCat = {};
+    f.forEach(x => { (byCat[x.category] = byCat[x.category] || []).push(x); });
+    const orderedCats = CATEGORY_ORDER.filter(c => byCat[c]);
+    Object.keys(byCat).forEach(c => { if (!orderedCats.includes(c)) orderedCats.push(c); });
+
+    function catSubClass(cat) {
+      return (byCat[cat][0] || {}).sub_category_class || 'Equity';
     }
 
-    /* Group funds by sub_category_class then category, ordered per CATEGORY_ORDER. */
-    const equity = _portfolio.funds.filter(f => f.sub_category_class === 'Equity');
-    const hybrid = _portfolio.funds.filter(f => f.sub_category_class === 'Hybrid');
+    let html = '<thead><tr>' +
+      '<th class="col-name">Fund</th>' +
+      '<th class="col-date">Inception</th>' +
+      '<th class="col-aum">AUM (Cr)</th>' +
+      '<th class="col-alloc">Alloc%</th>' +
+      '<th class="col-ret">1M%</th>' +
+      '<th class="col-ret">1Y%</th>' +
+      '<th class="col-ret">3Y%</th>' +
+      '<th class="col-ret">5Y%</th>' +
+      '<th class="col-ret">10Y%</th>' +
+      '<th class="col-roll">3Y Roll%</th>' +
+      '<th class="col-mcap">M-Cap</th>' +
+      '</tr></thead><tbody>';
 
-    function buildGroupedRows(funds) {
-      const byCat = {};
-      funds.forEach(f => {
-        if (!byCat[f.category]) byCat[f.category] = [];
-        byCat[f.category].push(f);
-      });
-      const orderedCats = CATEGORY_ORDER.filter(c => byCat[c]);
-      Object.keys(byCat).forEach(c => { if (!orderedCats.includes(c)) orderedCats.push(c); });
-      let html = '';
-      orderedCats.forEach(cat => {
-        const inGroup = byCat[cat].slice().sort((a, b) => (b._weight || 0) - (a._weight || 0));
-        html += '<tr class="pb-cat-group-hdr"><td colspan="11">' + escapeHtml(cat) + '</td></tr>';
-        const benchesSeen = new Set();
-        inGroup.forEach(f => {
-          const r  = f.monitor_returns || {};
-          const incep = formatInception(f.inception_date);
-          const aum   = (f.aum_cr != null) ? formatINR(Math.round(f.aum_cr * 1e7)) : '—';
-          const aumShort = (f.aum_cr != null) ? DataLoader.fmtINR(f.aum_cr) : '—';
-          const w = f._weight || 0;
-          const rsAmt = w * totalAmt / 100;
-          const mc = f.mcap_split || {};
-          const mcMini = (Object.keys(mc).length === 0)
-            ? '—'
-            : 'L:<b>' + Math.round(mc.large_pct || 0) + '</b> M:<b>' +
-              Math.round(mc.mid_pct || 0) + '</b> S:<b>' +
-              Math.round(mc.small_pct || 0) + '</b> O:<b>' +
-              Math.round(mc.others_pct || 0) + '</b>';
-          html += '<tr class="fund-row">' +
-                  '<td><a class="fund-link" href="fund-detail.html?scheme=' + f.scheme_code + '" target="_blank" rel="noopener">' +
-                    escapeHtml(f.fund_name) + '</a></td>' +
-                  '<td>' + incep + '</td>' +
-                  '<td>' + aumShort + '</td>' +
-                  '<td class="pb-alloc-cell">' +
-                    '<span class="alloc-pct">' + w.toFixed(0) + '%</span>' +
-                    '<span class="alloc-amt">' + formatINR(rsAmt) + '</span></td>' +
-                  vcell(r.return_1m_pct) + vcell(r.return_1y_pct) + vcell(r.return_3y_pct) +
-                  vcell(r.return_5y_pct) + vcell(r.return_10y_pct) +
-                  '<td>' + ((f.rolling_3y_avg_pct != null) ? vcellOnly(f.rolling_3y_avg_pct) : '—') + '</td>' +
-                  '<td><span class="mcap-mini">' + mcMini + '</span></td>' +
-                  '</tr>';
-        });
-        /* One benchmark row per group (skip if all funds share same benchmark already shown) */
-        const firstWithBench = inGroup.find(x => x.benchmark);
-        if (firstWithBench && !benchesSeen.has(firstWithBench.benchmark)) {
-          benchesSeen.add(firstWithBench.benchmark);
-          const b = firstWithBench.benchmark_monitor_returns || {};
+    let lastSubClass = null;
+    orderedCats.forEach(cat => {
+      const funds = byCat[cat];
+      const sc = catSubClass(cat);
+      if (sc !== lastSubClass) {
+        html += '<tr class="pb-subclass-hdr"><td colspan="11">' + escapeHtml(sc) + '</td></tr>';
+        lastSubClass = sc;
+      }
+      html += '<tr class="pb-cat-group-hdr"><td colspan="11">' + escapeHtml(cat) + '</td></tr>';
+
+      funds.forEach(x => {
+        const mr  = x.monitor_returns || {};
+        const sp  = x.mcap_split || {};
+        const mcapStr = [
+          sp.large_pct > 0 ? 'L' + sp.large_pct.toFixed(0) : '',
+          sp.mid_pct   > 0 ? 'M' + sp.mid_pct.toFixed(0)   : '',
+          sp.small_pct > 0 ? 'S' + sp.small_pct.toFixed(0) : '',
+        ].filter(Boolean).join('/') || '—';
+
+        const inceptionFmt = x.inception_date
+          ? (function (d) {
+              const dt = new Date(d);
+              return isNaN(dt) ? d : dt.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+            })(x.inception_date)
+          : '—';
+
+        const aumFmt = x.aum_cr != null
+          ? Number(x.aum_cr).toLocaleString('en-IN', { maximumFractionDigits: 0 })
+          : '—';
+
+        const nameCell = x.scheme_code
+          ? '<a href="fund-detail.html?scheme=' + x.scheme_code + '" target="_blank" rel="noopener">' + escapeHtml(x.fund_name) + '</a>'
+          : escapeHtml(x.fund_name);
+
+        html += '<tr class="pb-fund-row">' +
+          '<td class="col-name">'  + nameCell + '</td>' +
+          '<td class="col-date">'  + inceptionFmt + '</td>' +
+          '<td class="col-aum">'   + aumFmt + '</td>' +
+          '<td class="col-alloc">' + x._weight + '%</td>' +
+          '<td class="col-ret">'   + fmtV(mr.return_1m_pct)  + '</td>' +
+          '<td class="col-ret">'   + fmtV(mr.return_1y_pct)  + '</td>' +
+          '<td class="col-ret">'   + fmtV(mr.return_3y_pct)  + '</td>' +
+          '<td class="col-ret">'   + fmtV(mr.return_5y_pct)  + '</td>' +
+          '<td class="col-ret">'   + fmtV(mr.return_10y_pct) + '</td>' +
+          '<td class="col-roll">'  + fmtV(x.rolling_3y_avg_pct) + '</td>' +
+          '<td class="col-mcap">'  + mcapStr + '</td>' +
+          '</tr>';
+
+        if (x.benchmark) {
+          const bmr = x.benchmark_monitor_returns || {};
           html += '<tr class="pb-bench-row">' +
-                  '<td class="bench-lbl">Benchmark: <em>' + escapeHtml(firstWithBench.benchmark) + '</em></td>' +
-                  '<td>—</td><td>—</td><td>—</td>' +
-                  vcell(b.return_1m_pct) + vcell(b.return_1y_pct) + vcell(b.return_3y_pct) +
-                  vcell(b.return_5y_pct) + vcell(b.return_10y_pct) +
-                  '<td>—</td><td>—</td></tr>';
+            '<td class="col-name bench-lbl" colspan="4">' + escapeHtml(x.benchmark) + '</td>' +
+            '<td class="col-ret">' + fmtV(bmr.return_1m_pct)  + '</td>' +
+            '<td class="col-ret">' + fmtV(bmr.return_1y_pct)  + '</td>' +
+            '<td class="col-ret">' + fmtV(bmr.return_3y_pct)  + '</td>' +
+            '<td class="col-ret">' + fmtV(bmr.return_5y_pct)  + '</td>' +
+            '<td class="col-ret">' + fmtV(bmr.return_10y_pct) + '</td>' +
+            '<td class="col-roll">—</td>' +
+            '<td class="col-mcap">—</td>' +
+            '</tr>';
         }
       });
-      return html;
-    }
+    });
 
-    let bodyHtml = '';
-    if (equity.length) {
-      bodyHtml += '<tr class="pb-subclass-hdr"><td colspan="11">Equity Funds</td></tr>';
-      bodyHtml += buildGroupedRows(equity);
-    }
-    if (hybrid.length) {
-      bodyHtml += '<tr class="pb-subclass-hdr"><td colspan="11">Hybrid Funds</td></tr>';
-      bodyHtml += buildGroupedRows(hybrid);
-    }
-    body.innerHTML = bodyHtml;
-  }
-
-  function formatInception(iso) {
-    if (!iso) return '—';
-    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso));
-    if (!m) return '—';
-    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    return months[+m[2] - 1] + ' ' + m[1];
+    html += '</tbody>';
+    document.getElementById('pbFundsPerfTbl').innerHTML = html;
+    /* Benchmark Coverage table removed in v3 — benchmarks now appear inline
+       below each fund row via .pb-bench-row. */
   }
 
   function fmtV(v) {
@@ -2008,10 +2108,43 @@
   }
 
   /* ============================================================
-     MIX HELPERS (asset class / m-cap / sector / stock / amc)
+     INDIAN NUMBER WORDS
+     ============================================================ */
+  function rupeeWords(n) {
+    if (!n || isNaN(n)) return '';
+    n = Math.round(n);
+    const cr   = Math.floor(n / 1e7);
+    const rem  = n % 1e7;
+    const lakh = Math.floor(rem / 1e5);
+    const thou = Math.floor((rem % 1e5) / 1e3);
+    const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
+                  'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
+                  'Seventeen', 'Eighteen', 'Nineteen'];
+    const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+    function twoDigit(num) {
+      if (num < 20) return ones[num] || '';
+      return (tens[Math.floor(num / 10)] + (num % 10 ? ' ' + ones[num % 10] : '')).trim();
+    }
+    const parts = [];
+    if (cr   > 0) parts.push(twoDigit(cr)   + ' Crore' + (cr   > 1 ? 's' : ''));
+    if (lakh > 0) parts.push(twoDigit(lakh) + ' Lakh'  + (lakh > 1 ? 's' : ''));
+    if (thou > 0) parts.push(twoDigit(thou) + ' Thousand');
+    return parts.join(', ') || 'Zero';
+  }
+
+  function updateAmountWords() {
+    const el = document.getElementById('totalAmtWords');
+    if (!el) return;
+    const v = parseFloat(document.getElementById('totalInvAmount').value) || 0;
+    el.textContent = v > 0 ? rupeeWords(v) : '';
+    _state.totalAmount = v;
+  }
+
+  /* ============================================================
+     MIX HELPERS
      ============================================================ */
   function getAssetClassMix() {
-    const m = { Equity: 0, Hybrid: 0 };
+    const m = {};
     _portfolio.funds.forEach(f => { m[f.sub_category_class] = (m[f.sub_category_class] || 0) + (f._weight || 0); });
     return Object.keys(m).filter(k => m[k] > 0).map(k => ({ name: k, pct: m[k] }));
   }
@@ -2019,7 +2152,7 @@
     const m = { Large: 0, Mid: 0, Small: 0, Others: 0 };
     _portfolio.funds.forEach(f => {
       const sp = f.mcap_split || {};
-      const w = f._weight || 0;
+      const w  = f._weight || 0;
       m.Large  += (sp.large_pct  || 0) * w / 100;
       m.Mid    += (sp.mid_pct    || 0) * w / 100;
       m.Small  += (sp.small_pct  || 0) * w / 100;
@@ -2074,25 +2207,31 @@
       type: 'doughnut',
       data: {
         labels: data.map(d => d.name),
-        datasets: [{ data: data.map(d => d.pct), backgroundColor: data.map((_, i) => DONUT_PALETTE[i % DONUT_PALETTE.length]), borderColor: '#fff', borderWidth: 1.5 }]
+        datasets: [{
+          data: data.map(d => d.pct),
+          backgroundColor: data.map((_, i) => DONUT_PALETTE[i % DONUT_PALETTE.length]),
+          borderColor: '#fff',
+          borderWidth: 1.5,
+        }],
       },
       options: {
         responsive: false,
         cutout: '60%',
         plugins: {
           legend: { display: false },
-          tooltip: { callbacks: { label: ctx => ctx.label + ': ' + ctx.parsed.toFixed(1) + '%' } }
-        }
-      }
+          tooltip: { callbacks: { label: ctx => ctx.label + ': ' + ctx.parsed.toFixed(1) + '%' } },
+        },
+      },
     });
-    /* Custom legend */
     if (legendId) {
       const lg = document.getElementById(legendId);
-      lg.innerHTML = data.map((d, i) =>
-        '<span class="lg-item"><span class="lg-swatch" style="background:' +
-        DONUT_PALETTE[i % DONUT_PALETTE.length] + '"></span>' +
-        escapeHtml(d.name) + ' · ' + d.pct.toFixed(1) + '%</span>'
-      ).join('');
+      if (lg) {
+        lg.innerHTML = data.map((d, i) =>
+          '<span class="lg-item"><span class="lg-swatch" style="background:' +
+          DONUT_PALETTE[i % DONUT_PALETTE.length] + '"></span>' +
+          escapeHtml(d.name) + ' · ' + d.pct.toFixed(1) + '%</span>'
+        ).join('');
+      }
     }
   }
 
@@ -2102,109 +2241,49 @@
   function weightedAvg(arr, valFn, wFn) {
     let num = 0, denom = 0;
     arr.forEach(x => {
-      const v = valFn(x); const w = wFn(x);
+      const v = valFn(x), w = wFn(x);
       if (v == null || w == null || isNaN(v)) return;
       num += v * w; denom += w;
     });
     return denom > 0 ? num / denom : null;
   }
-
   function escapeHtml(s) {
     if (s == null) return '';
-    return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+    return String(s).replace(/[&<>"']/g, c =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
-
   function formatINR(rupees) {
     if (rupees == null || isNaN(rupees)) return '—';
     if (rupees >= 1e7) return '₹' + (rupees / 1e7).toFixed(2) + ' Cr';
     if (rupees >= 1e5) return '₹' + (rupees / 1e5).toFixed(2) + ' L';
     return '₹' + DataLoader.fmtINR(rupees);
   }
-
-  /* Indian-comma full integer rupee format. ₹5,00,000 / ₹2,50,00,000. */
-  function formatINRFull(rupees) {
-    if (rupees == null || isNaN(rupees)) return '—';
-    try {
-      return '₹' + new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(Math.round(rupees));
-    } catch (e) {
-      return '₹' + DataLoader.fmtINR(rupees);
-    }
-  }
-
-  /* Indian numeric → words. Returns "Fifty Lakhs", "One Crore Twenty Lakhs", etc.
-     Uses Lakh / Crore (no Million / Billion). */
-  function rupeeWords(n) {
-    if (n == null || isNaN(n) || n < 0) return '';
-    n = Math.round(n);
-    if (n === 0) return 'Zero';
-    const ONES = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
-      'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
-    const TENS = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
-    function below100(x) {
-      if (x < 20) return ONES[x];
-      const t = Math.floor(x / 10), o = x % 10;
-      return TENS[t] + (o ? ' ' + ONES[o] : '');
-    }
-    function below1000(x) {
-      if (x < 100) return below100(x);
-      const h = Math.floor(x / 100), rest = x % 100;
-      return ONES[h] + ' Hundred' + (rest ? ' ' + below100(rest) : '');
-    }
-    /* Crore = 1e7, Lakh = 1e5, Thousand = 1e3 */
-    const cr = Math.floor(n / 1e7);
-    const lk = Math.floor((n % 1e7) / 1e5);
-    const th = Math.floor((n % 1e5) / 1e3);
-    const rest = n % 1e3;
-    const parts = [];
-    if (cr) parts.push(below1000(cr) + ' Crore' + (cr > 1 ? '' : ''));
-    if (lk) parts.push(below1000(lk) + ' Lakh' + (lk > 1 ? 's' : ''));
-    if (th) parts.push(below100(th) + ' Thousand');
-    if (rest) parts.push(below1000(rest));
-    return parts.join(' ');
-  }
-
-  function updateAmountWords() {
-    const el = document.getElementById('totalAmtWords');
-    if (!el) return;
-    const amt = _state.totalAmount;
-    if (!amt || amt <= 0) { el.textContent = '—'; return; }
-    el.textContent = formatINRFull(amt) + ' — ' + rupeeWords(amt);
-  }
-
   function shiftYM(ym, deltaMonths) {
     const [y, m] = ym.split('-').map(Number);
     const d = new Date(Date.UTC(y, m - 1 + deltaMonths, 1));
     return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0');
   }
-
   function enumerateMonths(startYM, endYM) {
     const out = [];
     let cur = startYM;
-    while (cur <= endYM) {
-      out.push(cur);
-      cur = shiftYM(cur, 1);
-    }
+    while (cur <= endYM) { out.push(cur); cur = shiftYM(cur, 1); }
     return out;
   }
-
   function mapByDate(arr) {
     const m = {};
     if (Array.isArray(arr)) arr.forEach(p => { m[p.d] = p.v; });
     return m;
   }
-
   function lastNonNull(arr) {
     for (let i = arr.length - 1; i >= 0; i--) if (arr[i] != null) return arr[i];
     return null;
   }
-
   function formatYM(ym) {
     if (!ym) return '—';
     const [y, m] = ym.split('-');
     const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     return months[+m - 1] + ' ' + y;
   }
-
   function formatYMShort(ym) {
     if (!ym) return '';
     const [y, m] = ym.split('-');
@@ -2213,50 +2292,46 @@
   }
 
   /* ============================================================
-     TOAST + SAVE/LOAD
+     TOAST + SAVE / LOAD / SHARE
      ============================================================ */
   let _toastTimer;
   function showToast(msg) {
     const t = document.getElementById('toast');
     if (!t || !msg) return;
-    t.textContent = msg; t.classList.add('show');
+    t.textContent = msg;
+    t.classList.add('show');
     clearTimeout(_toastTimer);
     _toastTimer = setTimeout(() => t.classList.remove('show'), 2400);
   }
 
   function getWizardSnapshot() {
     return {
-      risk: _state.risk, horizon: _state.horizon,
-      instMin: _state.instMin, instMax: _state.instMax,
-      optimiseFunds: _state.optimiseFunds,
-      allocMode: _state.allocMode,
+      risk:              _state.risk,
+      horizon:           _state.horizon,
+      instMin:           _state.instMin,
+      instMax:           _state.instMax,
+      optimiseFunds:     _state.optimiseFunds,
+      allocMode:         _state.allocMode,
       allocManual:       Object.assign({}, _state.allocManual),
       allocPartialFlags: Object.assign({}, _state.allocPartialFlags),
-      includeGlobalMF: _state.includeGlobalMF,
-      selectedProducts: Object.assign({}, _state.selectedProducts),
-      openClosedTypes:  Object.assign({}, _state.openClosedTypes),
-      mcapMode: _state.mcapMode,
-      mcapManual:    Object.assign({}, _state.mcapManual),
-      mcapAutoFlags: Object.assign({}, _state.mcapAutoFlags),
-      sectorMode: _state.sectorMode,
-      sectorTargets:   Object.assign({}, _state.sectorTargets),
-      sectorAutoFlags: Object.assign({}, _state.sectorAutoFlags),
-      forceFunds: _state.forceFunds.slice(),
-      totalAmount: _state.totalAmount,
+      includeGlobalMF:   _state.includeGlobalMF,
+      selectedProducts:  Object.assign({}, _state.selectedProducts),
+      openClosedTypes:   Object.assign({}, _state.openClosedTypes),
+      mcapMode:          _state.mcapMode,
+      mcapManual:        Object.assign({}, _state.mcapManual),
+      mcapAutoFlags:     Object.assign({}, _state.mcapAutoFlags),
+      sectorMode:        _state.sectorMode,
+      sectorTargets:     Object.assign({}, _state.sectorTargets),
+      sectorAutoFlags:   Object.assign({}, _state.sectorAutoFlags),
+      forceFunds:        _state.forceFunds.slice(),
+      totalAmount:       _state.totalAmount,
+      precisionMode:     _state.precisionMode,
     };
   }
 
   function loadWizardSnapshot(snap) {
     if (!snap) return;
-    /* Migrate v1 saved snapshots that used `instrumentCount` */
-    if (snap.instrumentCount && !snap.instMin) {
-      snap.instMin = Math.max(3, Math.min(30, snap.instrumentCount - 2));
-      snap.instMax = Math.max(snap.instMin, Math.min(30, snap.instrumentCount + 5));
-      delete snap.instrumentCount;
-    }
-    if (snap.sectorMode === 'custom') snap.sectorMode = 'manual_full';
     Object.assign(_state, snap);
-    /* Step 1 */
     if (snap.risk) {
       document.querySelectorAll('#riskPills .pill').forEach(p =>
         p.classList.toggle('active', p.dataset.risk === snap.risk));
@@ -2265,53 +2340,36 @@
       document.querySelectorAll('#horizonPills .pill').forEach(p =>
         p.classList.toggle('active', p.dataset.h === snap.horizon));
     }
-    document.getElementById('instMin').value = snap.instMin || 8;
-    document.getElementById('instMax').value = snap.instMax || 15;
-    const opt = document.getElementById('optimiseFunds');
-    if (opt) opt.checked = snap.optimiseFunds !== false;
-    /* Step 2 */
+    const minEl = document.getElementById('instMin');       if (minEl) minEl.value = snap.instMin || 8;
+    const maxEl = document.getElementById('instMax');       if (maxEl) maxEl.value = snap.instMax || 15;
+    const optEl = document.getElementById('optimiseFunds'); if (optEl) optEl.checked = !!snap.optimiseFunds;
     document.querySelectorAll('[data-alloc-mode]').forEach(b =>
       b.classList.toggle('active', b.dataset.allocMode === snap.allocMode));
-    document.getElementById('allocAutoView').hidden    = (snap.allocMode !== 'auto');
-    document.getElementById('allocManualView').hidden  = (snap.allocMode !== 'manual');
-    document.getElementById('allocPartialView').hidden = (snap.allocMode !== 'partial');
+    document.getElementById('allocAutoView').hidden   = (snap.allocMode !== 'auto');
+    document.getElementById('allocManualView').hidden = (snap.allocMode !== 'manual' && snap.allocMode !== 'partial');
     Object.keys(snap.allocManual || {}).forEach(b => {
-      const inp1 = document.querySelector('.alloc-in[data-bucket="' + b + '"]');
-      if (inp1) inp1.value = snap.allocManual[b];
-      const inp2 = document.querySelector('.alloc-pin[data-bucket="' + b + '"]');
-      if (inp2) inp2.value = snap.allocManual[b];
+      const inp = document.querySelector('.alloc-in[data-bucket="' + b + '"]');
+      if (inp) inp.value = snap.allocManual[b];
     });
-    Object.keys(snap.allocPartialFlags || {}).forEach(b => {
-      const c = document.querySelector('.alloc-pauto[data-bucket="' + b + '"]');
-      if (c) c.checked = !!snap.allocPartialFlags[b];
-    });
-    refreshAutoTables(); refreshAllocPartialMode(); validateAllocSum();
-    /* Step 3 */
+    refreshAutoTables(); validateAllocSum();
     document.querySelectorAll('[data-mcap-mode]').forEach(b =>
       b.classList.toggle('active', b.dataset.mcapMode === snap.mcapMode));
-    document.getElementById('mcapAutoView').hidden = (snap.mcapMode !== 'auto');
+    document.getElementById('mcapAutoView').hidden   = (snap.mcapMode !== 'auto');
     document.getElementById('mcapManualView').hidden = !(snap.mcapMode === 'manual_full' || snap.mcapMode === 'manual_partial');
     Object.keys(snap.mcapManual || {}).forEach(b => {
       const inp = document.querySelector('.mcap-in[data-bucket="' + b + '"]');
       if (inp) inp.value = snap.mcapManual[b];
     });
-    Object.keys(snap.mcapAutoFlags || {}).forEach(b => {
-      const c = document.querySelector('.mcap-auto[data-bucket="' + b + '"]');
-      if (c) c.checked = !!snap.mcapAutoFlags[b];
-    });
     refreshMcapManualMode(); validateMcapSum();
-    /* Step 4 */
     document.querySelectorAll('[data-sector-mode]').forEach(b =>
       b.classList.toggle('active', b.dataset.sectorMode === snap.sectorMode));
-    document.getElementById('sectorAutoView').hidden    = (snap.sectorMode !== 'auto');
-    document.getElementById('sectorFullView').hidden    = (snap.sectorMode !== 'manual_full');
-    document.getElementById('sectorPartialView').hidden = (snap.sectorMode !== 'manual_partial');
+    document.getElementById('sectorAutoView').hidden   = (snap.sectorMode !== 'auto');
+    document.getElementById('sectorCustomView').hidden = (snap.sectorMode === 'auto');
     renderSectorList(); validateSectorSum();
-    /* Step 5 */
     renderForceChips();
-    /* Snap to step 1 */
+    if (snap.precisionMode) _state.precisionMode = snap.precisionMode;
+    refreshPrecisionStep();
     goToStep(1);
-    updateStep1Next();
     showToast('Loaded saved portfolio');
   }
 
@@ -2333,16 +2391,17 @@
 
   function copyShareLink() {
     const params = new URLSearchParams();
-    params.set('risk', _state.risk || '');
+    params.set('risk',    _state.risk    || '');
     params.set('horizon', _state.horizon || '');
-    params.set('min', _state.instMin);
-    params.set('max', _state.instMax);
-    params.set('amt', _state.totalAmount);
+    params.set('n',       _state.instMax);
+    params.set('amt',     _state.totalAmount);
     if (_state.forceFunds.length) {
       params.set('force', _state.forceFunds.map(f => f.scheme_code).join(','));
     }
     const url = location.origin + location.pathname + '?' + params.toString();
-    navigator.clipboard.writeText(url).then(() => showToast('Link copied to clipboard'))
+    navigator.clipboard.writeText(url)
+      .then(() => showToast('Link copied to clipboard'))
       .catch(() => showToast('Could not copy link'));
   }
+
 })();

@@ -2203,7 +2203,7 @@
     document.querySelector('.hero-actions').style.display = 'none';
     const reportContent = document.querySelector('.report-content');
     reportContent.innerHTML = `
-      <section class="block">
+      <section class="block top25-picker">
         <h2>Top 25 by <em>Centricity Rank</em></h2>
         <p class="h-sub">Click a row to open the fund's report card.</p>
         <div class="perf-table-wrap">
