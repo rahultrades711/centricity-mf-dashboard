@@ -1,0 +1,5 @@
+{
+  "_note": "Centricity Focused Selling Fund List. Maintained manually by Products Team. scheme_code values must be integers matching screener-v1 primary key. Add/remove as Centricity's conviction changes. The Portfolio Builder selection engine prioritises FOCUSED tier ahead of RANKED.",
+  "_last_updated": "2026-05-08",
+  "focused_funds": []
+}

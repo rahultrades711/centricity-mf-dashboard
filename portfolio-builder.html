@@ -12,6 +12,7 @@
 <script defer src="js/state.js"></script>
 <script defer src="js/multi-select.js"></script>
 <script defer src="js/exports.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script defer src="js/portfolio-builder.js"></script>
 </head>
 <body>
@@ -38,7 +39,7 @@
   <div class="right">
     <label class="search">
       <span style="opacity:.6">⌕</span>
-      <input type="text" placeholder="Search…" aria-label="Search">
+      <input type="text" placeholder="Search funds, AMCs, managers…" aria-label="Search">
     </label>
   </div>
 </header>
@@ -47,72 +48,283 @@
 
 <section class="pb-band">
   <div class="pb-band-inner">
+    <span class="eyebrow" id="pbEyebrow">Portfolio Builder · As on —</span>
     <h1>Portfolio <em>Builder</em></h1>
-    <p class="sub">Build a Centricity-recommended portfolio in two modes. Mode A is manual fund-pick + allocation;
-       Mode B is the rule-based generator. Saved portfolios persist locally per browser (Pattern A).</p>
-    <div class="pb-mode-tabs" role="tablist">
-      <button class="pb-mode-tab active" data-mode="a">Mode A · Manual</button>
-      <button class="pb-mode-tab" data-mode="b">Mode B · Rule-based</button>
-    </div>
+    <p class="h-sub">Build a Centricity-recommended portfolio from your client's risk profile, time horizon, and asset preferences. The selection engine prefers Focused-list funds first, then Ranked, then Review tier when count targets demand it.</p>
   </div>
 </section>
 
-<section class="pb-body">
+<div class="pb-shell" id="pbShell">
 
-  <!-- MODE A — manual fund pick + allocation -->
-  <div class="pb-mode-a" id="modeA">
+  <!-- LEFT — WIZARD -->
+  <aside class="pb-wizard" id="pbWizard">
 
-    <div class="pb-card">
-      <h2>Funds in this portfolio</h2>
-      <div class="pb-add-row">
-        <span id="fundPicker"></span>
-        <button class="btn ghost" id="clearAllBtn">Clear all</button>
-      </div>
-      <div id="pbTableWrap"></div>
-      <div style="font-size:11.5px;color:var(--text-mid);margin-top:10px;">
-        Allocations are user-entered percentages. Negative or non-numeric inputs are ignored. Saved portfolios
-        live in your browser's localStorage; clear them via Settings (v1.x).
-      </div>
-    </div>
+    <ol class="pb-stepper" id="pbStepper" role="list">
+      <li class="step active"   data-step="1"><span class="dot">1</span><span class="lbl">Profile</span></li>
+      <li class="step"          data-step="2"><span class="dot">2</span><span class="lbl">Allocation</span></li>
+      <li class="step"          data-step="3"><span class="dot">3</span><span class="lbl">M-Cap</span></li>
+      <li class="step"          data-step="4"><span class="dot">4</span><span class="lbl">Sectors</span></li>
+      <li class="step"          data-step="5"><span class="dot">5</span><span class="lbl">Finalize</span></li>
+    </ol>
 
-    <div class="pb-card pb-summary">
-      <h2>Portfolio Summary</h2>
-      <div id="pbSummary">
-        <div class="sum-row"><span class="lbl">Funds</span><span class="v" id="sumCount">0</span></div>
-        <div class="sum-row"><span class="lbl">Total Allocation</span><span class="v" id="sumTotal">0%</span></div>
-        <div class="sum-row"><span class="lbl">Weighted 1Y Return</span><span class="v" id="sumR1">—</span></div>
-        <div class="sum-row"><span class="lbl">Weighted 3Y CAGR</span><span class="v" id="sumR3">—</span></div>
-        <div class="sum-row"><span class="lbl">Weighted 5Y CAGR</span><span class="v" id="sumR5">—</span></div>
-        <div class="sum-row"><span class="lbl">Weighted Sharpe</span><span class="v" id="sumSharpe">—</span></div>
-        <div class="sum-row"><span class="lbl">Weighted Std Dev</span><span class="v" id="sumStdDev">—</span></div>
-        <div class="sum-row"><span class="lbl">Blended TER</span><span class="v" id="sumTer">—</span></div>
-      </div>
-      <div class="pb-actions">
-        <button class="btn ghost" id="savePortfolioBtn">Save Portfolio</button>
-        <button class="btn primary" data-export-pdf="#mainArea" data-export-name="Centricity-Portfolio">Export PDF</button>
-      </div>
-      <div style="margin-top:14px;">
-        <h2 style="font-size:11px;">Saved Portfolios</h2>
-        <div id="savedList" style="font-size:12.5px;"></div>
-      </div>
-    </div>
+    <!-- STEP 1 — Profile -->
+    <section class="pb-step is-open" data-step-pane="1">
+      <h3 class="pb-step-h">Client Profile</h3>
 
-  </div>
+      <div class="pb-field">
+        <label class="pb-label">Risk profile<span class="req">*</span></label>
+        <div class="pb-pills" id="riskPills" role="radiogroup" aria-label="Risk profile">
+          <button class="pill" data-risk="capital_preservation">Capital Preservation</button>
+          <button class="pill" data-risk="conservative">Conservative</button>
+          <button class="pill" data-risk="balanced">Balanced</button>
+          <button class="pill" data-risk="growth">Growth</button>
+          <button class="pill" data-risk="aggressive">Aggressive</button>
+        </div>
+      </div>
 
-  <!-- MODE B — rule-based generator stub -->
-  <div id="modeB" hidden>
-    <div class="empty-state" style="padding: 80px 32px;">
+      <div class="pb-field">
+        <label class="pb-label">Time horizon<span class="req">*</span></label>
+        <div class="pb-pills" id="horizonPills" role="radiogroup" aria-label="Time horizon">
+          <button class="pill" data-h="lt1">&lt; 1 yr</button>
+          <button class="pill" data-h="1to3">1–3 yr</button>
+          <button class="pill" data-h="3to5">3–5 yr</button>
+          <button class="pill" data-h="5to10">5–10 yr</button>
+          <button class="pill" data-h="10plus">10 yr+</button>
+        </div>
+      </div>
+
+      <div class="pb-field">
+        <label class="pb-label" for="instCount">Target number of funds / instruments</label>
+        <div class="pb-slider-row">
+          <input type="range" id="instCount" min="5" max="30" step="1" value="10">
+          <span class="num-badge" id="instCountVal">10</span>
+        </div>
+        <div class="pb-help">Final count may be fewer if eligible Ranked / Focused funds are limited in your selected categories.</div>
+      </div>
+
+      <div class="pb-step-foot">
+        <span></span>
+        <button class="pb-btn primary" id="step1Next" disabled>Next →</button>
+      </div>
+    </section>
+
+    <!-- STEP 2 — Allocation -->
+    <section class="pb-step" data-step-pane="2">
+      <h3 class="pb-step-h">Asset Allocation</h3>
+
+      <div class="pb-mode-row">
+        <button class="mode-pill active" data-alloc-mode="auto">Auto</button>
+        <button class="mode-pill"        data-alloc-mode="manual">Manual</button>
+      </div>
+
+      <div id="allocAutoView" class="pb-sub-view">
+        <div class="pb-help" style="margin-top:0;">Indicative allocation derived from risk profile × time horizon. Adjust after generation if needed.</div>
+        <table class="pb-mini-tbl" id="allocAutoTbl"><tbody></tbody></table>
+      </div>
+
+      <div id="allocManualView" class="pb-sub-view" hidden>
+        <div class="pb-grid-4">
+          <div><label>Equity %</label><input type="number" class="alloc-in" data-bucket="equity" min="0" max="100" step="5" value="60"></div>
+          <div><label>Debt %</label><input type="number" class="alloc-in" data-bucket="debt" min="0" max="100" step="5" value="30"></div>
+          <div><label>Commodities %</label><input type="number" class="alloc-in" data-bucket="commodities" min="0" max="100" step="5" value="5"></div>
+          <div><label>REITs / InvITs %</label><input type="number" class="alloc-in" data-bucket="reits" min="0" max="100" step="5" value="5"></div>
+        </div>
+        <div class="pb-sum-bar"><span>Total</span><span id="allocSum">100%</span></div>
+        <div class="pb-error" id="allocSumErr" hidden>Total = <span id="allocSumNum">0</span>%. Must equal 100%.</div>
+      </div>
+
+      <h4 class="pb-sub-h">Products</h4>
+      <p class="pb-help" style="margin-top:-2px;">Greyed items are coming soon. They stay selected so you see the full picture; the engine ignores them and notes the redistribution.</p>
+      <div class="pb-products" id="pbProducts"></div>
+
+      <h4 class="pb-sub-h">Open / Closed Ended</h4>
+      <div class="pb-checkrow" id="pbOpenClosed">
+        <label><input type="checkbox" data-oc="open"   checked> Open Ended</label>
+        <label><input type="checkbox" data-oc="closed">       Close Ended</label>
+        <label><input type="checkbox" data-oc="interval">     Interval</label>
+      </div>
+
+      <div class="pb-step-foot">
+        <button class="pb-btn ghost" data-back="2">← Back</button>
+        <button class="pb-btn primary" id="step2Next">Next →</button>
+      </div>
+    </section>
+
+    <!-- STEP 3 — M-Cap -->
+    <section class="pb-step" data-step-pane="3">
+      <h3 class="pb-step-h">M-Cap Allocation</h3>
+
+      <div class="pb-mode-row">
+        <button class="mode-pill active" data-mcap-mode="auto">Auto</button>
+        <button class="mode-pill"        data-mcap-mode="manual_full">Manual (Full)</button>
+        <button class="mode-pill"        data-mcap-mode="manual_partial">Manual (Partial)</button>
+      </div>
+
+      <div id="mcapAutoView" class="pb-sub-view">
+        <div class="pb-help" style="margin-top:0;">Indicative m-cap mix from risk × horizon. The engine maps each SEBI category to its m-cap bucket.</div>
+        <table class="pb-mini-tbl" id="mcapAutoTbl"><tbody></tbody></table>
+      </div>
+
+      <div id="mcapManualView" class="pb-sub-view" hidden>
+        <div class="pb-grid-4 mcap-grid">
+          <div><label>Large Cap %</label><div class="mcap-in-wrap"><input type="number" class="mcap-in" data-bucket="large" min="0" max="100" step="5" value="40"><label class="mcap-auto-tog"><input type="checkbox" class="mcap-auto" data-bucket="large"> Auto</label></div></div>
+          <div><label>Mid Cap %</label><div class="mcap-in-wrap"><input type="number" class="mcap-in" data-bucket="mid" min="0" max="100" step="5" value="25"><label class="mcap-auto-tog"><input type="checkbox" class="mcap-auto" data-bucket="mid"> Auto</label></div></div>
+          <div><label>Small Cap %</label><div class="mcap-in-wrap"><input type="number" class="mcap-in" data-bucket="small" min="0" max="100" step="5" value="20"><label class="mcap-auto-tog"><input type="checkbox" class="mcap-auto" data-bucket="small"> Auto</label></div></div>
+          <div><label>Multi-Cap / Flexi %</label><div class="mcap-in-wrap"><input type="number" class="mcap-in" data-bucket="flexi" min="0" max="100" step="5" value="15"><label class="mcap-auto-tog"><input type="checkbox" class="mcap-auto" data-bucket="flexi"> Auto</label></div></div>
+        </div>
+        <div class="pb-sum-bar"><span>Total</span><span id="mcapSum">100%</span></div>
+        <div class="pb-error" id="mcapSumErr" hidden>Total = <span id="mcapSumNum">0</span>%. Must equal 100%.</div>
+      </div>
+
+      <div class="pb-step-foot">
+        <button class="pb-btn ghost" data-back="3">← Back</button>
+        <button class="pb-btn primary" id="step3Next">Next →</button>
+      </div>
+    </section>
+
+    <!-- STEP 4 — Sectors -->
+    <section class="pb-step" data-step-pane="4">
+      <h3 class="pb-step-h">Sector Weights</h3>
+
+      <div class="pb-mode-row">
+        <button class="mode-pill active" data-sector-mode="auto">Auto</button>
+        <button class="mode-pill"        data-sector-mode="custom">Custom</button>
+      </div>
+
+      <div id="sectorAutoView" class="pb-sub-view">
+        <div class="pb-help" style="margin-top:0;">No sector constraint. The engine picks the highest-scoring funds without sector preference.</div>
+      </div>
+
+      <div id="sectorCustomView" class="pb-sub-view" hidden>
+        <div class="pb-help" style="margin-top:0;">Set targets only for sectors you care about. Leave others blank — they stay unconstrained. The deviation report shows actual vs target after generation.</div>
+        <div class="pb-sector-list" id="pbSectorList"></div>
+        <div class="pb-sum-bar"><span>Sum of constrained sectors</span><span id="sectorSum">0%</span></div>
+        <div class="pb-error" id="sectorSumErr" hidden>Sum exceeds 100%. Reduce one or more targets.</div>
+      </div>
+
+      <div class="pb-step-foot">
+        <button class="pb-btn ghost" data-back="4">← Back</button>
+        <button class="pb-btn primary" id="step4Next">Next →</button>
+      </div>
+    </section>
+
+    <!-- STEP 5 — Finalize -->
+    <section class="pb-step" data-step-pane="5">
+      <h3 class="pb-step-h">Force-Include Funds <span class="pb-step-h-sub">(optional, max 5)</span></h3>
+      <p class="pb-help" style="margin-top:-2px;">Funds added here bypass the eligibility filter and get included regardless of scoring. Their allocation is deducted from the relevant category before the engine runs.</p>
+      <div class="pb-force-row">
+        <input type="text" id="forceFundSearch" placeholder="Search by fund / AMC / scheme code…" autocomplete="off">
+        <div class="pb-force-dd" id="forceFundDd" hidden></div>
+      </div>
+      <div class="pb-force-chips" id="forceFundChips"></div>
+
+      <h4 class="pb-sub-h">Saved Portfolios</h4>
+      <div class="pb-saved-row">
+        <input type="text" id="savePortName" placeholder="Name this portfolio" maxlength="40">
+        <button class="pb-btn ghost" id="savePortBtn" disabled>Save current inputs</button>
+      </div>
+      <div class="pb-saved-list" id="savedPortList"></div>
+
+      <div class="pb-step-foot pb-final-foot">
+        <button class="pb-btn ghost" data-back="5">← Back</button>
+        <button class="pb-btn primary big" id="generateBtn" disabled>GENERATE PORTFOLIO</button>
+      </div>
+      <div class="pb-reset-row">
+        <button class="pb-link" id="pbResetBtn">Reset all inputs</button>
+      </div>
+    </section>
+
+  </aside>
+
+  <!-- RIGHT — OUTPUT -->
+  <section class="pb-output" id="pbOutput">
+
+    <div class="pb-out-empty" id="pbOutEmpty">
       <div class="ring-motif" aria-hidden="true"></div>
-      <h3>Mode B · Rule-based generator — coming in v1.x</h3>
-      <p>Set constraints (number of funds, asset class mix, category mix, sector tilts, AMC inclusions/exclusions,
-         m-cap targets, stock-level rules, risk floors), the solver picks funds preferring higher Centricity rank,
-         and the constraint coverage report explains every partial / unsatisfiable constraint in plain English.<br><br>
-         The UI design is locked in <code>04_Master_Design_Brief.md</code> §5.5 Mode B; the constraint solver
-         is a v1.x build, queued in <code>Skills/mf-dashboard-build/SKILL.md</code> §11 Pending Decisions.</p>
+      <h3>Generate a portfolio to see the output</h3>
+      <p>Complete the wizard on the left and click <b>Generate Portfolio</b>. Your client-ready allocation, blended return chart, sector aggregation, and deviation report will populate here.</p>
     </div>
-  </div>
 
-</section>
+    <div class="pb-out-summary" id="pbOutSummary" hidden>
+      <div class="pb-out-summary-left">
+        <div class="kpi-cell"><span class="lbl">Funds</span><span class="v num" id="sumFundCount">—</span></div>
+        <div class="kpi-cell"><span class="lbl">Categories</span><span class="v num" id="sumCatCount">—</span></div>
+        <div class="kpi-cell"><span class="lbl">Blended Score</span><span class="v num" id="sumBlendScore">—</span></div>
+        <div class="kpi-cell"><span class="lbl">AMCs</span><span class="v num" id="sumAmcCount">—</span></div>
+        <div class="kpi-cell"><span class="lbl">As of</span><span class="v" id="sumCycle">—</span></div>
+      </div>
+      <div class="pb-out-summary-right">
+        <label class="pb-amount">Total ₹<input type="number" id="totalInvAmount" min="100000" step="50000" value="5000000"></label>
+        <button class="pb-btn ghost" id="regenBtn" title="Re-run engine with current wizard inputs">Regenerate</button>
+        <button class="pb-btn ghost" id="shareBtn" title="Copy URL with current state">Copy link</button>
+      </div>
+    </div>
+
+    <nav class="pb-tabs" id="pbTabs" hidden>
+      <button class="pb-tab active" data-tab="overview">Overview</button>
+      <button class="pb-tab"        data-tab="returns">Returns</button>
+      <button class="pb-tab"        data-tab="analytics">Analytics</button>
+      <button class="pb-tab"        data-tab="plan">Plan vs Portfolio</button>
+      <button class="pb-tab"        data-tab="funds">Fund Performances</button>
+    </nav>
+
+    <div class="pb-tab-pane active" data-tab-pane="overview" hidden>
+      <div class="pb-kpi-row" id="overviewKpiRow"></div>
+      <div class="pb-donut-row">
+        <div class="pb-donut-card"><h4>Asset Class</h4><canvas id="acDonut" width="240" height="240"></canvas><div class="pb-donut-legend" id="acLegend"></div></div>
+        <div class="pb-donut-card"><h4>M-Cap Mix</h4><canvas id="mcDonut" width="240" height="240"></canvas><div class="pb-donut-legend" id="mcLegend"></div></div>
+      </div>
+      <div class="pb-table-block">
+        <h4>Selected Funds</h4>
+        <div class="pb-tbl-wrap" id="pbFundsTblWrap"></div>
+        <div class="pb-warnings" id="pbWarnings"></div>
+      </div>
+    </div>
+
+    <div class="pb-tab-pane" data-tab-pane="returns" hidden>
+      <div class="pb-chart-card">
+        <h4>Blended Portfolio Growth of ₹1,00,000</h4>
+        <div class="pb-chart-controls" id="navWindowToggles">
+          <button class="window-btn" data-window="1y">1Y</button>
+          <button class="window-btn" data-window="3y">3Y</button>
+          <button class="window-btn active" data-window="max">Max</button>
+        </div>
+        <canvas id="navChart" height="320"></canvas>
+        <div class="pb-chart-cap" id="navChartCap">—</div>
+      </div>
+      <div class="pb-table-block">
+        <h4>Returns Summary</h4>
+        <table class="pb-rtns-tbl" id="rtnsSummaryTbl"></table>
+      </div>
+    </div>
+
+    <div class="pb-tab-pane" data-tab-pane="analytics" hidden>
+      <div class="pb-anly-grid">
+        <div class="pb-anly-card"><h4>Asset Allocation</h4><canvas id="anlyAcDonut" width="220" height="220"></canvas><div class="pb-donut-legend" id="anlyAcLegend"></div></div>
+        <div class="pb-anly-card"><h4>M-Cap Allocation</h4><canvas id="anlyMcDonut" width="220" height="220"></canvas><div class="pb-donut-legend" id="anlyMcLegend"></div></div>
+        <div class="pb-anly-card pb-anly-wide"><h4>Sector Allocation (top 10)</h4><div id="anlySectors"></div></div>
+        <div class="pb-anly-card pb-anly-wide"><h4>Top 10 Stocks (aggregated)</h4><div id="anlyStocks"></div></div>
+        <div class="pb-anly-card pb-anly-wide"><h4>AMC Allocation</h4><div id="anlyAmcs"></div></div>
+        <div class="pb-anly-card"><h4>Credit Quality</h4><div class="pb-cs-empty">Coming soon — populates when Debt allocation data is added.</div></div>
+      </div>
+    </div>
+
+    <div class="pb-tab-pane" data-tab-pane="plan" hidden>
+      <div class="pb-plan-status" id="planBanner"></div>
+      <h4>Plan vs Portfolio</h4>
+      <table class="pb-plan-tbl" id="planTbl"></table>
+      <div class="pb-plan-flags" id="planFlags"></div>
+    </div>
+
+    <div class="pb-tab-pane" data-tab-pane="funds" hidden>
+      <div class="pb-funds-perf" id="pbFundsPerf"></div>
+      <h4 style="margin-top:32px;">Benchmark Coverage</h4>
+      <table class="pb-bench-tbl" id="pbBenchTbl"></table>
+    </div>
+
+  </section>
+
+</div>
 
 </main>
 
