@@ -184,6 +184,88 @@
   const DONUT_PALETTE = ['#BD9568', '#DBC8B2', '#0E0E0E', '#BFBFBF', '#6B4F2A',
                           '#A07850', '#D4B896', '#8C7B6B', '#4A3728', '#E8D5C0'];
 
+  /* ── v4 Precision Mode tunables ─────────────────────────────────────────
+     Single source of truth for mode-specific deviation tolerance + the
+     parameter / top-up share split for the two mixed modes. */
+  const PB_DEVIATION_TOLERANCE = {
+    userNeeds:  { assetClass: 2, mcap: 4, sector: 5  },
+    screener:   { assetClass: 4, mcap: 8, sector: 12 },
+    centricity: { assetClass: 4, mcap: 8, sector: 12 },
+  };
+  const PB_MIX = {
+    screener:   { paramShare: 0.65, topUpShare: 0.35 },
+    centricity: { paramShare: 0.60, topUpShare: 0.40 },
+  };
+  const MODE_LABEL = {
+    userNeeds:  'User Needs Focused',
+    screener:   'Screener Ranking Focused',
+    centricity: 'Centricity Model Focused',
+  };
+  /* Migrate v3 mode keys to v4 keys for saved snapshots / URL state. */
+  function migrateModeKey(m) {
+    if (m === 'fit')     return 'userNeeds';
+    if (m === 'focused') return 'centricity';
+    if (m === 'ranked')  return 'screener';
+    return m || 'userNeeds';
+  }
+
+  /* ── v4 Tenor-based sub-category exclusion rules ────────────────────────
+     Engine pre-filters universe at the start of runSelectionEngine. User
+     can override via `_state.tenorOverrides[subCategoryName] = true`.
+     Sub-category strings are matched against fund.category (SEBI naming). */
+  const PB_TENOR_RULES = {
+    /* Sub-1 year: only liquid / overnight / arbitrage-style funds. v1 has
+       no liquid/overnight/USD funds (Equity + Hybrid only), so this maps
+       to "exclude almost everything". User override required to build
+       any meaningful portfolio at this horizon — and the wizard surfaces
+       a portfolio note. */
+    'lt1': {
+      excludeCategories: [
+        'Large Cap', 'Mid Cap', 'Small Cap', 'Flexi Cap', 'Multi Cap', 'Focused', 'ELSS',
+        'Value-Contra', 'Special-Opp', 'Sector-Thematic', 'Banking-FinServ',
+        'FMCG-Consumption', 'Healthcare-Pharma', 'Infrastructure', 'Manufacturing',
+        'Technology', 'ESG', 'MNC', 'PSU', 'Defence', 'Large & Mid Cap',
+        'Aggressive Hybrid', 'Multi Asset Allocation', 'BAF', 'DAF',
+      ],
+    },
+    '1to3': {
+      excludeCategories: [
+        'Sector-Thematic', 'Banking-FinServ', 'FMCG-Consumption', 'Healthcare-Pharma',
+        'Infrastructure', 'Manufacturing', 'Technology', 'ESG', 'MNC', 'PSU', 'Defence',
+        'Small Cap', 'Mid Cap', 'Focused', 'ELSS', 'Special-Opp',
+      ],
+    },
+    '3to5': {
+      excludeCategories: [
+        'Sector-Thematic', 'Banking-FinServ', 'FMCG-Consumption', 'Healthcare-Pharma',
+        'Infrastructure', 'Manufacturing', 'Technology', 'ESG', 'MNC', 'PSU', 'Defence',
+      ],
+    },
+    '5to10': {
+      excludeCategories: ['BAF', 'DAF', 'Equity Savings'],
+    },
+    '10plus': {
+      excludeCategories: ['BAF', 'DAF', 'Equity Savings'],
+    },
+  };
+  function tenorExcludeSet(horizonKey) {
+    const rule = PB_TENOR_RULES[horizonKey];
+    return rule ? new Set(rule.excludeCategories) : new Set();
+  }
+
+  /* v4 §E — Detect International / Global / Overseas funds.
+     The current SEBI category list (26 categories) doesn't include a
+     dedicated "International" category, so we match on fund_name patterns.
+     When v1.x ships data with FoF Overseas / international SEBI sub-cats,
+     extend INTL_CATEGORIES to short-circuit the name regex. */
+  const INTL_CATEGORIES = new Set(['FoF Overseas', 'Fund of Funds Overseas', 'International Equity']);
+  const INTL_NAME_RE = /\b(International|Global|Overseas|Worldwide|Asia\s|Europe|Emerging\s+Mkt|Greater\s+China|Japan|Nasdaq|S&P\s*500)\b/i;
+  function isIntlFund(f) {
+    if (!f) return false;
+    if (INTL_CATEGORIES.has(f.category)) return true;
+    return INTL_NAME_RE.test(f.fund_name || '');
+  }
+
   const RISK_LABEL = {
     capital_preservation: 'Capital Preservation',
     conservative: 'Conservative', balanced: 'Balanced',
@@ -200,6 +282,7 @@
   const MC_LABEL = {
     large: 'Large Cap', mid: 'Mid Cap',
     small: 'Small Cap', flexi: 'Multi-Cap / Flexi',
+    intl:  'Intl / Global',
   };
 
   /* Fund role descriptors (Funds table column) */
@@ -250,8 +333,8 @@
   const _state = {
     risk: null,
     horizon: null,
-    instMin: 8,
-    instMax: 15,
+    instMin: 6,
+    instMax: 12,
     optimiseFunds: true,
     allocMode: 'auto',                       // 'auto' | 'manual' | 'partial'
     allocManual:        { equity: 60, debt: 30, commodities: 5, reits: 5 },
@@ -267,7 +350,9 @@
     sectorAutoFlags: {},                     // partial mode: {sectorName: true} when Auto
     forceFunds: [],
     totalAmount: 5000000,
-    precisionMode: 'fit',          // 'fit' | 'focused' | 'ranked'
+    precisionMode: 'userNeeds',    // 'userNeeds' | 'screener' | 'centricity'
+    tenorOverrides: {},            // { '<sub-cat>': true } — re-enable categories excluded by horizon
+    intlEquityShare: 0,            // 0..100, % of equity bucket allocated to international/global funds
   };
 
   /* Output state set by the engine. */
@@ -367,28 +452,87 @@
       document.querySelectorAll('#horizonPills .pill').forEach(x => x.classList.toggle('active', x === p));
       updateStep1Next();
       refreshAutoTables();
+      renderTenorOverrideList();
     }));
+    /* v4 — dual-handle range slider for instrument count.
+       Two overlaid <input type="range"> elements; each thumb's pointer-events
+       are managed by the .pb-range-slider input rule (only the thumbs are
+       interactive — the rest of the input is transparent). On change we
+       enforce min ≤ max by swapping values when the user drags one handle
+       past the other. */
     const minIn = document.getElementById('instMin');
     const maxIn = document.getElementById('instMax');
+    const minLbl = document.getElementById('instMinLabel');
+    const maxLbl = document.getElementById('instMaxLabel');
+    const fillEl = document.getElementById('pbRangeFill');
+    function updateRangeUI() {
+      const lo = +minIn.min;
+      const hi = +minIn.max;
+      const span = hi - lo;
+      const a = +minIn.value;
+      const b = +maxIn.value;
+      const aPct = ((Math.min(a, b) - lo) / span) * 100;
+      const bPct = ((Math.max(a, b) - lo) / span) * 100;
+      fillEl.style.left = aPct + '%';
+      fillEl.style.right = (100 - bPct) + '%';
+      minLbl.textContent = Math.min(a, b);
+      maxLbl.textContent = Math.max(a, b);
+    }
     function syncCounts() {
-      let mn = Math.max(3, Math.min(30, parseInt(minIn.value, 10) || 3));
-      let mx = Math.max(3, Math.min(30, parseInt(maxIn.value, 10) || 3));
-      const validRange = mx >= mn;
-      minIn.classList.toggle('err', !validRange || mn > mx);
-      maxIn.classList.toggle('err', !validRange);
+      let mn = Math.min(+minIn.value, +maxIn.value);
+      let mx = Math.max(+minIn.value, +maxIn.value);
       _state.instMin = mn;
       _state.instMax = mx;
+      updateRangeUI();
       updateStep1Next();
     }
-    minIn.addEventListener('input',  syncCounts);
-    minIn.addEventListener('change', () => { minIn.value = _state.instMin; });
-    maxIn.addEventListener('input',  syncCounts);
-    maxIn.addEventListener('change', () => { maxIn.value = _state.instMax; });
+    minIn.addEventListener('input', syncCounts);
+    maxIn.addEventListener('input', syncCounts);
+    /* Initialise UI from current state (handles snapshot-restore on cold load). */
+    minIn.value = _state.instMin || 6;
+    maxIn.value = _state.instMax || 12;
+    updateRangeUI();
     document.getElementById('optimiseFunds').addEventListener('change', (e) => {
       _state.optimiseFunds = e.target.checked;
     });
     document.getElementById('step1Next').addEventListener('click', () => goToStep(2));
   }
+  /* v4 — render the advanced tenor-override list when horizon is set. */
+  function renderTenorOverrideList() {
+    const wrap = document.getElementById('pbTenorList');
+    const summaryHint = document.getElementById('pbTenorSummaryHint');
+    if (!wrap || !_state.horizon) return;
+    const excludedSet = tenorExcludeSet(_state.horizon);
+    const excludedList = Array.from(excludedSet).sort();
+    if (!excludedList.length) {
+      wrap.innerHTML = '<p class="pb-help" style="grid-column:1/-1;margin:0;">No sub-categories are excluded for this horizon.</p>';
+      if (summaryHint) summaryHint.textContent = '— no exclusions for this horizon';
+      return;
+    }
+    wrap.innerHTML = excludedList.map(cat => {
+      const checked = !!(_state.tenorOverrides && _state.tenorOverrides[cat]);
+      return '<label><input type="checkbox" data-tenor-cat="' + escapeHtml(cat) + '"' +
+             (checked ? ' checked' : '') + '> ' + escapeHtml(cat) + '</label>';
+    }).join('');
+    wrap.querySelectorAll('input[data-tenor-cat]').forEach(inp => {
+      inp.addEventListener('change', () => {
+        if (!_state.tenorOverrides) _state.tenorOverrides = {};
+        if (inp.checked) _state.tenorOverrides[inp.dataset.tenorCat] = true;
+        else delete _state.tenorOverrides[inp.dataset.tenorCat];
+        if (summaryHint) {
+          const n = Object.keys(_state.tenorOverrides).filter(k => _state.tenorOverrides[k]).length;
+          summaryHint.textContent = n ? '— ' + n + ' override' + (n > 1 ? 's' : '') : '— ' + excludedList.length + ' categories excluded';
+        }
+      });
+    });
+    if (summaryHint) {
+      const n = Object.keys(_state.tenorOverrides || {}).filter(k => _state.tenorOverrides[k]).length;
+      summaryHint.textContent = n
+        ? '— ' + n + ' override' + (n > 1 ? 's' : '')
+        : '— ' + excludedList.length + ' categor' + (excludedList.length > 1 ? 'ies' : 'y') + ' excluded';
+    }
+  }
+
   function updateStep1Next() {
     const valid = (_state.risk && _state.horizon &&
                    _state.instMin >= 3 && _state.instMax <= 30 &&
@@ -428,11 +572,31 @@
       refreshAllocPartialMode();
       validateAllocSum();
     }));
-    /* Global MF placeholder (disabled — Coming Soon; checkbox state still tracked) */
-    const globalMfEl = document.getElementById('includeGlobalMF');
-    if (globalMfEl) globalMfEl.addEventListener('change', (e) => {
-      _state.includeGlobalMF = e.target.checked;
-    });
+    /* v4 — International / Global MF as sub-slice of Equity (Item E) */
+    const intlSlider = document.getElementById('intlEquityShare');
+    const intlLbl    = document.getElementById('intlEquityShareLabel');
+    const intlTotal  = document.getElementById('intlEquityOfTotal');
+    function refreshIntlReadout() {
+      const v = +intlSlider.value || 0;
+      _state.intlEquityShare = v;
+      if (intlLbl) intlLbl.textContent = v + ' %';
+      const equityPct = _state.allocMode === 'auto'
+        ? (ALLOC_MATRIX_AC[_state.risk]?.[_state.horizon]?.equity || 0)
+        : (+_state.allocManual.equity || 0);
+      const ofTotal = (equityPct * v) / 100;
+      if (intlTotal) intlTotal.textContent = ofTotal.toFixed(1) + ' % of total';
+    }
+    if (intlSlider) {
+      intlSlider.addEventListener('input', refreshIntlReadout);
+      intlSlider.value = _state.intlEquityShare || 0;
+      refreshIntlReadout();
+    }
+    /* Re-fire intl readout when AC mode / inputs change so the "of total"
+       hint stays accurate. */
+    document.querySelectorAll('.alloc-in[data-bucket="equity"], .alloc-pin[data-bucket="equity"]').forEach(el =>
+      el.addEventListener('input', refreshIntlReadout));
+    document.querySelectorAll('[data-alloc-mode]').forEach(b =>
+      b.addEventListener('click', () => setTimeout(refreshIntlReadout, 0)));
     /* Products */
     renderProducts();
     /* Open/closed */
@@ -655,11 +819,14 @@
     document.getElementById('step4Next').addEventListener('click', () => goToStep(5));
   }
 
-  /* Renders into the active mode's container. Auto mode has no list. */
+  /* v4 §F — render BOTH the Full and Partial sector lists eagerly so the
+     DOM scaffolding is constant. Mode toggle just swaps visibility — fixes
+     the "Manual Partial empty until toggle" bug. */
   function renderSectorList() {
-    if (_state.sectorMode === 'auto') return;
-    const isPartial = _state.sectorMode === 'manual_partial';
-    const wrapId = isPartial ? 'pbSectorListPartial' : 'pbSectorListFull';
+    renderSectorListInto('pbSectorListFull', false);
+    renderSectorListInto('pbSectorListPartial', true);
+  }
+  function renderSectorListInto(wrapId, isPartial) {
     const wrap = document.getElementById(wrapId);
     if (!wrap) return;
     /* Count funds per sector for tooltip context */
@@ -940,26 +1107,20 @@
       _portfolio = runSelectionEngine();
       saveLastWizardState();
 
-      /* Fit-mode fallback: if the user is in 'fit' mode AND has sector targets
-         but the engine produced no funds (or fewer than instMin) with any
-         sector bonus, the parameters are unreachable. Silently re-run in
-         'focused' mode and surface a polite note so partners aren't confused. */
+      /* v4 §4.2 — userNeeds mode no longer silently falls back to 'focused'
+         (that v3 behaviour is removed). Instead: produce best-effort portfolio
+         and surface a deviation-breach Portfolio Note when actual deviation
+         exceeds the mode's tolerance budget. The note text is set inside
+         runSelectionEngine when the breach is computed; we just toggle the
+         element here. */
       const fallbackNoteEl = document.getElementById('pbParamFallbackNote');
-      let usedFallback = false;
-      if (_state.precisionMode === 'fit') {
-        const hasSectors = (_state.sectorMode === 'manual_full' || _state.sectorMode === 'manual_partial')
-                            && Object.keys(_state.sectorTargets || {}).length > 0;
-        const minTarget = _state.instMin || 3;
-        const noSectorMatched = _portfolio.funds.every(f => !((f._sectorBonus || 0) > 0));
-        if (hasSectors && noSectorMatched && _portfolio.funds.length < minTarget) {
-          const savedMode = _state.precisionMode;
-          _state.precisionMode = 'focused';
-          _portfolio = runSelectionEngine();
-          _state.precisionMode = savedMode;     // restore wizard state
-          usedFallback = true;
+      const showNote = !!_portfolio.deviationBreach;
+      if (fallbackNoteEl) {
+        fallbackNoteEl.hidden = !showNote;
+        if (showNote && _portfolio.deviationBreachMessage) {
+          fallbackNoteEl.textContent = _portfolio.deviationBreachMessage;
         }
       }
-      if (fallbackNoteEl) fallbackNoteEl.hidden = !usedFallback;
 
       if (!_portfolio.funds.length) {
         document.getElementById('pbOutEmpty').hidden = false;
@@ -969,7 +1130,7 @@
       } else {
         renderOutput();
         showToast('Portfolio generated · ' + _portfolio.funds.length + ' funds' +
-                  (usedFallback ? ' · fallback to Focused' : ''));
+                  (showNote ? ' · ' + (MODE_LABEL[_portfolio.mode] || _portfolio.mode) + ' (deviation breached)' : ''));
       }
     } catch (e) {
       console.error('[pb] generation failed', e);
@@ -984,6 +1145,24 @@
 
     /* Step 1 — universe */
     let universe = _allFunds.slice();
+
+    /* v4 — Tenor-based pre-filter (Item C). Drops sub-categories that are
+       inappropriate for the user's time horizon, unless the user has
+       explicitly re-enabled them via the Step-1 advanced override. */
+    const tenorExcl = tenorExcludeSet(_state.horizon);
+    const overrideOn = _state.tenorOverrides || {};
+    const tenorRemoved = [];
+    universe = universe.filter(f => {
+      if (!tenorExcl.has(f.category)) return true;
+      if (overrideOn[f.category]) return true;
+      tenorRemoved.push(f.category);
+      return false;
+    });
+    /* Cache the rule set + which categories were actually removed so the
+       Plan tab + Summary header can surface them. */
+    out.tenorExcluded = Array.from(tenorExcl);
+    out.tenorOverridden = Object.keys(overrideOn).filter(k => overrideOn[k]);
+    out.tenorRemovedCount = tenorRemoved.length;
 
     /* Step 2 — tier classification
        Priority order (per Centricity spec):
@@ -1056,9 +1235,31 @@
     }
     out.deviation.targetMC = targetMC;
 
-    /* Step 7 — group by m-cap bucket */
-    const buckets = { large: [], mid: [], small: [], flexi: [] };
+    /* v4 §E — Carve out an `intl` slice from equity if user requested any
+       international/global allocation. Domestic m-cap targets are scaled down
+       proportionally so total still sums to 100. */
+    const intlShare = +_state.intlEquityShare || 0;
+    let intlTargetPct = 0;
+    if (intlShare > 0) {
+      const equityPctOfTotal = (targetAC.equity || 0) +
+                               (targetAC.debt || 0) +
+                               (targetAC.commodities || 0) +
+                               (targetAC.reits || 0);
+      intlTargetPct = (equityPctOfTotal * intlShare) / 100;
+      const scale = (100 - intlTargetPct) / 100;
+      ['large', 'mid', 'small', 'flexi'].forEach(b => {
+        targetMC[b] = (targetMC[b] || 0) * scale;
+      });
+      targetMC.intl = intlTargetPct;
+    }
+    out.intlTargetPct = intlTargetPct;
+
+    /* Step 7 — group by m-cap bucket. Equity funds matching INTL_PATTERN go
+       to the `intl` bucket; everything else uses the existing CATEGORY_MCAP
+       mapping with mcap_split fallback. */
+    const buckets = { large: [], mid: [], small: [], flexi: [], intl: [] };
     universe.forEach(f => {
+      if (intlShare > 0 && isIntlFund(f)) { buckets.intl.push(f); return; }
       let b = CATEGORY_MCAP_BUCKET[f.category];
       if (!b) {
         /* Fall back to mcap_split */
@@ -1099,42 +1300,49 @@
       universe.forEach(f => { f._sectorBonus = 0; });
     }
 
-    /* Three precision modes — sortFn picks one based on _state.precisionMode.
-       'fit'     → sector alignment wins absolutely (90–100% importance).
-       'focused' → FOCUSED tier first, score+sector tiebreak (75–90%).
-       'ranked'  → RANKED tier first (priority 0), FOCUSED at 1 (75–90%). */
-    const TIER_RANK_FIT     = { FOCUSED: 0, RANKED: 1, UNRANKED: 2, NEW_FUND: 3 };
-    const TIER_RANK_FOCUSED = { FOCUSED: 0, RANKED: 1, UNRANKED: 2, NEW_FUND: 3 };
-    const TIER_RANK_RANKED  = { FOCUSED: 1, RANKED: 0, UNRANKED: 2, NEW_FUND: 3 };
-    /* Backward-compat alias used elsewhere in the file */
-    const TIER_RANK = TIER_RANK_FIT;
-    function sortFn(a, b) {
+    /* v4 — three precision modes, all share a single TIER_RANK ordering
+       (FOCUSED → RANKED → UNRANKED → NEW_FUND). Mode behaviour is driven
+       by which sortFn variant the bucket-fill pass uses + whether a
+       second top-up pass runs at all. */
+    const TIER_RANK = { FOCUSED: 0, RANKED: 1, UNRANKED: 2, NEW_FUND: 3 };
+
+    /* Parameter-fit sort: sectors win absolutely if user set targets;
+       otherwise tier → score → sharpe. Used for User Needs mode + the
+       parameter-fit pass of the two mixed modes. */
+    function sortFnParam(a, b) {
       const hasSectors = Object.keys(sectorTargets).length > 0;
-      const mode = _state.precisionMode || 'fit';
-      if (mode === 'fit' && hasSectors) {
-        /* Sector alignment wins absolutely. */
+      if (hasSectors) {
         const bd = (b._sectorBonus || 0) - (a._sectorBonus || 0);
         if (Math.abs(bd) > 0.0005) return bd;
-        const ta = TIER_RANK_FIT[a._tier] ?? 9;
-        const tb = TIER_RANK_FIT[b._tier] ?? 9;
-        if (ta !== tb) return ta - tb;
-        const sc = (b.centricity_score ?? 0) - (a.centricity_score ?? 0);
-        if (Math.abs(sc) > 0.001) return sc;
-        return (b.risk_metrics?.sharpe_3y || 0) - (a.risk_metrics?.sharpe_3y || 0);
       }
-      /* 'focused' / 'ranked' / 'fit-without-sectors' — tier-first ordering with
-         a precision-mode-specific TIER_RANK table. */
-      const TR = (mode === 'ranked') ? TIER_RANK_RANKED
-               : (mode === 'focused') ? TIER_RANK_FOCUSED
-               : TIER_RANK_FIT;
-      const ta = TR[a._tier] ?? 9;
-      const tb = TR[b._tier] ?? 9;
+      const ta = TIER_RANK[a._tier] ?? 9;
+      const tb = TIER_RANK[b._tier] ?? 9;
       if (ta !== tb) return ta - tb;
       const sa = (a.centricity_score ?? 0) + (a._sectorBonus || 0);
       const sb = (b.centricity_score ?? 0) + (b._sectorBonus || 0);
       if (Math.abs(sb - sa) > 0.001) return sb - sa;
       return (b.risk_metrics?.sharpe_3y || 0) - (a.risk_metrics?.sharpe_3y || 0);
     }
+
+    /* Top-up sort for `screener` mode: pure ranking play — best Ranked /
+       Focused by centricity_score, sector-agnostic. */
+    function sortFnTopUpRanked(a, b) {
+      const ta = TIER_RANK[a._tier] ?? 9;
+      const tb = TIER_RANK[b._tier] ?? 9;
+      if (ta !== tb) return ta - tb;
+      const sa = a.centricity_score ?? 0;
+      const sb = b.centricity_score ?? 0;
+      if (Math.abs(sb - sa) > 0.001) return sb - sa;
+      return (b.risk_metrics?.sharpe_3y || 0) - (a.risk_metrics?.sharpe_3y || 0);
+    }
+    /* Top-up sort for `centricity` mode: highest centricity_score (used after
+       buckets are pre-narrowed to FOCUSED-only with a fall-back to all). */
+    function sortFnTopUpScore(a, b) {
+      return (b.centricity_score ?? 0) - (a.centricity_score ?? 0);
+    }
+
+    /* Backward-compat alias retained for any older call sites in the file. */
+    const sortFn = sortFnParam;
 
     /* Step 10 — handle force-include first (deduct from buckets) */
     const forced = [];
@@ -1146,67 +1354,123 @@
       forcedSchemes.add(f.scheme_code);
     });
 
-    /* Step 9 + 11 — per-bucket selection with overlap dedup + 2-per-category cap.
-       Engine targets up to instMax fund slots distributed by m-cap weights.
-       Hard rule: at most 2 funds per SEBI category (across all buckets). */
+    /* v4 — mode-aware bucket selection.
+       userNeeds:  single pass at 100% bucket weight using sortFnParam.
+       screener:   pass A at paramShare × bucketTarget using sortFnParam,
+                   pass B at topUpShare × bucketTarget using sortFnTopUpRanked
+                   (pure ranking play, sector-agnostic).
+       centricity: pass A at paramShare × bucketTarget using sortFnParam,
+                   pass B at topUpShare × bucketTarget using sortFnTopUpScore
+                   over a Focused-only candidate pool per bucket; if a bucket
+                   has no Focused funds, falls back to best-by-score across
+                   the full bucket (excluding UNRANKED). */
     const targetMax = Math.max(_state.instMin, _state.instMax);
     const targetMin = _state.instMin;
-    const selected = [];
-    const catCount = {};                 // SEBI category → count of funds selected
-    const bucketShortfalls = [];         // {bucket, requested, achieved}
+    const selected  = [];
+    const catCount  = {};                  // SEBI category → count of funds selected
+    const bucketShortfalls = [];           // {bucket, requested, achieved, pass}
+    const mode      = _state.precisionMode || 'userNeeds';
 
-    function tryPick(cand, b, pickedHere) {
-      if ((catCount[cand.category] || 0) >= 2) return false;     // 2-per-category cap
-      for (const exist of pickedHere.concat(selected)) {
-        if (computeOverlap(cand.scheme_code, exist.scheme_code) > 50) return false;
-      }
-      cand._bucket = b;
-      cand._alternates = [];                                     // filled below
-      pickedHere.push(cand);
-      catCount[cand.category] = (catCount[cand.category] || 0) + 1;
-      return true;
+    function pickPass(passBuckets, passSortFn, passShare, passLabel, overlapThreshold) {
+      const ovTh = (overlapThreshold == null) ? 50 : overlapThreshold;
+      Object.keys(passBuckets).forEach(b => {
+        const fullTarget = targetMC[b] || 0;
+        const shareTarget = fullTarget * passShare;
+        if (shareTarget <= 0) return;
+        const eligibles = passBuckets[b]
+          .filter(f => !forcedSchemes.has(f.scheme_code))
+          .slice()
+          .sort(passSortFn);
+        const nBucket = Math.max(1, Math.round(targetMax * (shareTarget / 100)));
+        const pickedHere = [];
+        const alternates = eligibles.slice();
+        while (pickedHere.length < nBucket && alternates.length) {
+          const cand = alternates.shift();
+          if ((catCount[cand.category] || 0) >= 2) continue;     // 2-per-cat cap (cross-pass)
+          /* Same-fund guard: never re-pick an already-selected fund (whichever
+             pass picked it first). Overlap dedup uses the per-pass threshold —
+             Pass A enforces the standard 50% rule; Pass B (top-up) loosens to
+             80% so the ranking-led half can still pick high-quality funds that
+             happen to share holdings with the parameter-led picks (per v4 spec
+             §4.7 acceptance — modes must produce visibly different portfolios). */
+          let skip = false;
+          for (const exist of pickedHere.concat(selected)) {
+            if (exist.scheme_code === cand.scheme_code) { skip = true; break; }
+            if (computeOverlap(cand.scheme_code, exist.scheme_code) > ovTh) {
+              skip = true; break;
+            }
+          }
+          if (skip) continue;
+          cand._bucket = b;
+          cand._alternates = alternates.slice(0, 5);
+          pickedHere.push(cand);
+          catCount[cand.category] = (catCount[cand.category] || 0) + 1;
+        }
+        /* Equal-split share weight across actual picks. If a fund is added in
+           pass B and pass A also picked it (won't happen with the same-fund
+           guard above, but kept defensively), increment weight rather than
+           push duplicate. */
+        pickedHere.forEach(p => {
+          const share = shareTarget / Math.max(1, pickedHere.length);
+          const existing = selected.find(s => s.scheme_code === p.scheme_code);
+          if (existing) {
+            existing._weight = (existing._weight || 0) + share;
+          } else {
+            p._weight = share;
+            selected.push(p);
+          }
+        });
+        if (pickedHere.length < nBucket) {
+          bucketShortfalls.push({ bucket: b, requested: nBucket, achieved: pickedHere.length, pass: passLabel });
+        }
+      });
     }
 
-    Object.keys(buckets).forEach(b => {
-      const target = targetMC[b] || 0;
-      if (target <= 0) return;
-      const eligibles = buckets[b].filter(f => !forcedSchemes.has(f.scheme_code));
-      eligibles.sort(sortFn);
-      const nBucket = Math.max(1, Math.round(targetMax * (target / 100)));
-      const pickedHere = [];
-      const alternates = eligibles.slice();
-      while (pickedHere.length < nBucket && alternates.length) {
-        const cand = alternates.shift();
-        if (!tryPick(cand, b, pickedHere)) continue;
-      }
-      /* Pre-load up to 5 alternates per fund for the swap popover */
-      pickedHere.forEach(p => { p._alternates = alternates.slice(0, 5); });
-      /* Equal-split bucket weight across actual picks */
-      pickedHere.forEach(p => {
-        p._weight = target / Math.max(1, pickedHere.length);
-        selected.push(p);
-      });
-      if (pickedHere.length < nBucket) {
-        bucketShortfalls.push({ bucket: b, requested: nBucket, achieved: pickedHere.length });
-      }
-    });
+    /* Pass A — parameter-fit (always runs) — strict 50% overlap dedup */
+    const mix = PB_MIX[mode] || { paramShare: 1.0, topUpShare: 0 };
+    pickPass(buckets, sortFnParam, mix.paramShare || 1.0, 'param', 50);
 
-    /* Phase 2: if total < instMin and !optimiseFunds, top up from any bucket
-       (still respecting 2-per-cat + overlap). Pulls from REVIEW / UNRANKED tiers. */
+    /* Pass B — top-up for screener / centricity modes only — loosened 80%
+       overlap threshold so Pass B can pick visibly different funds that share
+       holdings with Pass A's picks. */
+    if (mode === 'screener' && mix.topUpShare > 0) {
+      pickPass(buckets, sortFnTopUpRanked, mix.topUpShare, 'topup-rank', 80);
+    } else if (mode === 'centricity' && mix.topUpShare > 0) {
+      /* Narrow each bucket to FOCUSED tier for the top-up pass; fall back to
+         the full bucket (excl. UNRANKED) when a bucket has no Focused funds. */
+      const focusedBuckets = {};
+      Object.keys(buckets).forEach(b => {
+        const focusedHere = buckets[b].filter(f => f._tier === 'FOCUSED');
+        focusedBuckets[b] = focusedHere.length
+          ? focusedHere
+          : buckets[b].filter(f => f._tier === 'RANKED');     // best-by-score, never UNRANKED
+      });
+      pickPass(focusedBuckets, sortFnTopUpScore, mix.topUpShare, 'topup-focused', 80);
+    }
+
+    /* Cross-pass top-up: if total < instMin and !optimiseFunds, top up from any
+       bucket (still respecting 2-per-cat + overlap). Pulls from any tier. */
     if (selected.length < targetMin && !_state.optimiseFunds) {
       const allEligibles = universe
         .filter(f => !forcedSchemes.has(f.scheme_code))
         .filter(f => !selected.find(s => s.scheme_code === f.scheme_code))
-        .sort(sortFn);
+        .sort(sortFnParam);
       for (const cand of allEligibles) {
         if (selected.length >= targetMin) break;
-        const b = CATEGORY_MCAP_BUCKET[cand.category] || 'flexi';
-        const proxy = [];
-        if (tryPick(cand, b, proxy)) {
-          /* Give it a small fixed weight from the largest existing bucket */
-          cand._weight = Math.max(2, 100 / (selected.length + 1));
-          selected.push(proxy[0]);
+        if ((catCount[cand.category] || 0) >= 2) continue;
+        let highOverlap = false;
+        for (const exist of selected) {
+          if (computeOverlap(cand.scheme_code, exist.scheme_code) > 50) {
+            highOverlap = true; break;
+          }
         }
+        if (highOverlap) continue;
+        const b = CATEGORY_MCAP_BUCKET[cand.category] || 'flexi';
+        cand._bucket = b;
+        cand._alternates = [];
+        cand._weight = Math.max(2, 100 / (selected.length + 1));
+        selected.push(cand);
+        catCount[cand.category] = (catCount[cand.category] || 0) + 1;
       }
     }
 
@@ -1328,6 +1592,50 @@
         });
       }
     });
+
+    /* v4 — deviation-breach detection per mode tolerance budget. */
+    out.mode = mode;
+    out.modeMix = mix;
+    out.tolerance = PB_DEVIATION_TOLERANCE[mode] || PB_DEVIATION_TOLERANCE.userNeeds;
+    const actualMC = { large: 0, mid: 0, small: 0, flexi: 0 };
+    out.funds.forEach(f => { actualMC[f._bucket || 'flexi'] += f._weight; });
+    let mcapMaxDev = 0;
+    ['large', 'mid', 'small', 'flexi'].forEach(b => {
+      const dev = Math.abs((targetMC[b] || 0) - (actualMC[b] || 0));
+      if (dev > mcapMaxDev) mcapMaxDev = dev;
+    });
+    let sectorMaxDev = 0;
+    if (Object.keys(sectorTargets).length && _analytics) {
+      const totalW = out.funds.reduce((s, f) => s + f._weight, 0) || 1;
+      const actualSec = {};
+      out.funds.forEach(f => {
+        const aFund = _analytics.funds[String(f.scheme_code)];
+        if (!aFund) return;
+        (aFund.sector_allocation || []).forEach(s => {
+          actualSec[s.sector] = (actualSec[s.sector] || 0) + (f._weight / totalW) * s.holding_pct;
+        });
+      });
+      Object.keys(sectorTargets).forEach(sec => {
+        const dev = Math.abs((sectorTargets[sec] || 0) - (actualSec[sec] || 0));
+        if (dev > sectorMaxDev) sectorMaxDev = dev;
+      });
+    }
+    out.deviationActual = { mcap: mcapMaxDev, sector: sectorMaxDev };
+    const tol = out.tolerance;
+    const breach = (mcapMaxDev > tol.mcap) || (sectorMaxDev > tol.sector);
+    out.deviationBreach = breach;
+    if (breach && mode === 'userNeeds') {
+      out.deviationBreachMessage =
+        '⚠ Your selected parameters cannot be matched within acceptable deviation from the available universe ' +
+        '(M-cap deviation ' + mcapMaxDev.toFixed(1) + '%, sector deviation ' + sectorMaxDev.toFixed(1) + '%; ' +
+        'budget ±' + tol.mcap + '% / ±' + tol.sector + '%). ' +
+        'Consider rebalancing: relax sector targets, broaden the M-cap mix, or switch to ' +
+        'Screener Ranking Focused / Centricity Model Focused mode.';
+    } else if (breach) {
+      out.deviationBreachMessage =
+        '⚠ Achieved m-cap deviation ' + mcapMaxDev.toFixed(1) + '% / sector deviation ' + sectorMaxDev.toFixed(1) +
+        '% exceeds this mode\'s tolerance budget (±' + tol.mcap + '% / ±' + tol.sector + '%). The portfolio is best-effort; review the Plan tab for the per-dimension deviations.';
+    }
 
     return out;
   }
@@ -2340,8 +2648,10 @@
       document.querySelectorAll('#horizonPills .pill').forEach(p =>
         p.classList.toggle('active', p.dataset.h === snap.horizon));
     }
-    const minEl = document.getElementById('instMin');       if (minEl) minEl.value = snap.instMin || 8;
-    const maxEl = document.getElementById('instMax');       if (maxEl) maxEl.value = snap.instMax || 15;
+    const minEl = document.getElementById('instMin');       if (minEl) minEl.value = snap.instMin || 6;
+    const maxEl = document.getElementById('instMax');       if (maxEl) maxEl.value = snap.instMax || 12;
+    /* Re-fire input event so the slider visual fill + readout sync. */
+    if (minEl) minEl.dispatchEvent(new Event('input', { bubbles: true }));
     const optEl = document.getElementById('optimiseFunds'); if (optEl) optEl.checked = !!snap.optimiseFunds;
     document.querySelectorAll('[data-alloc-mode]').forEach(b =>
       b.classList.toggle('active', b.dataset.allocMode === snap.allocMode));
@@ -2367,7 +2677,7 @@
     document.getElementById('sectorCustomView').hidden = (snap.sectorMode === 'auto');
     renderSectorList(); validateSectorSum();
     renderForceChips();
-    if (snap.precisionMode) _state.precisionMode = snap.precisionMode;
+    if (snap.precisionMode) _state.precisionMode = migrateModeKey(snap.precisionMode);
     refreshPrecisionStep();
     goToStep(1);
     showToast('Loaded saved portfolio');

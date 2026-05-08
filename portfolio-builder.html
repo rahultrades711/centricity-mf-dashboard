@@ -94,18 +94,25 @@
         </div>
       </div>
 
+      <details class="pb-tenor-advanced" id="pbTenorAdvanced">
+        <summary>Show advanced override <span class="pb-tenor-summary-hint" id="pbTenorSummaryHint"></span></summary>
+        <p class="pb-help" style="margin: 6px 0 8px;">Your selected time horizon excludes some SEBI sub-categories by default. Tick any category below to re-enable it for this portfolio.</p>
+        <div class="pb-tenor-list" id="pbTenorList"></div>
+      </details>
+
       <div class="pb-field">
         <label class="pb-label">Number of funds / instruments<span class="req">*</span></label>
-        <div class="pb-count-row">
-          <div class="pb-count-field">
-            <label for="instMin">Min</label>
-            <input type="number" id="instMin" min="3" max="30" step="1" value="8">
-          </div>
-          <span class="pb-count-sep">–</span>
-          <div class="pb-count-field">
-            <label for="instMax">Max</label>
-            <input type="number" id="instMax" min="3" max="30" step="1" value="15">
-          </div>
+        <div class="pb-range-slider" id="pbRangeSlider">
+          <div class="pb-range-track"></div>
+          <div class="pb-range-fill" id="pbRangeFill"></div>
+          <input type="range" id="instMin" min="4" max="25" step="1" value="6" aria-label="Minimum funds">
+          <input type="range" id="instMax" min="4" max="25" step="1" value="12" aria-label="Maximum funds">
+        </div>
+        <div class="pb-range-readout">
+          <span class="pb-range-tag" id="instMinLabel">6</span>
+          <span class="pb-range-sep">to</span>
+          <span class="pb-range-tag" id="instMaxLabel">12</span><!-- v4 §D defaults -->
+          <span class="pb-range-unit">funds</span>
         </div>
         <div class="pb-count-rules">
           <label class="pb-checkbox-label">
@@ -113,7 +120,7 @@
             <span>Optimise to minimum funds — if fewer than Min are needed, build with what's available rather than padding from lower tiers</span>
           </label>
         </div>
-        <div class="pb-help">Hard cap of 2 funds per SEBI category. Engine targets between Min and Max; if eligible funds are exhausted before Max it stops at the achievable count and notes the cause.</div>
+        <div class="pb-help">Hard cap of 2 funds per SEBI category. Engine targets between Min and Max; if eligible funds are exhausted before Max it stops at the achievable count.</div>
       </div>
 
       <div class="pb-step-foot">
@@ -160,10 +167,18 @@
         <div class="pb-error" id="allocPartialSumErr" hidden>Total = <span id="allocPartialSumNum">0</span>%. Must equal 100%.</div>
       </div>
 
-      <label class="pb-checkbox-label" style="margin: 14px 0 4px;">
-        <input type="checkbox" id="includeGlobalMF" disabled>
-        <span>Include Global / International MF <span class="badge" style="background:var(--grey-light);color:var(--text-mid);font-size:9.5px;padding:1px 6px;border-radius:8px;letter-spacing:.08em;text-transform:uppercase;margin-left:6px;">Coming Soon</span></span>
-      </label>
+      <div class="pb-intl-row" id="pbIntlRow">
+        <div class="pb-intl-h">
+          <span class="pb-intl-arrow">↳</span>
+          International / Global MF allocation
+          <span class="pb-intl-help" title="Sub-slice of Equity. e.g. Equity 60% × Intl 10% = 6% of total portfolio in international funds.">?</span>
+        </div>
+        <div class="pb-intl-row-body">
+          <input type="range" id="intlEquityShare" min="0" max="100" step="5" value="0">
+          <span class="pb-intl-tag" id="intlEquityShareLabel">0 %</span>
+          <span class="pb-intl-of-total" id="intlEquityOfTotal">0 % of total</span>
+        </div>
+      </div>
 
       <h4 class="pb-sub-h">Products</h4>
       <p class="pb-help" style="margin-top:-2px;">Greyed items are coming soon. They stay selected so you see the full picture; the engine ignores them and notes the redistribution.</p>
@@ -255,35 +270,35 @@
       <div class="pb-precision-cards">
 
         <label class="pb-precision-card">
-          <input type="radio" name="precisionMode" value="fit" checked>
+          <input type="radio" name="precisionMode" value="userNeeds" checked>
           <div class="pb-precision-inner">
-            <div class="pb-precision-title">Best Fit as per Parameters</div>
+            <div class="pb-precision-title">User Needs Focused</div>
             <div class="pb-precision-body">
-              <strong>Parameters first (90–100% importance).</strong> Funds ranked primarily by how well they satisfy your sector and thematic targets. Within equal sector match, engine prefers Focused → Ranked → Unranked funds. Tightest deviation from target m-cap mix.
+              <strong>Build strictly to your manually-selected parameters.</strong> Engine uses the entire universe (focused, ranked, unranked, thematic, sectoral, international) to fulfil your asset-class, m-cap and sector targets exactly. Tightest deviation tolerance (±2 / ±4 / ±5 %).
             </div>
-            <div class="pb-precision-use">Best when you have specific sector or thematic views (Power, Healthcare, Banking, etc.)</div>
+            <div class="pb-precision-use">Best when sector / theme targets are precise and non-negotiable</div>
           </div>
         </label>
 
         <label class="pb-precision-card">
-          <input type="radio" name="precisionMode" value="focused">
+          <input type="radio" name="precisionMode" value="screener">
           <div class="pb-precision-inner">
-            <div class="pb-precision-title">Centricity Focused</div>
+            <div class="pb-precision-title">Screener Ranking Focused <span class="pb-mix-badge">65 / 35</span></div>
             <div class="pb-precision-body">
-              <strong>Focused funds + parameters (75–90% importance).</strong> Selects from Centricity's focused list first, then tries to satisfy sector targets within that universe. If focused funds fall short on sector coverage, engine falls to Ranked then Unranked. Deviation 5–15% from target m-cap.
+              <strong>Parameter-led with best-in-class top-up.</strong> 65% of allocated rupees go to parameter-fit funds (same selection logic as User Needs); the remaining 35% is a pure ranking play — highest <code>centricity_score</code> Ranked / Focused funds within each asset class regardless of sector. Deviation tolerance ±4 / ±8 / ±12 %.
             </div>
-            <div class="pb-precision-use">Best for curated portfolios anchored to Centricity's highest-conviction funds</div>
+            <div class="pb-precision-use">Best when you want sector tilt + an independent quality top-up</div>
           </div>
         </label>
 
         <label class="pb-precision-card">
-          <input type="radio" name="precisionMode" value="ranked">
+          <input type="radio" name="precisionMode" value="centricity">
           <div class="pb-precision-inner">
-            <div class="pb-precision-title">Ranking Focused</div>
+            <div class="pb-precision-title">Centricity Model Focused <span class="pb-mix-badge">60 / 40</span></div>
             <div class="pb-precision-body">
-              <strong>Quality over parameters (75–90% importance).</strong> Ranked funds get top priority; sector targets are secondary. Engine selects best-ranked funds first, then tries to fulfil parameters; if Ranked universe falls short, falls to Focused then Unranked. Deviation 5–20% from target m-cap.
+              <strong>Parameter-led with Centricity Focused funds.</strong> 60% to parameter-fit; 40% to the Centricity Focused universe (firm-wide model). If the focused list lacks coverage for a needed asset-class slice, falls to best-by-score in that asset class (never to Unranked). Deviation tolerance ±4 / ±8 / ±12 %.
             </div>
-            <div class="pb-precision-use">Best for standard diversified portfolios — quality is the primary driver</div>
+            <div class="pb-precision-use">Best for curated portfolios aligned to the firm-wide model</div>
           </div>
         </label>
 

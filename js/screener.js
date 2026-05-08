@@ -77,7 +77,12 @@
   const MAX_COMPARE = 5;
   let _selected = new Set();          // AMFI codes ticked for Compare
 
-  let _acTiles, _catMS, _amcMS, _addColMS;       // selector instances
+  let _acTiles, _catMS, _amcMS, _addColMS, _sectorMS;       // selector instances
+  /* v4 §H — sector filter (max 5; each adds a sortable column) */
+  const SECTOR_FILTER_MAX = 5;
+  let _activeSectors = [];                       // ['Bank', 'IT', ...]
+  let _sectorLookup  = null;                     // { scheme_code: { sector: pct } }
+  let _allSectors    = [];                       // unique sector list from analytics
 
   // Filter ranges in *display units*. AUM in ₹ Cr, returns/risk in %, score in %.
   // Domains (min/max derived from data) drive what counts as "full range".
@@ -295,6 +300,7 @@
     initWeightDrawer();
     initToolbar();
     initAddColumns();
+    initSectorFilter();
     initCompareButton();
     parseUrlState();
     applyAndRender();
@@ -839,7 +845,31 @@
    * ============================================================ */
   function activeColumns() {
     const extras = _activeExtras.map(path => makeExtraColumn(path)).filter(Boolean);
-    return DEFAULT_COLUMNS.concat(extras);
+    const sectorCols = _activeSectors.map(s => makeSectorColumn(s));
+    return DEFAULT_COLUMNS.concat(extras).concat(sectorCols);
+  }
+  /* v4 §H — virtual sector column. Reads pct from _sectorLookup; '–' if missing. */
+  function makeSectorColumn(sectorName) {
+    return {
+      key: 's_' + sectorName.replace(/\W+/g, '_'),
+      label: sectorName + ' %',
+      align: 'center',
+      neg: false,
+      sortable: true,
+      sortValue: f => {
+        const m = _sectorLookup && _sectorLookup[String(f.scheme_code)];
+        return (m && m[sectorName] != null) ? m[sectorName] : null;
+      },
+      pickRaw: f => {
+        const m = _sectorLookup && _sectorLookup[String(f.scheme_code)];
+        return (m && m[sectorName] != null) ? m[sectorName] : null;
+      },
+      text: f => {
+        const m = _sectorLookup && _sectorLookup[String(f.scheme_code)];
+        const v = (m && m[sectorName] != null) ? m[sectorName] : null;
+        return (v == null) ? '–' : `${DataLoader.fmtNum(v)}%`;
+      },
+    };
   }
   function makeExtraColumn(path) {
     const lib = EXTRA_COLS.find(x => x.value === path);
@@ -1057,6 +1087,57 @@
   /* ============================================================
    * "ADD COLUMNS" MULTI-SELECT — Fix-List 2 §D
    * ============================================================ */
+  /* ============================================================
+   * v4 §H — Sectors multi-filter + dynamic sortable columns
+   * ============================================================ */
+  function initSectorFilter() {
+    /* Lazy-load analytics; build _sectorLookup + _allSectors once. */
+    fetch('data/analytics-2026-03-31.json').then(r => r.ok ? r.json() : null).then(d => {
+      if (!d || !d.funds) return;
+      _sectorLookup = {};
+      const sectorSet = new Set();
+      Object.keys(d.funds).forEach(sc => {
+        const fund = d.funds[sc];
+        const m = {};
+        (fund.sector_allocation || []).forEach(s => {
+          if (s && s.sector && s.holding_pct != null) {
+            m[s.sector] = s.holding_pct;
+            sectorSet.add(s.sector);
+          }
+        });
+        _sectorLookup[sc] = m;
+      });
+      _allSectors = Array.from(sectorSet).sort();
+      buildSectorMS();
+    }).catch(() => {});
+  }
+
+  function buildSectorMS() {
+    const items = _allSectors.map(s => ({ value: s, label: s, group: 'Sectors' }));
+    _sectorMS = MultiSelect.create(document.getElementById('sectorMS'), {
+      items,
+      selected: _activeSectors.slice(),
+      label: 'Sectors',
+      allLabel: 'All sectors',
+      noneLabel: 'Filter by sector',
+      oneLabel:  (i) => `Sector: ${i.label}`,
+      manyLabel: (n) => `${n} sectors`,
+      searchPlaceholder: 'Search sector…',
+      groups: false,
+      onChange: (sel) => {
+        /* Enforce 5-sector cap. If user picks a 6th, revert to previous. */
+        if (sel.length > SECTOR_FILTER_MAX) {
+          _sectorMS.setSelected(_activeSectors);
+          showToast('Max ' + SECTOR_FILTER_MAX + ' sectors at once');
+          return;
+        }
+        _activeSectors = sel.slice();
+        applyAndRender();
+        writeUrlState();
+      },
+    });
+  }
+
   function initAddColumns() {
     _addColMS = MultiSelect.create(document.getElementById('addColMS'), {
       items: EXTRA_COLS.map(x => ({ value: x.value, label: x.label, group: x.group })),

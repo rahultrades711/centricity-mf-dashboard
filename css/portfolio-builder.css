@@ -139,27 +139,145 @@
 .pb-pills .pill:hover { border-color: var(--gold); color: var(--gold-deep); }
 .pb-pills .pill.active { background: var(--gold); border-color: var(--gold); color: #fff; }
 
-/* Min/Max fund-count row */
-.pb-count-row {
-  display: flex; align-items: flex-end; gap: 12px;
+/* Advanced tenor-override toggle (v4 §C) */
+.pb-tenor-advanced {
+  margin: 14px 0 6px;
+  padding: 10px 12px;
+  background: rgba(189, 149, 104, .04);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  font-size: 12px;
 }
-.pb-count-field { flex: 1; display: flex; flex-direction: column; gap: 4px; }
-.pb-count-field label {
-  font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase;
-  color: var(--text-mid); font-weight: 700;
+.pb-tenor-advanced[hidden] { display: none; }
+.pb-tenor-advanced summary {
+  cursor: pointer;
+  font-size: 11px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--gold-deep);
+  font-weight: 700;
+  list-style: none;
+  user-select: none;
 }
-.pb-count-field input[type=number] {
-  height: 36px; padding: 0 10px;
-  border: 1.5px solid var(--grey-light); border-radius: 3px;
-  font-family: inherit; font-size: 14px; font-feature-settings: "tnum";
-  background: #fff; text-align: center; font-weight: 700;
+.pb-tenor-advanced summary::-webkit-details-marker { display: none; }
+.pb-tenor-advanced summary::before {
+  content: "▸ ";
+  display: inline-block;
+  transition: transform .18s ease-out;
 }
-.pb-count-field input[type=number]:focus { outline: 0; border-color: var(--gold); }
-.pb-count-field input[type=number].err { border-color: var(--red); background: rgba(147, 22, 33, .04); }
-.pb-count-sep {
-  font-size: 16px; color: var(--text-mid); padding-bottom: 8px;
+.pb-tenor-advanced[open] summary::before { content: "▾ "; }
+.pb-tenor-summary-hint {
+  font-weight: 400;
+  letter-spacing: .04em;
+  text-transform: none;
+  color: var(--text-mid);
+  margin-left: 6px;
 }
-.pb-count-rules { margin-top: 10px; }
+.pb-tenor-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 12px;
+  margin-top: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.pb-tenor-list label {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11.5px; color: var(--ink); cursor: pointer;
+  padding: 2px 0;
+}
+.pb-tenor-list label input[type=checkbox] { accent-color: var(--gold); }
+
+/* Min/Max fund-count dual-handle range slider (v4 §D) */
+.pb-range-slider {
+  position: relative;
+  height: 36px;
+  margin-top: 4px;
+}
+.pb-range-track,
+.pb-range-fill {
+  position: absolute;
+  top: 50%; transform: translateY(-50%);
+  height: 4px;
+  border-radius: 2px;
+  pointer-events: none;
+}
+.pb-range-track {
+  left: 0; right: 0;
+  background: #D9D9D9;
+}
+.pb-range-fill {
+  background: var(--gold);
+}
+.pb-range-slider input[type=range] {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  height: 36px;
+  margin: 0;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  pointer-events: none;
+  outline: none;
+}
+.pb-range-slider input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: #000;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 0 var(--gold);
+  pointer-events: auto;
+  cursor: pointer;
+  transition: box-shadow .18s ease-out, transform .12s ease-out;
+}
+.pb-range-slider input[type=range]:hover::-webkit-slider-thumb,
+.pb-range-slider input[type=range]:focus::-webkit-slider-thumb {
+  box-shadow: 0 0 0 4px rgba(189, 149, 104, .35);
+}
+.pb-range-slider input[type=range]:active::-webkit-slider-thumb {
+  transform: scale(1.08);
+}
+.pb-range-slider input[type=range]::-moz-range-thumb {
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: #000;
+  border: 2px solid #fff;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: box-shadow .18s ease-out;
+}
+.pb-range-slider input[type=range]:hover::-moz-range-thumb,
+.pb-range-slider input[type=range]:focus::-moz-range-thumb {
+  box-shadow: 0 0 0 4px rgba(189, 149, 104, .35);
+}
+.pb-range-slider input[type=range]::-moz-range-track {
+  background: transparent;
+}
+.pb-range-readout {
+  display: flex; align-items: baseline; gap: 8px;
+  margin-top: 8px;
+  font-feature-settings: "tnum";
+}
+.pb-range-tag {
+  background: var(--gold); color: #fff;
+  padding: 4px 14px;
+  border-radius: 14px;
+  font-size: 14px; font-weight: 700;
+  min-width: 36px; text-align: center;
+}
+.pb-range-sep {
+  color: var(--text-mid); font-size: 12px;
+}
+.pb-range-unit {
+  color: var(--text-mid); font-size: 11px;
+  letter-spacing: .12em; text-transform: uppercase; font-weight: 700;
+  margin-left: auto;
+}
+.pb-count-rules { margin-top: 12px; }
 .pb-checkbox-label {
   display: flex; align-items: flex-start; gap: 8px;
   font-size: 12px; color: var(--ink); line-height: 1.45; cursor: pointer;
@@ -284,6 +402,44 @@ details[open] .pb-product-summary::before { transform: rotate(90deg); }
   letter-spacing: .08em; text-transform: uppercase; margin-left: auto;
 }
 .pb-product-body input[type=checkbox] { accent-color: var(--gold); }
+
+/* International / Global MF as sub-slice of Equity (v4 §E) */
+.pb-intl-row {
+  margin: 12px 0 6px;
+  padding: 10px 12px 8px;
+  background: rgba(189, 149, 104, .04);
+  border-left: 3px solid var(--gold);
+  border-radius: 0 3px 3px 0;
+}
+.pb-intl-h {
+  font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--gold-deep); font-weight: 700; margin-bottom: 6px;
+  display: flex; align-items: center; gap: 6px;
+}
+.pb-intl-arrow { color: var(--gold); font-size: 13px; font-weight: 700; }
+.pb-intl-help {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--grey-light); color: var(--text-mid);
+  font-size: 9px; font-weight: 700; cursor: help;
+}
+.pb-intl-row-body {
+  display: flex; align-items: center; gap: 12px;
+  font-feature-settings: "tnum";
+}
+.pb-intl-row-body input[type=range] {
+  flex: 1; accent-color: var(--gold);
+}
+.pb-intl-tag {
+  background: var(--gold); color: #fff;
+  padding: 3px 12px; border-radius: 12px;
+  font-size: 12px; font-weight: 700;
+  min-width: 50px; text-align: center;
+}
+.pb-intl-of-total {
+  color: var(--text-mid); font-size: 11px;
+  letter-spacing: .04em; min-width: 90px; text-align: right;
+}
 
 /* Open/closed */
 .pb-checkrow { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12.5px; }
@@ -418,6 +574,29 @@ details[open] .pb-product-summary::before { transform: rotate(90deg); }
 .pb-btn.big {
   width: 100%; height: 44px; font-size: 13px;
   letter-spacing: .12em; text-transform: uppercase; font-weight: 700;
+}
+
+/* v4 §G — Step 6 footer button parity (Back vs Generate). Both buttons
+   stretch to equal height and share padding / radius / font weight. */
+.pb-final-foot {
+  display: flex; align-items: stretch; gap: 12px;
+}
+.pb-final-foot .pb-btn {
+  min-height: 44px;
+  padding: 12px 24px;
+  border-radius: 4px;
+  font: 700 14px 'Cambria', Georgia, 'Times New Roman', serif;
+  letter-spacing: .04em;
+}
+.pb-final-foot .pb-btn.ghost {
+  background: #fff; color: #000;
+  border: 1px solid #000;
+  flex: 0 0 auto;
+}
+.pb-final-foot .pb-btn.primary.big {
+  background: var(--gold); color: #fff;
+  border: 1px solid var(--gold);
+  flex: 1;
 }
 .pb-link {
   background: none; border: 0; color: var(--text-mid);
@@ -980,15 +1159,12 @@ table.pb-funds-perf-tbl .v-neg { color: var(--red); }
   opacity: 1; transform: translateX(-50%) translateY(0);
 }
 
-/* ── Step 5 — Precision Mode cards (3-col grid) ────────────────────────── */
+/* ── Step 5 — Precision Mode cards (vertical stack — v4 §A) ────────────── */
 .pb-precision-cards {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
   margin-top: 6px;
-}
-@media (max-width: 1100px) {
-  .pb-precision-cards { grid-template-columns: 1fr; }
 }
 .pb-precision-card {
   display: flex;
@@ -1038,6 +1214,18 @@ table.pb-funds-perf-tbl .v-neg { color: var(--red); }
   background: rgba(189, 149, 104, .18);
   color: var(--gold-deep);
   border: 1px solid var(--gold);
+}
+/* Mix-share badge on selected modes 2 & 3 — v4 */
+.pb-mix-badge {
+  display: inline-block;
+  font-family: 'Cambria', serif;
+  font-size: 10.5px; font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--ink); color: #fff;
+  letter-spacing: .04em;
+  margin-left: 8px;
+  vertical-align: middle;
 }
 
 /* Fallback-mode banner shown when 'fit' mode produces no sector-matched funds
