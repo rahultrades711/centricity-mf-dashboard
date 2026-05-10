@@ -403,18 +403,20 @@ details[open] .pb-product-summary::before { transform: rotate(90deg); }
 }
 .pb-product-body input[type=checkbox] { accent-color: var(--gold); }
 
-/* International / Global MF as sub-slice of Equity (v4 §E) */
-.pb-intl-row {
-  margin: 12px 0 6px;
-  padding: 10px 12px 8px;
-  background: rgba(189, 149, 104, .04);
-  border-left: 3px solid var(--gold);
-  border-radius: 0 3px 3px 0;
+/* International / Global MF — nested sub-slice INSIDE the Equity products
+   card (v4.1 Item B). Indent 1em + 2px tan left border per spec; renders as
+   a single inline row between Equity MF and Hybrid MF labels. */
+.pb-intl-nested {
+  margin: 4px 0 4px 1em;
+  padding: 6px 10px;
+  border-left: 2px solid #DBC8B2;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  font-feature-settings: "tnum";
 }
-.pb-intl-h {
-  font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
-  color: var(--gold-deep); font-weight: 700; margin-bottom: 6px;
-  display: flex; align-items: center; gap: 6px;
+.pb-intl-nested .pb-intl-h {
+  font-size: 11.5px; letter-spacing: 0; text-transform: none;
+  color: var(--gold-deep); font-weight: 600; margin: 0;
+  display: flex; align-items: center; gap: 4px; flex-shrink: 0;
 }
 .pb-intl-arrow { color: var(--gold); font-size: 13px; font-weight: 700; }
 .pb-intl-help {
@@ -423,22 +425,18 @@ details[open] .pb-product-summary::before { transform: rotate(90deg); }
   background: var(--grey-light); color: var(--text-mid);
   font-size: 9px; font-weight: 700; cursor: help;
 }
-.pb-intl-row-body {
-  display: flex; align-items: center; gap: 12px;
-  font-feature-settings: "tnum";
-}
-.pb-intl-row-body input[type=range] {
-  flex: 1; accent-color: var(--gold);
+.pb-intl-nested input[type=range] {
+  flex: 1 1 120px; min-width: 100px; accent-color: var(--gold);
 }
 .pb-intl-tag {
   background: var(--gold); color: #fff;
-  padding: 3px 12px; border-radius: 12px;
-  font-size: 12px; font-weight: 700;
-  min-width: 50px; text-align: center;
+  padding: 2px 10px; border-radius: 12px;
+  font-size: 11.5px; font-weight: 700;
+  min-width: 80px; text-align: center; flex-shrink: 0;
 }
 .pb-intl-of-total {
   color: var(--text-mid); font-size: 11px;
-  letter-spacing: .04em; min-width: 90px; text-align: right;
+  letter-spacing: .02em; flex-shrink: 0;
 }
 
 /* Open/closed */
@@ -632,42 +630,53 @@ details[open] .pb-product-summary::before { transform: rotate(90deg); }
 .pb-out-empty h3 { margin: 0 0 8px; font-size: 18px; font-weight: 700; }
 .pb-out-empty p { margin: 0 auto; font-size: 13px; color: var(--text-mid); max-width: 56ch; }
 
-/* Summary header */
+/* v4.1 Item E — Top-line summary header redesign.
+   All cells (KPI metrics + Total ₹ input + Regenerate + Copy link) share a
+   single horizontal baseline; "<words>" caption drops absolutely beneath the
+   input so it can't push the input row upward. White bg + thin grey rule
+   below; gold underline on each KPI label for visual separation. */
 .pb-out-summary {
   display: flex; justify-content: space-between; align-items: center;
-  padding-bottom: 14px; margin-bottom: 16px;
-  border-bottom: 1px solid var(--rule);
+  padding: 16px 0 12px; margin-bottom: 16px;
+  background: #FFFFFF; border-bottom: 1px solid #D9D9D9;
   flex-wrap: wrap; gap: 14px;
 }
-.pb-out-summary-left { display: flex; gap: 22px; flex-wrap: wrap; }
-.kpi-cell { display: flex; flex-direction: column; gap: 2px; }
+.pb-out-summary-left { display: flex; gap: 22px; flex-wrap: wrap; align-items: center; }
+.kpi-cell { display: flex; flex-direction: column; gap: 4px; }
 .kpi-cell .lbl {
-  font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase;
+  font-size: 9.5px; letter-spacing: 0.5px; text-transform: uppercase;
   color: var(--text-mid); font-weight: 700;
+  padding-bottom: 4px;
+  border-bottom: 2px solid #BD9568;     /* gold underline per spec */
 }
 .kpi-cell .v {
-  font-size: 16px; font-weight: 700; color: var(--ink);
-  font-feature-settings: "tnum";
+  font-size: 16px; font-weight: 600; color: var(--ink);
+  font-feature-settings: "tnum"; letter-spacing: 0.2px;
 }
 .pb-out-summary-right { display: flex; align-items: center; gap: 10px; }
+/* Position-relative shell anchors the absolute "<words>" caption beneath
+   the input without inflating the block's height — the block's intrinsic
+   height = input height = 36 px so it baselines cleanly with the buttons. */
 .pb-amount-block {
-  display: flex; flex-direction: column; gap: 2px; align-items: flex-end;
+  position: relative;
+  display: inline-flex; align-items: center;
 }
 .pb-amount {
   font-size: 11.5px; color: var(--text-mid);
   display: inline-flex; align-items: center; gap: 6px;
 }
 .pb-amount input {
-  width: 150px; height: 30px; padding: 0 8px;
-  border: 1.5px solid var(--grey-light); border-radius: 3px;
+  width: 150px; height: 36px; padding: 0 10px;
+  border: 1.5px solid var(--grey-light); border-radius: 4px;
   font-family: inherit; font-size: 13px; font-feature-settings: "tnum";
   text-align: right;
 }
 .pb-amount input:focus { outline: 0; border-color: var(--gold); }
 .pb-amount-words {
-  font-size: 10.5px; color: var(--gold-deep);
-  font-style: italic; font-feature-settings: "tnum";
-  text-align: right;
+  position: absolute; top: 100%; right: 0; margin-top: 4px;
+  font-family: 'Cambria', Georgia, 'Times New Roman', serif;
+  font-size: 11px; font-style: italic; color: #666;
+  font-feature-settings: "tnum"; white-space: nowrap;
 }
 
 /* Tabs */
@@ -726,6 +735,11 @@ details[open] .pb-product-summary::before { transform: rotate(90deg); }
   padding: 16px; text-align: center;
 }
 .pb-donut-card h4 { margin-bottom: 14px; }
+/* v4.1 Item C — center the donut canvas inside its card. The canvas is a
+   block-level element by default; text-align on the parent doesn't reach it. */
+.pb-donut-card canvas {
+  display: block; margin: 0 auto; max-width: 100%;
+}
 .pb-donut-legend {
   display: flex; flex-wrap: wrap; gap: 4px 12px;
   justify-content: center; margin-top: 12px;
@@ -838,45 +852,8 @@ table.pb-tbl tfoot td.ok  { color: var(--green); }
 }
 .pb-add-row a:hover { text-decoration: underline; }
 
-/* Swap dropdown */
-.swap-popover {
-  position: absolute; z-index: 30;
-  background: #fff; border: 1px solid var(--grey-light);
-  box-shadow: var(--shadow-md); border-radius: 4px;
-  width: 380px; max-height: 320px; overflow-y: auto;
-  font-size: 12px;
-}
-.swap-popover .swap-h {
-  background: var(--ink); color: #fff;
-  padding: 8px 12px;
-  font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase;
-  font-weight: 700;
-}
-.swap-popover .swap-row {
-  display: grid; grid-template-columns: 1fr 56px 64px;
-  gap: 10px; align-items: center;
-  padding: 8px 12px; cursor: pointer;
-  border-bottom: 1px solid var(--rule);
-}
-.swap-popover .swap-row:hover { background: #FDF8F2; }
-.swap-popover .swap-row .nm {
-  color: var(--gold); font-weight: 700;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  font-size: 12px;
-}
-.swap-popover .swap-row .meta { font-size: 10px; color: var(--text-mid); }
-.swap-popover .swap-row .scr {
-  text-align: right; font-feature-settings: "tnum";
-  color: var(--ink); font-weight: 700;
-}
-.swap-popover .swap-row .ovl {
-  text-align: right; font-feature-settings: "tnum";
-  color: var(--text-mid); font-size: 11px;
-}
-.swap-popover .swap-empty {
-  padding: 14px; font-size: 12px; color: var(--text-mid);
-  text-align: center; font-style: italic;
-}
+/* v4.1 Item D — v4 .swap-popover styles retired; modal styles live near
+   end of file under "Switch Fund modal". */
 
 /* Allocation note (below funds table when total != 100) */
 .pb-alloc-note {
@@ -988,6 +965,10 @@ table.pb-rtns-tbl .pos { color: var(--green); }
 }
 .pb-anly-wide { grid-column: 1 / -1; }
 .pb-anly-card h4 { margin-top: 0; }
+/* v4.1 Item C — center analytics donut canvases too (parity with Overview). */
+.pb-anly-card canvas {
+  display: block; margin: 0 auto; max-width: 100%;
+}
 .pb-cs-empty {
   padding: 40px 20px; text-align: center; color: var(--text-mid);
   font-size: 12.5px; font-style: italic;
@@ -1251,4 +1232,119 @@ table.pb-funds-perf-tbl .v-neg { color: var(--red); }
   font-size: 11px;
   color: var(--gold-deep);
   font-style: italic;
+}
+
+/* v4.1 Item H — Selection Rationale tab cards. One card per selected fund,
+   stacked vertically per §19 Q3 default. */
+.pb-rationale-list {
+  display: flex; flex-direction: column; gap: 12px;
+}
+.pb-rationale-card {
+  background: #fff;
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--gold);
+  border-radius: 4px;
+  padding: 14px 18px;
+}
+.pb-rationale-card .head {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.pb-rationale-card .nm {
+  font-size: 13.5px; font-weight: 700; color: var(--ink);
+}
+.pb-rationale-card .sc {
+  font-size: 11.5px; color: var(--text-mid);
+  font-feature-settings: "tnum";
+}
+.pb-rationale-card .alloc {
+  margin-left: auto;
+  font-size: 13px; font-weight: 700; color: var(--gold-deep);
+  font-feature-settings: "tnum";
+}
+.pb-rationale-card .body {
+  font-size: 12.5px; color: var(--ink);
+  line-height: 1.55;
+  font-family: Cambria, Georgia, 'Times New Roman', serif;
+}
+.pb-rationale-card .body p {
+  margin: 0 0 6px;
+}
+.pb-rationale-card .body p:last-child { margin-bottom: 0; }
+.pb-rationale-card .body strong { color: var(--gold-deep); font-weight: 700; }
+.pb-rationale-card .body em { color: #931621; font-style: italic; }
+
+/* v4.1 Item F — single-fund cap override chip on the Funds table. Surfaces
+   only when the user has manually pushed a fund weight above the engine
+   cap (PB_MAX_FUND_WEIGHT). */
+.pb-cap-chip {
+  display: inline-block; margin-top: 4px;
+  padding: 2px 8px; border-radius: 3px;
+  background: #FBE9E9; color: #931621;
+  font-size: 10.5px; font-weight: 700; letter-spacing: .04em;
+  border: 1px solid rgba(147, 22, 33, .25);
+  cursor: help;
+}
+
+/* v4.1 Item D — Switch Fund modal (replaces v4 .swap-popover). */
+.pb-swap-overlay {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(0, 0, 0, .45);
+  display: flex; align-items: center; justify-content: center;
+  font-family: Cambria, Georgia, 'Times New Roman', serif;
+}
+.pb-swap-modal {
+  background: #fff; border-radius: 6px;
+  width: min(960px, 92vw); max-height: 80vh;
+  display: flex; flex-direction: column;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .25);
+  overflow: hidden;
+}
+.pb-swap-h {
+  padding: 14px 18px; border-bottom: 1px solid var(--rule);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.pb-swap-h h3 { margin: 0; font-size: 14px; font-weight: 700; color: var(--ink); }
+.pb-swap-sub { font-size: 11.5px; color: var(--text-mid); margin-top: 2px; }
+.pb-swap-close {
+  background: transparent; border: 0; font-size: 22px; line-height: 1;
+  color: var(--text-mid); cursor: pointer; padding: 4px 8px;
+}
+.pb-swap-close:hover { color: var(--ink); }
+.pb-swap-body { flex: 1; overflow-y: auto; }
+.pb-swap-empty { padding: 28px 20px; text-align: center; color: var(--text-mid); font-size: 12.5px; }
+.pb-swap-tbl { width: 100%; border-collapse: collapse; font-size: 12px; font-feature-settings: "tnum"; }
+.pb-swap-tbl th, .pb-swap-tbl td {
+  padding: 9px 12px; vertical-align: middle;
+  border-bottom: 1px solid var(--rule);
+}
+.pb-swap-tbl th {
+  background: #fafafa; text-align: left; font-weight: 600;
+  font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--text-mid);
+}
+.pb-swap-tbl td.num, .pb-swap-tbl th.num { text-align: right; }
+.pb-swap-tier {
+  display: inline-block; padding: 2px 8px; border-radius: 3px;
+  font-size: 10px; font-weight: 700; letter-spacing: .04em;
+  background: var(--gold); color: #fff; text-transform: none;
+}
+.pb-swap-tier.FOCUSED  { background: var(--gold-deep); }
+.pb-swap-tier.RANKED   { background: var(--gold); }
+.pb-swap-tier.UNRANKED { background: #8B7355; }
+.pb-swap-tier.NEW_FUND { background: #5B8DB8; }
+.pb-swap-fundname a { color: var(--gold-deep); text-decoration: none; font-weight: 600; }
+.pb-swap-fundname a:hover { text-decoration: underline; }
+.pb-swap-fundname .sc { color: var(--text-mid); font-size: 10.5px; margin-top: 2px; }
+.pb-swap-replace {
+  background: var(--gold); color: #fff; border: 0;
+  padding: 5px 14px; border-radius: 3px; cursor: pointer;
+  font-size: 11px; font-weight: 700; letter-spacing: .04em;
+  font-family: Cambria, serif;
+}
+.pb-swap-replace:hover { background: var(--gold-deep); }
+.pb-swap-note {
+  padding: 10px 18px; background: #fafafa;
+  border-top: 1px solid var(--rule);
+  font-size: 11.5px; color: var(--text-mid); font-style: italic;
 }

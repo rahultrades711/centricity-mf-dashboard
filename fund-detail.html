@@ -6,9 +6,11 @@
 <meta name="viewport" content="width=1680">
 <link rel="icon" href="assets/logo.png">
 <link rel="stylesheet" href="css/centricity.css">
+<link rel="stylesheet" href="css/transitions.css">
 <link rel="stylesheet" href="css/fund-detail.css">
 <script defer src="js/data-loader.js"></script>
 <script defer src="js/search.js"></script>
+<script defer src="js/transitions.js"></script>
 <script defer src="js/state.js"></script>
 <script defer src="js/fund-detail.js"></script>
 </head>
@@ -261,7 +263,19 @@
       </div>
     </section>
 
-    <!-- 05 COST -->
+    <!-- 05 COMPETITION ANALYSIS — v4.1 Item L -->
+    <section class="block" id="competition">
+      <h2>Where it sits among <em>peers</em></h2>
+      <p class="h-sub">Top 7 funds in the same SEBI sub-category by Centricity score, with the category mean and this fund called out.</p>
+
+      <div class="comp-peer-wrap" id="compPeerWrap"></div>
+
+      <h3 class="block-sub-h">Holdings overlap with peers</h3>
+      <p class="h-sub">Σ min(wA, wB) across common holdings — tooltip on hover surfaces the top-5 overlapping stocks.</p>
+      <div class="comp-overlap-wrap" id="compOverlapWrap"></div>
+    </section>
+
+    <!-- 06 COST -->
     <section class="block" id="cost">
       <h2>What You Pay, & <em>What You Walk Away With</em></h2>
       <p class="h-sub">All figures regular-growth plan. Direct plan TER lower by ~70 bps. Compare to category median for a like-for-like read.</p>
@@ -321,6 +335,7 @@
       <li><a href="#risk">Risk Profile</a></li>
       <li><a href="#manager">Fund Manager</a></li>
       <li><a href="#portfolio">Portfolio</a></li>
+      <li><a href="#competition">Competition Analysis</a></li>
       <li><a href="#cost">Cost & Structure</a></li>
       <li><a href="#changed">What Changed</a></li>
       <li><a href="#verdict">Verdict</a></li>

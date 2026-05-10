@@ -140,6 +140,51 @@
     'DAF':                      'large',
   };
 
+  /* v4.1 Item G — purity classifier for m-cap bucket selection.
+       0 = pure m-cap-classified (Large/Large&Mid/Mid/Small Cap)
+       1 = thematic / sectoral fund — tilt depends on portfolio mcap_split
+       2 = multi-cap / flexi-cap — same; treated as last resort
+     Used both for bucket augmentation (Step 1 → 2 → 3 fallback) and as a
+     within-tier tiebreaker in sortFnParam so pure funds win when both
+     pure and tilted candidates exist for the bucket. */
+  const PURE_MCAP_CATS = new Set([
+    'Large Cap', 'Large & Mid Cap', 'Mid Cap', 'Small Cap',
+  ]);
+  const THEMATIC_CATS = new Set([
+    'Sector-Thematic', 'Banking-FinServ', 'FMCG-Consumption', 'Healthcare-Pharma',
+    'Infrastructure',  'Manufacturing',   'Technology',       'ESG',
+    'MNC', 'PSU', 'Defence',
+  ]);
+
+  /* v4.1 Item G — dominant cap tilt from a fund's mcap_split, used to
+     augment the m-cap bucket pool when pure SEBI-classified funds run thin
+     for an aggressive m-cap target (e.g. 90 % smallcap).
+     Two-tier tilt detection:
+       - Strong tilt (≥ 60 % small / 60 % large / 50 % mid) → high-confidence
+         contribution to that bucket.
+       - Moderate tilt (dominant cap with ≥ 40 % share AND > each other cap)
+         → pulled in only when the pure pool is exhausted (within-tier sort
+         tiebreak still ranks pure 0 < thematic-tilt 1 < flexi-tilt 2).
+     The thresholds below cover both — pickPass / sortFnParam decides the
+     priority via _capPurity. */
+  function dominantMcapTilt(f) {
+    const m = (f && f.mcap_split) || {};
+    const lg = +m.large_pct || 0;
+    const md = +m.mid_pct   || 0;
+    const sm = +m.small_pct || 0;
+    if (sm >= 60) return 'small';
+    if (lg >= 60) return 'large';
+    if (md >= 50) return 'mid';
+    /* Moderate tilt: dominant cap >= 40 % and clearly above the other two. */
+    const mx = Math.max(lg, md, sm);
+    if (mx >= 40) {
+      if (mx === sm && sm > lg && sm > md) return 'small';
+      if (mx === md && md > lg && md > sm) return 'mid';
+      if (mx === lg && lg > md && lg > sm) return 'large';
+    }
+    return null;
+  }
+
   // Product checkboxes → SEBI category groups + sub_category_class.
   // Groups by `id` (used in the wizard) → predicate function on a fund.
   const PRODUCT_GROUPS = [
@@ -187,11 +232,18 @@
   /* ── v4 Precision Mode tunables ─────────────────────────────────────────
      Single source of truth for mode-specific deviation tolerance + the
      parameter / top-up share split for the two mixed modes. */
+  /* v4.1 Item G — m-cap deviation budgets tightened across modes (sector
+     stays the soft constraint). Was userNeeds:4, screener:8, centricity:8. */
   const PB_DEVIATION_TOLERANCE = {
-    userNeeds:  { assetClass: 2, mcap: 4, sector: 5  },
-    screener:   { assetClass: 4, mcap: 8, sector: 12 },
-    centricity: { assetClass: 4, mcap: 8, sector: 12 },
+    userNeeds:  { assetClass: 2, mcap: 3, sector: 6  },
+    screener:   { assetClass: 4, mcap: 5, sector: 12 },
+    centricity: { assetClass: 4, mcap: 5, sector: 12 },
   };
+  /* v4.1 Item F — single-fund engine cap. Enforced both pre-fill (engine
+     guarantees enough picks per bucket so no fund needs > 20 %) and post-fill
+     (defensive truncate + redistribute). User can still manually override
+     via the Funds-tab editor; the chip surfaces when they do. */
+  const PB_MAX_FUND_WEIGHT = 20;
   const PB_MIX = {
     screener:   { paramShare: 0.65, topUpShare: 0.35 },
     centricity: { paramShare: 0.60, topUpShare: 0.40 },
@@ -337,6 +389,10 @@
     instMax: 12,
     optimiseFunds: true,
     allocMode: 'auto',                       // 'auto' | 'manual' | 'partial'
+    /* v4.1 Item A — Auto mode is editable. Seeded from ALLOC_MATRIX_AC on
+       risk/horizon change; user edits trigger sibling rebalance to keep
+       total = 100. Engine reads this directly when allocMode === 'auto'. */
+    allocAuto:          { equity: 60, debt: 30, commodities: 5, reits: 5 },
     allocManual:        { equity: 60, debt: 30, commodities: 5, reits: 5 },
     allocPartialFlags:  { equity: false, debt: false, commodities: false, reits: false },
     includeGlobalMF: false,
@@ -358,7 +414,8 @@
   /* Output state set by the engine. */
   let _portfolio = null;       // { funds: [...], deviation: {...}, warnings: [...] }
   let _activeStep = 1;
-  let _activeTab = 'overview';
+  /* v4.1 Item H — Rationale is the first tab and the default active tab. */
+  let _activeTab = 'rationale';
   let _navWindow = 'max';
   let _sortCol = null;         // funds-table sort column key
   let _sortDir = 1;            // 1 asc, -1 desc
@@ -367,10 +424,30 @@
   let _cycle = null;
   let _allFunds = [];
   let _focusedSchemes = [];   // numeric AMFI codes
+  let _focusedSet = new Set(); // O(1) tier lookup view of _focusedSchemes
   let _analytics = null;      // {funds: {scheme_code: {...}}}
   let _holdingsFull = null;   // {funds: {scheme_code: [...]}}
   let _navSeries = null;      // {series: {scheme_code: {...}}}
   let _allSectors = [];
+
+  /* v4.1 Item A — track last (risk|horizon) seeded into _state.allocAuto so
+     re-clicking the same Step-1 pill doesn't clobber user edits to the Auto
+     allocation; profile changes do reseed (matrix-driven). */
+  let _lastSeededProfile = null;
+
+  /* v4.1 Item D — tier classification helpers, module-scope so the Swap Fund
+     modal can call them without re-deriving NEW_FUND cutoffs each click. */
+  function _oneYearAgo() {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - 1);
+    return d;
+  }
+  function _tierFor(f) {
+    if (_focusedSet.has(f.scheme_code))      return 'FOCUSED';
+    if (f.centricity_score_status === 'Ranked') return 'RANKED';
+    if (f.inception_date && new Date(f.inception_date) > _oneYearAgo()) return 'NEW_FUND';
+    return 'UNRANKED';
+  }
 
   /* Charts */
   const _chartInstances = {};
@@ -402,7 +479,8 @@
     fetch('data/focused-funds.json').then(r => r.ok ? r.json() : null).then(d => {
       _focusedSchemes = (d && Array.isArray(d.focused_funds))
         ? d.focused_funds.map(Number).filter(n => !isNaN(n)) : [];
-    }).catch(() => { _focusedSchemes = []; });
+      _focusedSet = new Set(_focusedSchemes);
+    }).catch(() => { _focusedSchemes = []; _focusedSet = new Set(); });
 
     /* Build sector universe from analytics file (lazy) */
     fetch('data/analytics-2026-03-31.json').then(r => r.ok ? r.json() : null).then(d => {
@@ -555,37 +633,72 @@
       refreshAllocPartialMode();
       validateAllocSum();
     }));
-    /* Manual inputs */
-    document.querySelectorAll('.alloc-in').forEach(inp => inp.addEventListener('input', () => {
-      const b = inp.dataset.bucket;
-      _state.allocManual[b] = +inp.value || 0;
-      validateAllocSum();
-    }));
-    /* Partial inputs + Auto checkboxes */
-    document.querySelectorAll('.alloc-pin').forEach(inp => inp.addEventListener('input', () => {
-      const b = inp.dataset.bucket;
-      _state.allocManual[b] = +inp.value || 0;
-      validateAllocSum();
-    }));
+    /* v4.1 Item A — Auto inputs: edit one bucket, siblings rescale to keep
+       total = 100. Use change + blur (not input) so the rebalance fires on
+       commit, not on every keystroke. Both events are wired because change
+       skips when the value matches the previous committed value but blur
+       still needs to clamp + re-render. */
+    document.querySelectorAll('.alloc-ain').forEach(inp => {
+      const handler = () => {
+        rebalanceAuto(inp.dataset.bucket, +inp.value || 0);
+        renderAllocAutoInputs();
+        refreshIntlReadout();
+      };
+      inp.addEventListener('change', handler);
+      inp.addEventListener('blur',   handler);
+    });
+    /* Manual inputs — clamp [0,100] in-flight; blur syncs display if user
+       typed out of range. */
+    document.querySelectorAll('.alloc-in').forEach(inp => {
+      inp.addEventListener('input', () => {
+        const b = inp.dataset.bucket;
+        _state.allocManual[b] = Math.max(0, Math.min(100, +inp.value || 0));
+        validateAllocSum();
+      });
+      inp.addEventListener('blur', () => {
+        const b = inp.dataset.bucket;
+        if (+inp.value !== _state.allocManual[b]) inp.value = _state.allocManual[b];
+      });
+    });
+    /* Partial inputs + Auto checkboxes — same clamp pattern */
+    document.querySelectorAll('.alloc-pin').forEach(inp => {
+      inp.addEventListener('input', () => {
+        const b = inp.dataset.bucket;
+        _state.allocManual[b] = Math.max(0, Math.min(100, +inp.value || 0));
+        validateAllocSum();
+      });
+      inp.addEventListener('blur', () => {
+        const b = inp.dataset.bucket;
+        if (+inp.value !== _state.allocManual[b]) inp.value = _state.allocManual[b];
+      });
+    });
     document.querySelectorAll('.alloc-pauto').forEach(c => c.addEventListener('change', () => {
       _state.allocPartialFlags[c.dataset.bucket] = c.checked;
       refreshAllocPartialMode();
       validateAllocSum();
     }));
-    /* v4 — International / Global MF as sub-slice of Equity (Item E) */
-    const intlSlider = document.getElementById('intlEquityShare');
-    const intlLbl    = document.getElementById('intlEquityShareLabel');
-    const intlTotal  = document.getElementById('intlEquityOfTotal');
+    /* v4.1 Item B — Intl/Global slider lives inside the Equity products
+       card now (rendered by renderProducts via buildIntlNestedRowHtml), so
+       wire AFTER renderProducts so the slider DOM exists. */
     function refreshIntlReadout() {
-      const v = +intlSlider.value || 0;
+      const slider = document.getElementById('intlEquityShare');
+      const lbl    = document.getElementById('intlEquityShareLabel');
+      const total  = document.getElementById('intlEquityOfTotal');
+      if (!slider) return;
+      const v = +slider.value || 0;
       _state.intlEquityShare = v;
-      if (intlLbl) intlLbl.textContent = v + ' %';
+      if (lbl) lbl.textContent = v + ' % of equity';
       const equityPct = _state.allocMode === 'auto'
-        ? (ALLOC_MATRIX_AC[_state.risk]?.[_state.horizon]?.equity || 0)
+        ? (+_state.allocAuto.equity || 0)
         : (+_state.allocManual.equity || 0);
       const ofTotal = (equityPct * v) / 100;
-      if (intlTotal) intlTotal.textContent = ofTotal.toFixed(1) + ' % of total';
+      if (total) total.textContent = '(= ' + ofTotal.toFixed(1) + ' % of total portfolio)';
     }
+    /* Products — renders the products list AND the nested Intl row inside
+       the Equity card (Item B). */
+    renderProducts();
+    /* Wire Intl slider now that it's in the DOM. */
+    const intlSlider = document.getElementById('intlEquityShare');
     if (intlSlider) {
       intlSlider.addEventListener('input', refreshIntlReadout);
       intlSlider.value = _state.intlEquityShare || 0;
@@ -597,8 +710,6 @@
       el.addEventListener('input', refreshIntlReadout));
     document.querySelectorAll('[data-alloc-mode]').forEach(b =>
       b.addEventListener('click', () => setTimeout(refreshIntlReadout, 0)));
-    /* Products */
-    renderProducts();
     /* Open/closed */
     document.querySelectorAll('#pbOpenClosed input').forEach(c => c.addEventListener('change', () => {
       _state.openClosedTypes[c.dataset.oc] = c.checked;
@@ -648,6 +759,22 @@
     return out;
   }
 
+  /* v4.1 Item B — render the nested International / Global row that sits
+     inside the Equity products card between Equity MF and Hybrid MF. */
+  function buildIntlNestedRowHtml() {
+    const v = _state.intlEquityShare || 0;
+    return '<div class="pb-intl-nested">' +
+             '<div class="pb-intl-h">' +
+               '<span class="pb-intl-arrow">↳</span> ' +
+               'International / Global within Equity ' +
+               '<span class="pb-intl-help" title="Sub-slice of Equity. e.g. Equity 60 % × Intl 10 % = 6 % of total portfolio in international funds.">?</span>' +
+             '</div>' +
+             '<input type="range" id="intlEquityShare" min="0" max="100" step="5" value="' + v + '">' +
+             '<span class="pb-intl-tag" id="intlEquityShareLabel">' + v + ' % of equity</span>' +
+             '<span class="pb-intl-of-total" id="intlEquityOfTotal">(= 0.0 % of total portfolio)</span>' +
+           '</div>';
+  }
+
   function renderProducts() {
     const wrap = document.getElementById('pbProducts');
     wrap.innerHTML = PRODUCT_GROUPS.map(g => {
@@ -657,8 +784,13 @@
         const cls = p.available ? '' : ' class="coming-soon"';
         const dis = p.available ? '' : ' disabled';
         const badge = p.available ? '' : '<span class="badge">Coming Soon</span>';
-        return '<label' + cls + '><input type="checkbox" data-prod="' + p.id + '"' +
-               (checked ? ' checked' : '') + dis + '> ' + p.label + ' ' + badge + '</label>';
+        const lbl = '<label' + cls + '><input type="checkbox" data-prod="' + p.id + '"' +
+                    (checked ? ' checked' : '') + dis + '> ' + p.label + ' ' + badge + '</label>';
+        /* v4.1 Item B — Intl/Global row nested between Equity MF and Hybrid MF */
+        if (g.id === 'equity' && p.id === 'equity_mf') {
+          return lbl + buildIntlNestedRowHtml();
+        }
+        return lbl;
       }).join('');
       return '<details class="pb-product-group"' + open + '>' +
              '<summary class="pb-product-summary">' + g.label + '</summary>' +
@@ -1074,18 +1206,75 @@
 
   function refreshAutoTables() {
     if (!_state.risk || !_state.horizon) return;
-    /* Asset Class auto */
-    const ac = ALLOC_MATRIX_AC[_state.risk][_state.horizon];
-    const acTbl = document.getElementById('allocAutoTbl').querySelector('tbody');
-    acTbl.innerHTML = ['equity','debt','commodities','reits'].map(b =>
-      '<tr><td>' + AC_LABEL[b] + '</td><td>' + ac[b] + '%</td></tr>'
-    ).join('');
-    /* M-Cap auto */
+    /* v4.1 Item A — Asset Class Auto is now editable. Reseed _state.allocAuto
+       from matrix only when the (risk|horizon) combination CHANGES, so a
+       repeat click on the same Step-1 pill doesn't clobber user edits. */
+    const profileKey = _state.risk + '|' + _state.horizon;
+    if (profileKey !== _lastSeededProfile) {
+      const ac = ALLOC_MATRIX_AC[_state.risk][_state.horizon];
+      _state.allocAuto = { equity: ac.equity, debt: ac.debt, commodities: ac.commodities, reits: ac.reits };
+      _lastSeededProfile = profileKey;
+    }
+    renderAllocAutoInputs();
+    /* M-Cap auto — read-only table, unchanged */
     const mc = ALLOC_MATRIX_MC[_state.risk][_state.horizon];
     const mcTbl = document.getElementById('mcapAutoTbl').querySelector('tbody');
     mcTbl.innerHTML = ['large','mid','small','flexi'].map(b =>
       '<tr><td>' + MC_LABEL[b] + '</td><td>' + mc[b] + '%</td></tr>'
     ).join('');
+  }
+
+  /* v4.1 Item A — write _state.allocAuto values into the four editable inputs.
+     Skips the input that currently has focus (so we don't clobber what the
+     user is typing). Also refreshes the Total badge. */
+  function renderAllocAutoInputs() {
+    ['equity','debt','commodities','reits'].forEach(b => {
+      const inp = document.querySelector('.alloc-ain[data-bucket="' + b + '"]');
+      if (inp && document.activeElement !== inp) {
+        inp.value = _state.allocAuto[b];
+      }
+    });
+    const sumEl = document.getElementById('allocAutoSum');
+    if (sumEl) {
+      const sum = ['equity','debt','commodities','reits']
+        .reduce((s, b) => s + (+_state.allocAuto[b] || 0), 0);
+      sumEl.textContent = sum + '%';
+      sumEl.classList.toggle('ok',  sum === 100);
+      sumEl.classList.toggle('bad', sum !== 100);
+    }
+  }
+
+  /* v4.1 Item A — V4 §8.3 rebalance algorithm.
+       edit on b_i = v
+       clamp v in [0,100]
+       remainder = 100 - v
+       othersSum = Σ b_j (j ≠ i)
+       if othersSum == 0  → split remainder equally across n-1 others
+       else                → b_j = round(b_j * remainder / othersSum)
+       residual = 100 - newSum  → add to largest non-edited bucket
+  */
+  function rebalanceAuto(editedBucket, newValue) {
+    const buckets = ['equity', 'debt', 'commodities', 'reits'];
+    const v = Math.max(0, Math.min(100, +newValue || 0));
+    _state.allocAuto[editedBucket] = v;
+    const others = buckets.filter(b => b !== editedBucket);
+    const remainder = 100 - v;
+    const othersSum = others.reduce((s, b) => s + (+_state.allocAuto[b] || 0), 0);
+    if (othersSum === 0) {
+      const each = Math.floor(remainder / others.length);
+      others.forEach(b => { _state.allocAuto[b] = each; });
+    } else {
+      others.forEach(b => {
+        _state.allocAuto[b] = Math.round((+_state.allocAuto[b] || 0) * remainder / othersSum);
+      });
+    }
+    /* Residual to largest non-edited bucket so total = 100 exactly */
+    const sumOthers = others.reduce((s, b) => s + _state.allocAuto[b], 0);
+    const residual = 100 - v - sumOthers;
+    if (residual !== 0 && others.length) {
+      const largest = others.reduce((a, b) => _state.allocAuto[a] >= _state.allocAuto[b] ? a : b);
+      _state.allocAuto[largest] = Math.max(0, _state.allocAuto[largest] + residual);
+    }
   }
 
   /* ============================================================
@@ -1201,7 +1390,9 @@
     /* Step 5 — resolve target asset allocation */
     let targetAC;
     if (_state.allocMode === 'auto') {
-      targetAC = Object.assign({}, ALLOC_MATRIX_AC[_state.risk][_state.horizon]);
+      /* v4.1 Item A — Auto reads editable _state.allocAuto (seeded from
+         matrix on profile change, mutated by user via Step-2 Auto inputs). */
+      targetAC = Object.assign({}, _state.allocAuto);
     } else if (_state.allocMode === 'manual') {
       targetAC = Object.assign({}, _state.allocManual);
     } else {
@@ -1256,21 +1447,40 @@
 
     /* Step 7 — group by m-cap bucket. Equity funds matching INTL_PATTERN go
        to the `intl` bucket; everything else uses the existing CATEGORY_MCAP
-       mapping with mcap_split fallback. */
+       mapping with mcap_split fallback.
+       v4.1 Item G — Asset > M-cap > Sector priority. Pure funds (Large/Large
+       & Mid/Mid/Small Cap) sit only in their primary bucket. Thematic /
+       Sectoral funds (purity 1) and Multi/Flexi-cap funds (purity 2) ALSO
+       get pushed into the bucket their mcap_split tilts toward when that
+       differs from their primary bucket — so a Power Fund whose holdings
+       are 65 % smallcap can fill the small bucket when pure smallcap funds
+       run out. The within-tier sort tiebreak below prefers purity 0 over 1
+       over 2, so pure funds always win when both kinds are eligible. */
     const buckets = { large: [], mid: [], small: [], flexi: [], intl: [] };
     universe.forEach(f => {
+      const purity = PURE_MCAP_CATS.has(f.category) ? 0
+                   : THEMATIC_CATS.has(f.category)  ? 1
+                   :                                   2;
+      f._capPurity = purity;
       if (intlShare > 0 && isIntlFund(f)) { buckets.intl.push(f); return; }
-      let b = CATEGORY_MCAP_BUCKET[f.category];
-      if (!b) {
+      let primary = CATEGORY_MCAP_BUCKET[f.category];
+      if (!primary) {
         /* Fall back to mcap_split */
         const m = f.mcap_split || {};
         const top = Math.max(m.large_pct || 0, m.mid_pct || 0, m.small_pct || 0);
-        if      (top === (m.large_pct || 0) && (m.large_pct || 0) > 50) b = 'large';
-        else if (top === (m.small_pct || 0) && (m.small_pct || 0) > 35) b = 'small';
-        else if (top === (m.mid_pct   || 0) && (m.mid_pct   || 0) > 35) b = 'mid';
-        else                                                            b = 'flexi';
+        if      (top === (m.large_pct || 0) && (m.large_pct || 0) > 50) primary = 'large';
+        else if (top === (m.small_pct || 0) && (m.small_pct || 0) > 35) primary = 'small';
+        else if (top === (m.mid_pct   || 0) && (m.mid_pct   || 0) > 35) primary = 'mid';
+        else                                                            primary = 'flexi';
       }
-      buckets[b].push(f);
+      buckets[primary].push(f);
+      /* Augment OTHER buckets with cap-tilted non-pure funds */
+      if (purity > 0) {
+        const tilt = dominantMcapTilt(f);
+        if (tilt && tilt !== primary && buckets[tilt]) {
+          buckets[tilt].push(f);
+        }
+      }
     });
 
     /* Step 8 — sector alignment bonus (manual modes only) */
@@ -1307,8 +1517,8 @@
     const TIER_RANK = { FOCUSED: 0, RANKED: 1, UNRANKED: 2, NEW_FUND: 3 };
 
     /* Parameter-fit sort: sectors win absolutely if user set targets;
-       otherwise tier → score → sharpe. Used for User Needs mode + the
-       parameter-fit pass of the two mixed modes. */
+       otherwise tier → m-cap purity → score → sharpe. Used for User Needs
+       mode + the parameter-fit pass of the two mixed modes. */
     function sortFnParam(a, b) {
       const hasSectors = Object.keys(sectorTargets).length > 0;
       if (hasSectors) {
@@ -1318,6 +1528,11 @@
       const ta = TIER_RANK[a._tier] ?? 9;
       const tb = TIER_RANK[b._tier] ?? 9;
       if (ta !== tb) return ta - tb;
+      /* v4.1 Item G — within tier, prefer pure m-cap funds (purity 0) over
+         thematic-tilt (1) over multi/flexi-tilt (2). Asset > M-cap > Sector. */
+      const pa = a._capPurity ?? 2;
+      const pb = b._capPurity ?? 2;
+      if (pa !== pb) return pa - pb;
       const sa = (a.centricity_score ?? 0) + (a._sectorBonus || 0);
       const sb = (b.centricity_score ?? 0) + (b._sectorBonus || 0);
       if (Math.abs(sb - sa) > 0.001) return sb - sa;
@@ -1325,19 +1540,28 @@
     }
 
     /* Top-up sort for `screener` mode: pure ranking play — best Ranked /
-       Focused by centricity_score, sector-agnostic. */
+       Focused by centricity_score, sector-agnostic. v4.1 Item G applies the
+       same within-tier purity tiebreak so the bucket fills with pure funds
+       before tilt-augmented ones. */
     function sortFnTopUpRanked(a, b) {
       const ta = TIER_RANK[a._tier] ?? 9;
       const tb = TIER_RANK[b._tier] ?? 9;
       if (ta !== tb) return ta - tb;
+      const pa = a._capPurity ?? 2;
+      const pb = b._capPurity ?? 2;
+      if (pa !== pb) return pa - pb;
       const sa = a.centricity_score ?? 0;
       const sb = b.centricity_score ?? 0;
       if (Math.abs(sb - sa) > 0.001) return sb - sa;
       return (b.risk_metrics?.sharpe_3y || 0) - (a.risk_metrics?.sharpe_3y || 0);
     }
     /* Top-up sort for `centricity` mode: highest centricity_score (used after
-       buckets are pre-narrowed to FOCUSED-only with a fall-back to all). */
+       buckets are pre-narrowed to FOCUSED-only with a fall-back to all).
+       v4.1 Item G — purity tiebreak applied here too. */
     function sortFnTopUpScore(a, b) {
+      const pa = a._capPurity ?? 2;
+      const pb = b._capPurity ?? 2;
+      if (pa !== pb) return pa - pb;
       return (b.centricity_score ?? 0) - (a.centricity_score ?? 0);
     }
 
@@ -1381,7 +1605,13 @@
           .filter(f => !forcedSchemes.has(f.scheme_code))
           .slice()
           .sort(passSortFn);
-        const nBucket = Math.max(1, Math.round(targetMax * (shareTarget / 100)));
+        /* v4.1 Item F — bucket must hold enough funds that no individual fund
+           exceeds PB_MAX_FUND_WEIGHT (20 %). E.g. a 50 %-budget bucket needs
+           ≥ ceil(50/20) = 3 picks, each landing at ~16.7 %. The post-fill cap
+           step that used to truncate down to 20 % becomes a no-op for engine
+           output; user-driven edits are the only path to > 20 %. */
+        const minPicksForCap = Math.ceil(shareTarget / PB_MAX_FUND_WEIGHT);
+        const nBucket = Math.max(1, Math.round(targetMax * (shareTarget / 100)), minPicksForCap);
         const pickedHere = [];
         const alternates = eligibles.slice();
         while (pickedHere.length < nBucket && alternates.length) {
@@ -1525,9 +1755,11 @@
       selected.push(f);
     });
 
-    /* Step 12 — normalise weights, apply 20% per-fund cap, ensure sum 100 */
+    /* Step 12 — normalise weights, apply 20% per-fund cap, ensure sum 100.
+       v4.1 Item F: pre-fill enforcement above (minPicksForCap) means this
+       block is now defensive; it should rarely truncate anything. */
     let weights = selected.map(s => s._weight || 0);
-    const cap = 20;
+    const cap = PB_MAX_FUND_WEIGHT;
     /* Apply cap */
     let excess = 0;
     weights = weights.map(w => { if (w > cap) { excess += w - cap; return cap; } return w; });
@@ -1560,6 +1792,7 @@
       category: s.category,
       sub_category_class: s.sub_category_class,
       benchmark: s.benchmark,
+      inception_date: s.inception_date,
       centricity_score: s.centricity_score,
       centricity_rank_overall: s.centricity_rank_overall,
       centricity_score_status: s.centricity_score_status,
@@ -1574,6 +1807,9 @@
       risk_metrics: s.risk_metrics,
       _tier: s._tier,
       _bucket: s._bucket,
+      /* v4.1 Item H — carry purity through to the output funds so the
+         Rationale tab can label "Pure" / "Thematic tilt" / "Flexi tilt". */
+      _capPurity: s._capPurity,
       _isForced: !!s._isForced,
       _alternates: (s._alternates || []).slice(0, 5),
       _weight: s._weight,
@@ -1702,11 +1938,119 @@
 
   function renderActiveTab() {
     if (!_portfolio) return;
-    if (_activeTab === 'overview')   renderOverviewTab();
-    else if (_activeTab === 'returns') renderReturnsTab();
+    if      (_activeTab === 'rationale') renderRationaleTab();
+    else if (_activeTab === 'overview')  renderOverviewTab();
+    else if (_activeTab === 'returns')   renderReturnsTab();
     else if (_activeTab === 'analytics') renderAnalyticsTab();
     else if (_activeTab === 'plan')      renderPlanTab();
     else if (_activeTab === 'funds')     renderFundsTab();
+  }
+
+  /* v4.1 Item H — Selection Rationale tab.
+     For each fund in _portfolio.funds, render a card explaining why the
+     engine picked it (tier + m-cap purity + score percentile + manager
+     tenure) and surface override / force-include lines when applicable.
+     Re-runs through renderActiveTab on every renderAllOutputs() — so swaps,
+     removes, force-includes, and allocation edits all refresh the tab. */
+  function renderRationaleTab() {
+    const wrap = document.getElementById('pbRationaleList');
+    if (!wrap) return;
+    if (!_portfolio || !_portfolio.funds.length) { wrap.innerHTML = ''; return; }
+    const html = _portfolio.funds.map(f => {
+      const lines = buildRationale(f);
+      const tier = f._tier || 'UNRANKED';
+      return '<div class="pb-rationale-card">' +
+               '<div class="head">' +
+                 '<span class="pb-swap-tier ' + tier + '">' + tier + '</span>' +
+                 '<span class="nm">' + escapeHtml(f.fund_name) + '</span>' +
+                 '<span class="sc">#' + f.scheme_code + '</span>' +
+                 '<span class="alloc">' + (f._weight || 0).toFixed(0) + '%</span>' +
+               '</div>' +
+               '<div class="body">' +
+                 lines.map(l => '<p>' + l + '</p>').join('') +
+               '</div>' +
+             '</div>';
+    }).join('');
+    wrap.innerHTML = html;
+  }
+
+  /* v4.1 Item H — score percentile within the fund's SEBI sub-category.
+     Returns the % of category peers with a strictly lower centricity_score;
+     null when fewer than 3 peers exist (too few for a meaningful percentile). */
+  function categoryPercentile(fund) {
+    if (!fund || fund.centricity_score == null) return null;
+    const peers = _allFunds.filter(f =>
+      f.category === fund.category && f.centricity_score != null
+    );
+    if (peers.length < 3) return null;
+    const lowerCount = peers.filter(f => f.centricity_score < fund.centricity_score).length;
+    return Math.round((lowerCount / peers.length) * 100);
+  }
+
+  /* v4.1 Item H — assemble the rationale lines for a single fund. Returns
+     an array of HTML-safe strings (already escaped where needed). */
+  function buildRationale(f) {
+    const lines = [];
+    const overCap = (f._weight || 0) > PB_MAX_FUND_WEIGHT;
+    if (f._isForced) {
+      lines.push('<strong>Force-included by user.</strong>');
+    }
+    /* Tier-driven primary line */
+    if (f._tier === 'FOCUSED') {
+      lines.push('<strong>Centricity Focused</strong> — on the top-tier conviction list.');
+    } else if (f._tier === 'RANKED') {
+      const rk = f.centricity_rank_overall;
+      lines.push(rk
+        ? '<strong>Ranked #' + rk + '</strong> in the current cycle (' + escapeHtml(f.category) + ').'
+        : '<strong>Ranked</strong> in the current cycle.');
+    } else if (f._tier === 'NEW_FUND') {
+      const incept = f.inception_date
+        ? new Date(f.inception_date).toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric' })
+        : 'recent';
+      lines.push('<strong>New fund</strong> (inception ' + incept +
+                 ') — limited track record; included to fulfil the ' +
+                 (MC_LABEL[f._bucket] || 'm-cap').toLowerCase() +
+                 ' target where ranked alternatives were unavailable. Recommend reviewing in 12 months.');
+    } else {
+      lines.push('Outside the Ranked / Focused cycle — selected to cover the ' +
+                 (MC_LABEL[f._bucket] || 'm-cap').toLowerCase() + ' bucket.');
+    }
+    /* M-cap purity (Item G) */
+    const purity = f._capPurity ?? 2;
+    const mcap = (MC_LABEL[f._bucket] || 'm-cap');
+    if (purity === 0) {
+      lines.push('Pure ' + mcap + ' classification — direct match to your m-cap target.');
+    } else if (purity === 1) {
+      lines.push('Thematic / sectoral fund with a ' + mcap.toLowerCase() +
+                 ' tilt — used to augment the bucket when pure picks ran thin.');
+    } else {
+      lines.push('Multi-cap / Flexi-cap with a ' + mcap.toLowerCase() +
+                 ' tilt — last-resort fill for the bucket.');
+    }
+    /* Score + percentile */
+    if (f.centricity_score != null) {
+      const pctScore = (f.centricity_score * 100).toFixed(1);
+      const pct = categoryPercentile(f);
+      lines.push('Centricity score: <strong>' + pctScore + '%</strong>' +
+                 (pct != null
+                   ? ' (' + pct + 'th percentile in ' + escapeHtml(f.category) + ').'
+                   : '.'));
+    }
+    /* Manager tenure */
+    if (f.manager_tenure_yrs != null) {
+      const m = +f.manager_tenure_yrs;
+      const tenure = m < 1
+        ? Math.max(1, Math.round(m * 12)) + ' months'
+        : m.toFixed(1) + ' years';
+      lines.push('Manager tenure ' + tenure +
+                 (f.manager_name ? ' (' + escapeHtml(f.manager_name) + ')' : '') + '.');
+    }
+    /* User override warning */
+    if (overCap) {
+      lines.push('<em>User override:</em> weight set to ' + (f._weight || 0).toFixed(0) +
+                 '%, above the engine cap of ' + PB_MAX_FUND_WEIGHT + '%.');
+    }
+    return lines;
   }
 
   /* -- OVERVIEW -- */
@@ -1763,15 +2107,24 @@
 
     const totalW = _portfolio.funds.reduce((s, f) => s + (f._weight || 0), 0);
     const rows = indexedFunds.map(({ f, origIdx }) => {
-      const rs = (f._weight || 0) * totalAmt / 100;
+      const w = f._weight || 0;
+      const rs = w * totalAmt / 100;
       const role = getFundRole(f);
+      /* v4.1 Item F — override chip surfaces when user has set this fund's
+         weight above the engine cap (PB_MAX_FUND_WEIGHT). Engine output
+         never crosses the cap, so the chip only ever reflects manual edits. */
+      const overrideChip = (w > PB_MAX_FUND_WEIGHT)
+        ? '<span class="pb-cap-chip" title="Engine cap is ' + PB_MAX_FUND_WEIGHT +
+          ' %. You\'ve manually set this above the cap.">Single-fund weight &gt; ' +
+          PB_MAX_FUND_WEIGHT + ' % — user override</span>'
+        : '';
       return '<tr data-i="' + origIdx + '">' +
              '<td><span class="role-pill">' + escapeHtml(role) + '</span></td>' +
              '<td class="col-nm"><a class="fund-link" href="fund-detail.html?scheme=' + f.scheme_code + '" target="_blank" rel="noopener">' +
-               escapeHtml(f.fund_name) + '</a><div class="fund-meta">' + escapeHtml(f.amc) + '</div></td>' +
+               escapeHtml(f.fund_name) + '</a><div class="fund-meta">' + escapeHtml(f.amc) + '</div>' + overrideChip + '</td>' +
              '<td>' + escapeHtml(f.category) + '</td>' +
              '<td>' + escapeHtml(MC_LABEL[f._bucket] || '—') + '</td>' +
-             '<td><input type="number" class="alloc-edit" min="0" max="100" step="2" value="' + (f._weight || 0).toFixed(0) + '" data-i="' + origIdx + '"></td>' +
+             '<td><input type="number" class="alloc-edit" min="0" max="100" step="1" value="' + w.toFixed(0) + '" data-i="' + origIdx + '"></td>' +
              '<td>' + formatINR(rs) + '</td>' +
              '<td><button class="pb-act-btn swap" data-i="' + origIdx + '" title="Swap">⇄</button>' +
                  '<button class="pb-act-btn rm"   data-i="' + origIdx + '" title="Remove">✕</button></td>' +
@@ -1798,13 +2151,37 @@
       '<td class="' + totSumCls + '">' + totalW.toFixed(0) + '%</td>' +
       '<td>' + formatINR(totalAmt) + '</td><td></td></tr></tfoot></table>';
 
-    /* Allocation note below table when total != 100 */
+    /* Allocation note below table when total != 100. v4.1 Item F — earlier
+       code reached for an inner #pbAllocNoteVal span that doesn't exist in
+       the HTML; with Item F this code path actually fires (Item F removes
+       the auto-redistribute that kept total perpetually at 100), so set the
+       message directly on the wrapper. */
     const noteEl = document.getElementById('pbAllocNote');
-    if (Math.round(totalW) !== 100) {
-      document.getElementById('pbAllocNoteVal').textContent = totalW.toFixed(0);
-      noteEl.hidden = false;
-    } else {
-      noteEl.hidden = true;
+    if (noteEl) {
+      if (Math.round(totalW) !== 100) {
+        noteEl.textContent = 'Total allocation = ' + totalW.toFixed(0) +
+          ' %. Adjust fund weights so the total reaches 100 % before saving or regenerating.';
+        noteEl.hidden = false;
+      } else {
+        noteEl.textContent = '';
+        noteEl.hidden = true;
+      }
+    }
+
+    /* v4.1 Item F §8.3 — when total weight ≠ 100, disable Save (Step 6) and
+       Generate so the user can't ship an out-of-balance portfolio. Generate's
+       baseline-disabled rule (no risk/horizon) still applies — we only flip
+       it OFF when total is valid AND the wizard is filled. */
+    const totalIs100 = Math.round(totalW) === 100;
+    const saveBtn = document.getElementById('savePortBtn');
+    if (saveBtn) {
+      const nameEl = document.getElementById('savePortName');
+      const haveName = !!(nameEl && nameEl.value.trim());
+      saveBtn.disabled = !totalIs100 || !haveName;
+    }
+    const genBtn = document.getElementById('generateBtn');
+    if (genBtn) {
+      genBtn.disabled = !totalIs100 || !(_state.risk && _state.horizon);
     }
 
     /* Sort header clicks */
@@ -1824,10 +2201,21 @@
         editAllocation(i, newW);
       });
     });
-    /* Wire swap */
-    wrap.querySelectorAll('.pb-act-btn.swap').forEach(b => b.addEventListener('click', (e) => openSwapPopover(+b.dataset.i, b)));
+    /* v4.1 Item D — Switch Fund opens the modal, not the v4 popover */
+    wrap.querySelectorAll('.pb-act-btn.swap').forEach(b =>
+      b.addEventListener('click', () => openSwapModal(+b.dataset.i)));
     /* Wire remove */
     wrap.querySelectorAll('.pb-act-btn.rm').forEach(b => b.addEventListener('click', () => removeFund(+b.dataset.i)));
+  }
+
+  /* v4.1 Items D + I — unified re-render hook. Every user-driven mutation
+     to _portfolio.funds (Switch Fund, Remove, Force-include, Allocation
+     edit) routes through this so the Plan / Funds / Analytics / Growth /
+     Top-line metrics — and the Rationale tab once Item H lands — stay in
+     lockstep. */
+  function renderAllOutputs() {
+    if (!_portfolio) return;
+    renderOutput();
   }
 
   function renderWarnings() {
@@ -1849,23 +2237,16 @@
     wrap.innerHTML = html;
   }
 
+  /* v4.1 Item F — manual allocation edits no longer auto-redistribute.
+     Per spec §8.3: user sets one fund to 25 %, total goes to 105 %, badge
+     red, Save/Generate disabled. User must manually rebalance siblings to
+     reach 100 %. Going > 20 % surfaces an inline override chip on that fund
+     row (rendered by renderFundsTable). */
   function editAllocation(idx, newW) {
-    const oldW = _portfolio.funds[idx]._weight || 0;
-    const diff = newW - oldW;
-    _portfolio.funds[idx]._weight = newW;
-    /* Redistribute -diff across other funds proportional to current weight */
-    const others = _portfolio.funds.filter((_, i) => i !== idx);
-    const sumOthers = others.reduce((s, f) => s + (f._weight || 0), 0);
-    if (sumOthers > 0) {
-      others.forEach(f => { f._weight = Math.max(0, (f._weight || 0) - diff * ((f._weight || 0) / sumOthers)); });
-    }
-    /* Round all weights to 2% steps + normalise to 100 so displayed inputs sum correctly */
-    let ws = _portfolio.funds.map(f => Math.max(0, Math.round((f._weight || 0) / 2) * 2));
-    const wsSum = ws.reduce((s, w) => s + w, 0);
-    if (wsSum !== 100 && wsSum > 0) { const mi = ws.indexOf(Math.max(...ws)); ws[mi] += 100 - wsSum; }
-    _portfolio.funds.forEach((f, i) => { f._weight = ws[i]; });
-    /* Re-render */
-    renderActiveTab();
+    if (!_portfolio || !_portfolio.funds[idx]) return;
+    const v = Math.max(0, Math.min(100, +newW || 0));
+    _portfolio.funds[idx]._weight = v;
+    renderAllOutputs();
   }
 
   function removeFund(idx) {
@@ -1880,75 +2261,154 @@
       const each = (removed._weight || 0) / remaining.length;
       remaining.forEach(f => { f._weight += each; });
     }
-    renderOutput();
+    renderAllOutputs();
   }
 
-  function openSwapPopover(idx, anchorBtn) {
-    document.querySelectorAll('.swap-popover').forEach(p => p.remove());
-    const f = _portfolio.funds[idx];
-    if (!f) return;
+  /* v4.1 Item D — Switch Fund MODAL (replaces v4 popover).
+     Spec: up to 5 alternates per source = 2 FOCUSED + 3 RANKED+UNRANKED, same
+     SEBI sub-category as source, sorted by centricity_score desc. Top up
+     order: FOCUSED shortfall → RANKED, RANKED shortfall → UNRANKED. Aim 5;
+     surface "Only N alternates in this category" if fewer. Always exclude
+     funds already in _portfolio.funds (incl. force-included). */
+  let _swapEscBound = null;
+  function _swapEscHandler(e) { if (e.key === 'Escape') closeSwapModal(); }
 
-    /* Re-derive candidates: same bucket, ranked by tier+score, exclude already-in-portfolio */
+  function openSwapModal(idx) {
+    closeSwapModal();
+    const src = _portfolio.funds[idx];
+    if (!src) return;
+
     const inSet = new Set(_portfolio.funds.map(x => x.scheme_code));
-    const TIER_RANK = { FOCUSED: 0, RANKED: 1, UNRANKED: 2, NEW_FUND: 3 };
-    const candidates = _allFunds.filter(x => {
-      if (inSet.has(x.scheme_code)) return false;
-      if (CATEGORY_MCAP_BUCKET[x.category] !== f._bucket) return false;
-      /* Same product family (Equity / Hybrid) */
-      if (x.sub_category_class !== f.sub_category_class) return false;
-      return true;
-    }).map(x => Object.assign({}, x, {
-      _tier: (_focusedSchemes.includes(x.scheme_code))      ? 'FOCUSED'
-           : (x.centricity_score_status === 'Ranked')        ? 'RANKED'
-           : (x.inception_date && new Date(x.inception_date) > _oneYrAgo) ? 'NEW_FUND'
-           :                                                    'UNRANKED',
+    const oneYr = _oneYearAgo();
+    /* Same SEBI sub-category match per spec (was sub_category_class + bucket
+       in v4 — too broad, surfaces cross-cap candidates). */
+    const pool = _allFunds
+      .filter(x => !inSet.has(x.scheme_code) && x.category === src.category)
+      .map(x => {
+        const tier = _focusedSet.has(x.scheme_code)            ? 'FOCUSED'
+                   : x.centricity_score_status === 'Ranked'    ? 'RANKED'
+                   : (x.inception_date && new Date(x.inception_date) > oneYr) ? 'NEW_FUND'
+                   :                                             'UNRANKED';
+        return Object.assign({}, x, { _tier: tier });
+      });
+    const byScore = (a, b) => (b.centricity_score || 0) - (a.centricity_score || 0);
+    const focused  = pool.filter(p => p._tier === 'FOCUSED').sort(byScore);
+    const ranked   = pool.filter(p => p._tier === 'RANKED').sort(byScore);
+    const unranked = pool.filter(p => p._tier === 'UNRANKED' || p._tier === 'NEW_FUND').sort(byScore);
+
+    const alternates = [];
+    /* 2 FOCUSED */
+    alternates.push(...focused.slice(0, 2));
+    /* 3 RANKED */
+    alternates.push(...ranked.slice(0, 3));
+    /* Top-up: FOCUSED shortfall → RANKED, then UNRANKED */
+    if (alternates.length < 5) {
+      const need = 5 - alternates.length;
+      alternates.push(...ranked.slice(3, 3 + need));
+    }
+    if (alternates.length < 5) {
+      const need = 5 - alternates.length;
+      alternates.push(...unranked.slice(0, need));
+    }
+    const finalList = alternates.slice(0, 5);
+
+    /* Build modal */
+    const overlay = document.createElement('div');
+    overlay.className = 'pb-swap-overlay';
+    overlay.innerHTML =
+      '<div class="pb-swap-modal" role="dialog" aria-modal="true" aria-label="Swap fund">' +
+        '<div class="pb-swap-h">' +
+          '<div><h3>Swap fund</h3>' +
+            '<div class="pb-swap-sub">' + escapeHtml(src.fund_name) +
+              ' · ' + escapeHtml(src.category) + '</div></div>' +
+          '<button class="pb-swap-close" aria-label="Close">×</button>' +
+        '</div>' +
+        '<div class="pb-swap-body">' + _buildSwapTable(finalList) + '</div>' +
+        (finalList.length < 5
+          ? '<div class="pb-swap-note">Only ' + finalList.length +
+            ' alternate' + (finalList.length === 1 ? '' : 's') + ' in this category.</div>'
+          : '') +
+      '</div>';
+    document.body.appendChild(overlay);
+
+    overlay.addEventListener('click', e => { if (e.target === overlay) closeSwapModal(); });
+    overlay.querySelector('.pb-swap-close').addEventListener('click', closeSwapModal);
+    overlay.querySelectorAll('.pb-swap-replace').forEach(b => b.addEventListener('click', () => {
+      const sc = +b.dataset.sc;
+      _swapFundAtIndex(idx, sc);
+      closeSwapModal();
     }));
-    candidates.sort((a, b) => {
-      const ta = TIER_RANK[a._tier], tb = TIER_RANK[b._tier];
-      if (ta !== tb) return ta - tb;
-      return ((b.centricity_score || 0) - (a.centricity_score || 0));
+    document.addEventListener('keydown', _swapEscHandler);
+    _swapEscBound = true;
+  }
+
+  function closeSwapModal() {
+    document.querySelectorAll('.pb-swap-overlay').forEach(o => o.remove());
+    if (_swapEscBound) {
+      document.removeEventListener('keydown', _swapEscHandler);
+      _swapEscBound = false;
+    }
+  }
+
+  function _buildSwapTable(alternates) {
+    if (!alternates.length) {
+      return '<div class="pb-swap-empty">No alternates available in this category.</div>';
+    }
+    const fmtPct = v => v == null ? '—' : (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2) + '%';
+    const fmtNum = v => v == null ? '—' : v.toFixed(2);
+    let html = '<table class="pb-swap-tbl"><thead><tr>' +
+      '<th>Tier</th><th>Fund</th>' +
+      '<th class="num">1Y</th><th class="num">3Y</th><th class="num">5Y</th>' +
+      '<th class="num">Sharpe</th><th class="num">Score</th><th class="num">TER</th>' +
+      '<th></th></tr></thead><tbody>';
+    alternates.forEach(c => {
+      const mr = c.monitor_returns || {};
+      const tr = c.trailing_returns || {};
+      const r1 = mr.return_1y_pct ?? tr.return_1y_pct;
+      const r3 = mr.return_3y_pct ?? tr.return_3y_pct;
+      const r5 = mr.return_5y_pct ?? tr.return_5y_pct;
+      const sh = c.risk_metrics?.sharpe_3y;
+      const ter = c.monitor_ter_pct ?? c.ter_pct;
+      html += '<tr>' +
+        '<td><span class="pb-swap-tier ' + c._tier + '">' + c._tier + '</span></td>' +
+        '<td class="pb-swap-fundname">' +
+          '<a href="fund-detail.html?scheme=' + c.scheme_code + '" target="_blank">' +
+            escapeHtml(c.fund_name) + '</a>' +
+          '<div class="sc">' + c.scheme_code + '</div>' +
+        '</td>' +
+        '<td class="num">' + fmtPct(r1) + '</td>' +
+        '<td class="num">' + fmtPct(r3) + '</td>' +
+        '<td class="num">' + fmtPct(r5) + '</td>' +
+        '<td class="num">' + fmtNum(sh) + '</td>' +
+        '<td class="num">' + DataLoader.fmtScorePct(c.centricity_score) + '</td>' +
+        '<td class="num">' + (ter != null ? ter.toFixed(2) + '%' : '—') + '</td>' +
+        '<td><button class="pb-swap-replace" data-sc="' + c.scheme_code + '">Replace</button></td>' +
+      '</tr>';
     });
+    return html + '</tbody></table>';
+  }
 
-    const top = candidates.slice(0, 5);
-    const pop = document.createElement('div');
-    pop.className = 'swap-popover';
-    pop.innerHTML = '<div class="swap-h">Swap with — top alternates in ' + escapeHtml(MC_LABEL[f._bucket] || '') + '</div>' +
-      (top.length ? top.map(c => {
-        const ov = computeOverlap(c.scheme_code, f.scheme_code);
-        return '<div class="swap-row" data-sc="' + c.scheme_code + '">' +
-               '<div><div class="nm">' + escapeHtml(c.fund_name) + '</div>' +
-               '<div class="meta">' + escapeHtml(c.category) + ' · ' + escapeHtml(c._tier) + '</div></div>' +
-               '<div class="scr">' + DataLoader.fmtScorePct(c.centricity_score) + '</div>' +
-               '<div class="ovl">' + ov.toFixed(0) + '% ovl</div></div>';
-      }).join('') : '<div class="swap-empty">No alternates in this bucket.</div>');
-
-    document.body.appendChild(pop);
-    const r = anchorBtn.getBoundingClientRect();
-    pop.style.left = Math.max(8, r.left - 320) + 'px';
-    pop.style.top  = (r.bottom + 6 + window.scrollY) + 'px';
-
-    pop.querySelectorAll('.swap-row').forEach(row => row.addEventListener('click', () => {
-      const sc = +row.dataset.sc;
-      const cand = _allFunds.find(x => x.scheme_code === sc);
-      if (!cand) return;
-      const w = _portfolio.funds[idx]._weight;
-      const replaced = Object.assign({}, cand, {
-        _tier: (_focusedSchemes.includes(cand.scheme_code))         ? 'FOCUSED'
-             : (cand.centricity_score_status === 'Ranked')           ? 'RANKED'
-             : (cand.inception_date && new Date(cand.inception_date) > _oneYrAgo) ? 'NEW_FUND'
-             :                                                          'UNRANKED',
-        _bucket: f._bucket, _weight: w, _alternates: [],
-      });
-      _portfolio.funds[idx] = replaced;
-      pop.remove();
-      renderOutput();
-    }));
-    /* Click-outside to close */
-    setTimeout(() => {
-      document.addEventListener('click', function close(e) {
-        if (!pop.contains(e.target)) { pop.remove(); document.removeEventListener('click', close); }
-      });
-    }, 50);
+  /* v4.1 Item D — perform the swap: remove source from _portfolio.funds and
+     insert the alternate at the same index, preserving the original
+     allocation %. Re-renders all output tabs via renderAllOutputs (Item I);
+     Rationale tab (Item H) is included in that pipeline once it lands. */
+  function _swapFundAtIndex(idx, schemeCode) {
+    const cand = _allFunds.find(x => x.scheme_code === schemeCode);
+    if (!cand) return;
+    const src = _portfolio.funds[idx];
+    if (!src) return;
+    const oneYr = _oneYearAgo();
+    const tier = _focusedSet.has(cand.scheme_code)             ? 'FOCUSED'
+               : cand.centricity_score_status === 'Ranked'      ? 'RANKED'
+               : (cand.inception_date && new Date(cand.inception_date) > oneYr) ? 'NEW_FUND'
+               :                                                   'UNRANKED';
+    _portfolio.funds[idx] = Object.assign({}, cand, {
+      _tier:        tier,
+      _bucket:      src._bucket,
+      _weight:      src._weight,
+      _alternates:  [],
+    });
+    renderAllOutputs();
   }
 
   /* -- RETURNS -- */
@@ -2620,6 +3080,7 @@
       instMax:           _state.instMax,
       optimiseFunds:     _state.optimiseFunds,
       allocMode:         _state.allocMode,
+      allocAuto:         Object.assign({}, _state.allocAuto),
       allocManual:       Object.assign({}, _state.allocManual),
       allocPartialFlags: Object.assign({}, _state.allocPartialFlags),
       includeGlobalMF:   _state.includeGlobalMF,
@@ -2655,12 +3116,30 @@
     const optEl = document.getElementById('optimiseFunds'); if (optEl) optEl.checked = !!snap.optimiseFunds;
     document.querySelectorAll('[data-alloc-mode]').forEach(b =>
       b.classList.toggle('active', b.dataset.allocMode === snap.allocMode));
-    document.getElementById('allocAutoView').hidden   = (snap.allocMode !== 'auto');
-    document.getElementById('allocManualView').hidden = (snap.allocMode !== 'manual' && snap.allocMode !== 'partial');
+    /* v4.1 Item A — three views, one shown per mode. Earlier code lumped
+       Manual + Partial together and never explicitly toggled allocPartialView,
+       which left Partial-mode portfolios rendering Manual on restore. */
+    document.getElementById('allocAutoView').hidden    = (snap.allocMode !== 'auto');
+    document.getElementById('allocManualView').hidden  = (snap.allocMode !== 'manual');
+    document.getElementById('allocPartialView').hidden = (snap.allocMode !== 'partial');
     Object.keys(snap.allocManual || {}).forEach(b => {
       const inp = document.querySelector('.alloc-in[data-bucket="' + b + '"]');
       if (inp) inp.value = snap.allocManual[b];
+      const pin = document.querySelector('.alloc-pin[data-bucket="' + b + '"]');
+      if (pin) pin.value = snap.allocManual[b];
     });
+    /* v4.1 Item A — restore editable Auto values. v3/v4 snapshots without
+       allocAuto fall back to matrix-seeding via the snap's risk + horizon. */
+    if (snap.allocAuto) {
+      _state.allocAuto = Object.assign({}, snap.allocAuto);
+    } else if (snap.risk && snap.horizon && ALLOC_MATRIX_AC[snap.risk]?.[snap.horizon]) {
+      const ac = ALLOC_MATRIX_AC[snap.risk][snap.horizon];
+      _state.allocAuto = { equity: ac.equity, debt: ac.debt, commodities: ac.commodities, reits: ac.reits };
+    }
+    /* Pin the seeded-profile marker so the next refreshAutoTables() call
+       (e.g. fired by a Step-1 pill click on the same risk/horizon) doesn't
+       clobber the restored allocAuto with matrix defaults. */
+    _lastSeededProfile = (snap.risk && snap.horizon) ? (snap.risk + '|' + snap.horizon) : null;
     refreshAutoTables(); validateAllocSum();
     document.querySelectorAll('[data-mcap-mode]').forEach(b =>
       b.classList.toggle('active', b.dataset.mcapMode === snap.mcapMode));

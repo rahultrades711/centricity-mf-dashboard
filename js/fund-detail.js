@@ -83,6 +83,8 @@
     renderRisk(fund, cycle);
     renderManager(fund);
     renderPortfolio(fund);
+    /* v4.1 Item L — Competition Analysis between Portfolio (04) and Cost (06) */
+    renderCompetitionAnalysis(fund, cycle);
     renderCost(fund, cycle);
     renderVerdict(fund, cycle);
     renderFooter(cycle);
@@ -114,10 +116,14 @@
       // top-5 most-similar funds across the analytics file and render the
       // "Similar Funds by Holdings" widget at the bottom of Portfolio.
       renderSimilarFunds(fund, entry);
+      /* v4.1 Item L — overlap matrix in the Competition section needs the
+         current fund's holdings, which only land after this callback. */
+      renderCompetitionOverlap(fund, cycle, entry);
     }).catch((e) => {
       console.warn('[fund-detail] analytics JSON unavailable', e);
       showSectorDonutEmpty();
       renderSimilarFunds(fund, null);
+      renderCompetitionOverlap(fund, cycle, null);
       // Compact holdings table mount stays at "Holdings data pending."
     });
     // Fix-List 8 Feature 1 — manager-history JSON for the timeline + main
@@ -188,10 +194,23 @@
       ? `${scoreOutOf10.toFixed(2)}<em>/ 10</em>`
       : `—<em>/ 10</em>`;
 
-    // No prior cycle in archive yet — show em-dash for delta (Fund Detail spec)
-    const rankLine = fund.centricity_rank_overall != null
-      ? `Ranked <b>#${fund.centricity_rank_overall}</b> of ${(_cycle.cycle_meta.total_funds || '—').toLocaleString('en-IN')}`
-      : '';
+    /* v4.1 Item M — header rank is category-only, not universe rank.
+       Compute the current fund's rank within funds sharing the same SEBI
+       sub-category (cycle.funds is the universe; filter by category, sort
+       by centricity_score desc, find this fund's position). */
+    const peerSubCat = (_cycle.funds || []).filter(f => f.category === fund.category);
+    let rankLine = '';
+    if (fund.centricity_score != null && peerSubCat.length) {
+      const sorted = peerSubCat.slice().sort((a, b) =>
+        (b.centricity_score || 0) - (a.centricity_score || 0)
+      );
+      const idx = sorted.findIndex(f => f.scheme_code === fund.scheme_code);
+      if (idx >= 0) {
+        const x = idx + 1;
+        const n = peerSubCat.length;
+        rankLine = `Ranked <b>#${x}</b> of ${n} in ${escapeHtml(fund.category)} category`;
+      }
+    }
     document.getElementById('scoreDelta').innerHTML =
       `Cycle change · — (no prior cycle in archive). ${rankLine}`;
 
@@ -1277,9 +1296,14 @@
     const concerns = [];
     const peers = (cycle.funds || []).filter(f => f.category === fund.category);
 
-    // Fix-List 6 §2B — verdict insights also use 2dp for return values
+    /* v4.1 Item N — coalesce internal whitespace and trim per bullet so any
+       residual double-spaces from variable interpolation render cleanly.
+       Keeps the spec's recommended single-line templates and protects
+       against future template edits that re-introduce stray spaces. */
+    function nrm(s) { return s.replace(/\s+/g, ' ').trim(); }
     function pct1(v) { return DataLoader.fmtNum(v, 2) + '%'; }
     function escape(s) { return escapeHtml(String(s)); }
+    const benchmark = fund.benchmark ? escape(fund.benchmark) : 'benchmark';
 
     // ---- Strengths ----
     if (fund.centricity_score != null && fund.centricity_score >= 0.80) {
@@ -1287,14 +1311,14 @@
       const inCat = fund.centricity_rank_in_category != null ? `#${fund.centricity_rank_in_category} in ${escape(fund.category)}` : null;
       const overall = fund.centricity_rank_overall != null ? `#${fund.centricity_rank_overall} overall (of ${ofN})` : null;
       const rankPart = [inCat, overall].filter(Boolean).join(' / ');
-      strengths.push(`Centricity Score <b>${(fund.centricity_score * 10).toFixed(2)}/10</b>${rankPart ? ' · ' + rankPart : ''}.`);
+      strengths.push(nrm(`Centricity Score <b>${(fund.centricity_score * 10).toFixed(2)}/10</b>${rankPart ? ' · ' + rankPart : ''}.`));
     }
     const rs = fund.rolling_3y_stats;
     if (rs && rs.pct_beat_benchmark != null && rs.pct_beat_benchmark >= 90) {
-      strengths.push(`Beats benchmark in <b>${pct1(rs.pct_beat_benchmark)}</b> of all 3-year rolling windows.`);
+      strengths.push(nrm(`Beats benchmark <b>${pct1(rs.pct_beat_benchmark)}</b> of all 3-year rolling windows vs <b>${benchmark}</b>.`));
     }
     if (rs && rs.pct_above_12 != null && rs.pct_above_12 >= 80) {
-      strengths.push(`<b>${pct1(rs.pct_above_12)}</b> of rolling 3Y windows delivered &gt; 12% CAGR.`);
+      strengths.push(nrm(`<b>${pct1(rs.pct_above_12)}</b> of rolling 3Y windows delivered &gt; 12% CAGR.`));
     }
     const maxDd = fund.risk_metrics ? fund.risk_metrics.max_drawdown_3y_pct : null;
     if (maxDd != null && maxDd > -15) {
@@ -1304,46 +1328,46 @@
       const catDdAvg = catDdVals.length >= 3
         ? catDdVals.reduce((s, v) => s + v, 0) / catDdVals.length : null;
       if (catDdAvg != null && maxDd > catDdAvg) {
-        strengths.push(`Max 3Y drawdown limited to <b>${pct1(maxDd)}</b> — shallower than category average <b>${pct1(catDdAvg)}</b>.`);
+        strengths.push(nrm(`Max 3Y drawdown limited to <b>${pct1(maxDd)}</b> — shallower than category average <b>${pct1(catDdAvg)}</b>.`));
       } else {
-        strengths.push(`Max 3Y drawdown limited to <b>${pct1(maxDd)}</b>.`);
+        strengths.push(nrm(`Max 3Y drawdown limited to <b>${pct1(maxDd)}</b>.`));
       }
     }
     const a3 = fund.alpha ? fund.alpha.alpha_3y_pct : null;
     if (a3 != null && a3 > 5) {
-      strengths.push(`3Y alpha of <b>+${DataLoader.fmtNum(a3, 1)}%</b> vs benchmark — consistent excess return.`);
+      strengths.push(nrm(`3Y alpha of <b>+${DataLoader.fmtNum(a3, 1)}%</b> vs benchmark — consistent excess return.`));
     }
     if (fund.fund_tenure_yrs != null && fund.fund_tenure_yrs > 10) {
-      strengths.push(`Fund track record spans <b>${DataLoader.fmtNum(fund.fund_tenure_yrs, 1)} years</b> across multiple market cycles.`);
+      strengths.push(nrm(`Fund track record <b>${DataLoader.fmtNum(fund.fund_tenure_yrs, 1)} years</b> across multiple market cycles.`));
     }
     if (fund.manager_name && fund.manager_tenure_yrs != null && fund.manager_tenure_yrs > 5) {
-      strengths.push(`Manager <b>${escape(fund.manager_name)}</b> has <b>${DataLoader.fmtNum(fund.manager_tenure_yrs, 1)} years</b> at the helm — above-average continuity.`);
+      strengths.push(nrm(`Manager <b>${escape(fund.manager_name)}</b> has <b>${DataLoader.fmtNum(fund.manager_tenure_yrs, 1)} years</b> at the helm — above-average continuity.`));
     }
     if (fund.consistency_pct != null && fund.consistency_pct >= 95) {
-      strengths.push(`Consistency score of <b>${pct1(fund.consistency_pct)}</b> — rare in this category.`);
+      strengths.push(nrm(`Consistency score of <b>${pct1(fund.consistency_pct)}</b> — rare in this category.`));
     }
 
     // ---- Concerns ----
     const m = fund.monitor_returns || {};
     const br = fund.benchmark_returns || {};
     if (m.return_1y_pct != null && br.return_1y_pct != null && m.return_1y_pct < br.return_1y_pct) {
-      concerns.push(`1Y return <b>${pct1(m.return_1y_pct)}</b> trails benchmark <b>${pct1(br.return_1y_pct)}</b> — recent underperformance worth monitoring.`);
+      concerns.push(nrm(`1Y return <b>${pct1(m.return_1y_pct)}</b> trails benchmark <b>${pct1(br.return_1y_pct)}</b> — recent underperformance worth monitoring.`));
     }
     if (m.ytd_pct != null && m.ytd_pct < -5) {
-      concerns.push(`YTD return of <b>${pct1(m.ytd_pct)}</b> — short-term drawdown in progress.`);
+      concerns.push(nrm(`YTD return of <b>${pct1(m.ytd_pct)}</b> — short-term drawdown in progress.`));
     }
     const sd = fund.risk_metrics ? fund.risk_metrics.std_dev_3y_pct : null;
     if (sd != null && sd > 15) {
-      concerns.push(`Volatility (Std Dev <b>${pct1(sd)}</b>) above typical for this category — expect swings.`);
+      concerns.push(nrm(`Volatility (Std Dev <b>${pct1(sd)}</b>) above typical for this category — expect swings.`));
     }
     if (fund.manager_name && fund.manager_tenure_yrs != null && fund.manager_tenure_yrs < 2) {
-      concerns.push(`Manager <b>${escape(fund.manager_name)}</b> has &lt; 2 years running this fund — track record limited.`);
+      concerns.push(nrm(`Manager <b>${escape(fund.manager_name)}</b> has &lt; 2 years running this fund — track record limited.`));
     }
     if (fund.aum_cr != null && fund.aum_cr > 30000) {
-      concerns.push(`AUM of <b>₹${DataLoader.fmtINR(fund.aum_cr)} Cr</b> — large corpus may constrain agility in mid/small-cap exposure.`);
+      concerns.push(nrm(`AUM of <b>₹${DataLoader.fmtINR(fund.aum_cr)} Cr</b> — large corpus may constrain agility in mid/small-cap exposure.`));
     }
     if (fund.no_of_stocks != null && fund.no_of_stocks < 20) {
-      concerns.push(`Concentrated portfolio of <b>${fund.no_of_stocks}</b> stocks — higher single-stock risk.`);
+      concerns.push(nrm(`Concentrated portfolio of <b>${fund.no_of_stocks}</b> stocks — higher single-stock risk.`));
     }
 
     return { strengths, concerns };
@@ -1685,48 +1709,131 @@
     ensureChartJs().then(_drawDdChart).catch(showDdEmpty);
   }
 
-  function _drawDdChart() {
-    // Fix-List 7 — use ALL available history (not window-gated) so the
-    // running-peak drawdown captures the historical low, not just the
-    // 5Y slice.
-    const fund = _navSeries.fund || [];
-    if (fund.length < 12) { showDdEmpty(); return; }
-
-    let peak = fund[0].v;
-    const dd = fund.map(p => {
+  /* v4.1 Item K — drawdown series helper. Running-peak from any monthly
+     NAV array. Returns { labels, dd } where dd is % drawdown vs peak. */
+  function _seriesToDrawdown(arr) {
+    if (!arr || !arr.length) return { labels: [], dd: [] };
+    let peak = arr[0].v;
+    const out = arr.map(p => {
       if (p.v > peak) peak = p.v;
       const d = peak > 0 ? (p.v / peak - 1) : 0;
       return { d: p.d, dd: d * 100 };
     });
+    return { labels: out.map(p => p.d), dd: out.map(p => p.dd) };
+  }
 
-    const labels = dd.map(p => p.d);
-    const ddData = dd.map(p => p.dd);
+  /* v4.1 Item K — category-average drawdown across same-sub-category peers.
+     Reads the cached nav-series document, computes per-peer drawdown,
+     averages by month-key. Caps at 30 peers for perf. Returns null when
+     too few peers have nav-series data. */
+  function _computeCategoryAvgDrawdown(currentFund, fundLabels) {
+    if (!_navSeriesCache || !_navSeriesCache.series) return null;
+    if (!_cycle || !_cycle.funds || !currentFund) return null;
+    const peerCodes = _cycle.funds
+      .filter(p => p.category === currentFund.category && p.scheme_code !== currentFund.scheme_code)
+      .map(p => String(p.scheme_code))
+      .slice(0, 30);
+    if (peerCodes.length < 3) return null;
+    /* Aggregate by month-key — sum + count. Different peers have different
+       inception dates so each month-key may have a different sample size. */
+    const sum = {};
+    const count = {};
+    let included = 0;
+    peerCodes.forEach(sc => {
+      const entry = _navSeriesCache.series[sc];
+      if (!entry || !entry.fund || entry.fund.length < 12) return;
+      const dd = _seriesToDrawdown(entry.fund).dd;
+      const labels = entry.fund.map(p => p.d);
+      for (let i = 0; i < labels.length; i++) {
+        const k = labels[i];
+        if (sum[k] == null) { sum[k] = 0; count[k] = 0; }
+        sum[k] += dd[i];
+        count[k] += 1;
+      }
+      included += 1;
+    });
+    if (included < 3) return null;
+    return fundLabels.map(k => count[k] ? (sum[k] / count[k]) : null);
+  }
+
+  function _drawDdChart() {
+    /* Fix-List 7 — use ALL available history (not window-gated) so the
+       running-peak drawdown captures the historical low, not just the
+       5Y slice. */
+    const fund = _navSeries.fund || [];
+    if (fund.length < 12) { showDdEmpty(); return; }
+
+    const fundDd = _seriesToDrawdown(fund);
+    const labels = fundDd.labels;
+
+    /* v4.1 Item K — benchmark drawdown overlay (silent skip if missing). */
+    const benchArr = (_navSeries && Array.isArray(_navSeries.bench)) ? _navSeries.bench : null;
+    let benchDd = null;
+    if (benchArr && benchArr.length >= 12) {
+      const benchByDate = Object.fromEntries(benchArr.map(p => [p.d, p.v]));
+      const filtered = labels.map(k => benchByDate[k] != null ? { d: k, v: benchByDate[k] } : null)
+                             .filter(Boolean);
+      if (filtered.length >= 12) {
+        const ddObj = _seriesToDrawdown(filtered);
+        const m = Object.fromEntries(ddObj.labels.map((k, i) => [k, ddObj.dd[i]]));
+        benchDd = labels.map(k => (k in m) ? m[k] : null);
+      } else {
+        console.warn('[fund-detail] benchmark nav-series too sparse for drawdown overlay');
+      }
+    }
+
+    /* v4.1 Item K — category-average drawdown overlay (computed from peers). */
+    const catAvgDd = _computeCategoryAvgDrawdown(_fund, labels);
+
+    const datasets = [{
+      label: 'Fund',
+      data: fundDd.dd,
+      borderColor: '#BD9568', backgroundColor: 'rgba(189,149,104,.12)',
+      fill: true, tension: .15, pointRadius: 0, borderWidth: 2,
+    }];
+    if (benchDd) datasets.push({
+      label: 'Benchmark',
+      data: benchDd,
+      borderColor: '#000000', backgroundColor: 'transparent',
+      borderDash: [6, 4],
+      fill: false, tension: .15, pointRadius: 0, borderWidth: 1.5,
+      spanGaps: true,
+    });
+    if (catAvgDd) datasets.push({
+      label: 'Category Avg',
+      data: catAvgDd,
+      borderColor: '#BFBFBF', backgroundColor: 'transparent',
+      fill: false, tension: .15, pointRadius: 0, borderWidth: 1.5,
+      spanGaps: true,
+    });
 
     const ctx = document.getElementById('ddChart').getContext('2d');
     if (_ddChartInstance) { _ddChartInstance.destroy(); _ddChartInstance = null; }
     _ddChartInstance = new window.Chart(ctx, {
       type: 'line',
-      data: {
-        labels,
-        datasets: [{
-          label: 'Drawdown',
-          data: ddData,
-          borderColor: '#931621', backgroundColor: 'rgba(147,22,33,.15)',
-          fill: true, tension: .15, pointRadius: 0, borderWidth: 1.8,
-        }],
-      },
+      data: { labels, datasets },
       options: {
         responsive: true, maintainAspectRatio: false,
         animation: { duration: 200 },
         interaction: { mode: 'index', intersect: false },
         plugins: {
-          legend: { display: false },
+          legend: {
+            display: true, position: 'bottom', align: 'center',
+            labels: {
+              boxWidth: 22, boxHeight: 2, usePointStyle: false,
+              font: { family: "'Cambria', Georgia, serif", size: 12 },
+              color: '#0E0E0E',
+            },
+          },
           tooltip: {
             backgroundColor: '#000', titleColor: '#BD9568', bodyColor: '#fff',
             borderColor: '#6B3F1A', borderWidth: 1,
             callbacks: {
-              label: (ctx) =>
-                `Drawdown: ${ctx.raw == null ? '—' : fmtPctSigned(ctx.raw, 2)} · ${formatYMLong(ctx.label)}`,
+              label: (ctx) => {
+                const v = ctx.raw == null ? '—' : fmtPctSigned(ctx.raw, 2);
+                return `${ctx.dataset.label}: ${v}`;
+              },
+              title: (items) => items.length ? formatYMLong(items[0].label) : '',
             },
           },
         },
@@ -1736,12 +1843,7 @@
             ticks: {
               font: { family: "'Cambria', Georgia, serif", size: 10 },
               color: '#666',
-              autoSkip: false,
-              maxRotation: 0,
-              // Fix-List 10 §5 — quarterly cadence on the drawdown axis
-              // (Jan / Apr / Jul / Oct), matching the nav chart's 3Y/5Y
-              // window. Reusing `fmtAxisDate(ym, '3Y', isLast)` keeps the
-              // formatting source-of-truth in one helper.
+              autoSkip: false, maxRotation: 0,
               callback: function (val, idx, all) {
                 const lbl = this.getLabelForValue(val);
                 return fmtAxisDate(lbl, '3Y', idx === all.length - 1);
@@ -1753,7 +1855,8 @@
             grid: { color: 'rgba(217, 217, 217, .55)', drawBorder: false },
             ticks: {
               font: { family: "'Cambria', Georgia, serif", size: 10 },
-              color: '#666',
+              /* v4.1 Item K — negative-value axis labels in Dark Red. */
+              color: (ctx) => (ctx.tick && ctx.tick.value < 0) ? '#931621' : '#666',
               callback: (v) => `${DataLoader.fmtNum(v, 0)}%`,
             },
           },
@@ -2098,6 +2201,202 @@
     }
 
     card.hidden = false;
+  }
+
+  /* ============================================================
+   * v4.1 Item L — COMPETITION ANALYSIS (Top-7 peers + 1×7 overlap)
+   *
+   * §14.2 Top-7 table:
+   *   - 7 same-sub-category peers by centricity_score desc (excl. current).
+   *   - Tie-break: Sharpe desc, then AUM desc (§19 Q6 default).
+   *   - Row 8 = AVERAGE of those 7 (bold + light grey bg).
+   *   - Row 9 = CURRENT fund (highlighted, very light gold bg). Always shown.
+   *   - For tiny categories (<7 peers): show all peers + avg + current.
+   *   - Columns: Fund (link) · 3Y Rolling · YTD · Sharpe · L/M/S split · # Stocks.
+   *
+   * §14.3 Overlap matrix:
+   *   - 1×7 — current fund vs each peer.
+   *   - Cell bg gradient: #FFFFFF (0%) → #BD9568 (100%).
+   *   - Cell text: black on light, white on ≥50%.
+   *   - Tooltip on hover: top-5 overlapping holdings.
+   *   - Skip with note when current fund's holdings are unavailable.
+   * ============================================================ */
+  function renderCompetitionAnalysis(fund, cycle) {
+    const wrap = document.getElementById('compPeerWrap');
+    if (!wrap || !fund || !cycle || !cycle.funds) return;
+    const peers = cycle.funds
+      .filter(p => p.category === fund.category && p.scheme_code !== fund.scheme_code)
+      .sort(_competitionSort);
+    /* Spec §19 Q4 — for sub-categories with <7 peers, show all available. */
+    const top = peers.slice(0, 7);
+    const avg = _avgPeerRow(top);
+    const cols = [
+      { k: 'fund',   l: 'Fund' },
+      { k: 'r3',     l: '3Y Rolling' },
+      { k: 'ytd',    l: 'YTD' },
+      { k: 'sharpe', l: 'Sharpe' },
+      { k: 'lms',    l: 'L / M / S' },
+      { k: 'stocks', l: '# Stocks' },
+    ];
+    const headerHtml = '<thead><tr>' +
+      cols.map(c => '<th>' + escapeHtml(c.l) + '</th>').join('') +
+      '</tr></thead>';
+    const rowsHtml = top.map((p, i) => _competitionRow(p, i + 1, 'peer'))
+      .concat([_competitionAvgRow(avg, top.length)])
+      .concat([_competitionRow(fund, '★', 'current')])
+      .join('');
+    wrap.innerHTML = '<table class="comp-peer-tbl">' + headerHtml +
+      '<tbody>' + rowsHtml + '</tbody></table>' +
+      (top.length < 7
+        ? '<p class="comp-peer-foot">Only ' + top.length + ' other fund' +
+          (top.length === 1 ? '' : 's') + ' in this sub-category.</p>'
+        : '');
+  }
+
+  function _competitionSort(a, b) {
+    const sa = a.centricity_score || 0;
+    const sb = b.centricity_score || 0;
+    if (Math.abs(sb - sa) > 0.0001) return sb - sa;
+    /* §19 Q6 tiebreak — Sharpe desc, then AUM desc. */
+    const ha = a.risk_metrics?.sharpe_3y || 0;
+    const hb = b.risk_metrics?.sharpe_3y || 0;
+    if (Math.abs(hb - ha) > 0.0001) return hb - ha;
+    return (b.aum_cr || 0) - (a.aum_cr || 0);
+  }
+
+  function _avgPeerRow(rows) {
+    if (!rows.length) return null;
+    const get = (f, path) => path.split('.').reduce((o, k) => o == null ? o : o[k], f);
+    const meanOf = (path) => {
+      const vs = rows.map(r => get(r, path)).filter(v => typeof v === 'number');
+      return vs.length ? vs.reduce((s, v) => s + v, 0) / vs.length : null;
+    };
+    return {
+      r3:     meanOf('rolling_3y_stats.avg_3y_cagr_pct') ?? meanOf('rolling_3y_stats.median_3y_cagr_pct'),
+      ytd:    meanOf('monitor_returns.ytd_pct') ?? meanOf('cy_returns.cy_ytd_pct'),
+      sharpe: meanOf('risk_metrics.sharpe_3y'),
+      lg:     meanOf('mcap_split.large_pct'),
+      md:     meanOf('mcap_split.mid_pct'),
+      sm:     meanOf('mcap_split.small_pct'),
+    };
+  }
+
+  function _competitionRow(f, label, cls) {
+    const get = (path) => path.split('.').reduce((o, k) => o == null ? o : o[k], f);
+    const fmtPct = v => (typeof v !== 'number') ? '—' : (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2) + '%';
+    const fmtNum = v => (typeof v !== 'number') ? '—' : v.toFixed(2);
+    const r3  = get('rolling_3y_stats.avg_3y_cagr_pct') ?? get('rolling_3y_stats.median_3y_cagr_pct');
+    const ytd = get('monitor_returns.ytd_pct') ?? get('cy_returns.cy_ytd_pct');
+    const sh  = get('risk_metrics.sharpe_3y');
+    const lg  = get('mcap_split.large_pct') || 0;
+    const md  = get('mcap_split.mid_pct')   || 0;
+    const sm  = get('mcap_split.small_pct') || 0;
+    const stocks = get('no_of_stocks') ?? get('analytics.no_of_stocks');
+    const lmsTxt = (lg || md || sm)
+      ? Math.round(lg) + ' / ' + Math.round(md) + ' / ' + Math.round(sm)
+      : '—';
+    const sc = f.scheme_code;
+    const linkOpen = sc ? '<a href="fund-detail.html?scheme=' + sc + '">' : '';
+    const linkClose = sc ? '</a>' : '';
+    return '<tr class="comp-row-' + cls + '">' +
+      '<td class="comp-rank">' + escapeHtml(String(label)) + '.</td>' +
+      '<td class="comp-fund-cell">' + linkOpen + escapeHtml(f.fund_name || '—') + linkClose + '</td>' +
+      '<td>' + fmtPct(r3) + '</td>' +
+      '<td>' + fmtPct(ytd) + '</td>' +
+      '<td>' + fmtNum(sh) + '</td>' +
+      '<td>' + lmsTxt + '</td>' +
+      '<td>' + (stocks != null ? stocks : '—') + '</td>' +
+      '</tr>';
+  }
+
+  function _competitionAvgRow(avg, n) {
+    if (!avg) return '';
+    const fmtPct = v => (typeof v !== 'number') ? '—' : (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2) + '%';
+    const fmtNum = v => (typeof v !== 'number') ? '—' : v.toFixed(2);
+    const lms = (avg.lg || avg.md || avg.sm)
+      ? Math.round(avg.lg) + ' / ' + Math.round(avg.md) + ' / ' + Math.round(avg.sm)
+      : '—';
+    return '<tr class="comp-row-avg">' +
+      '<td class="comp-rank">Σ</td>' +
+      '<td class="comp-fund-cell"><b>Average of top ' + n + '</b></td>' +
+      '<td>' + fmtPct(avg.r3) + '</td>' +
+      '<td>' + fmtPct(avg.ytd) + '</td>' +
+      '<td>' + fmtNum(avg.sharpe) + '</td>' +
+      '<td>' + lms + '</td>' +
+      '<td>—</td>' +
+      '</tr>';
+  }
+
+  /* v4.1 Item L — overlap matrix renderer; called from the analytics
+     callback once the current fund's holdings are in memory. */
+  function renderCompetitionOverlap(fund, cycle, analyticsEntry) {
+    const wrap = document.getElementById('compOverlapWrap');
+    if (!wrap) return;
+    if (!analyticsEntry || !analyticsEntry.top_20_holdings) {
+      wrap.innerHTML = '<p class="comp-overlap-empty">Holdings data unavailable for this fund.</p>';
+      return;
+    }
+    const peers = (cycle.funds || [])
+      .filter(p => p.category === fund.category && p.scheme_code !== fund.scheme_code)
+      .sort(_competitionSort)
+      .slice(0, 7);
+    if (!peers.length) {
+      wrap.innerHTML = '<p class="comp-overlap-empty">No peers in this sub-category for overlap analysis.</p>';
+      return;
+    }
+    /* Reuse the existing per-fund holdings lookup that prefers the full
+       holdings file when loaded and falls back to the top-20 list. */
+    const own = _peerHoldings(fund.scheme_code);
+    const ownHoldings = own.holdings.length > 0 ? own.holdings : analyticsEntry.top_20_holdings;
+    const ownMap = new Map(ownHoldings.map(h => [h.company, Number(h.holding_pct) || 0]));
+
+    const cells = peers.map(p => {
+      const peerH = _peerHoldings(p.scheme_code);
+      if (!peerH.holdings || peerH.holdings.length === 0) {
+        return { peer: p, overlap: null, top5: [] };
+      }
+      let overlap = 0;
+      const contribs = [];
+      for (const h of peerH.holdings) {
+        const w1 = ownMap.get(h.company);
+        if (w1 !== undefined) {
+          const minW = Math.min(w1, Number(h.holding_pct) || 0);
+          overlap += minW;
+          contribs.push({ company: h.company, ownW: w1, peerW: Number(h.holding_pct) || 0, contribute: minW });
+        }
+      }
+      contribs.sort((a, b) => b.contribute - a.contribute);
+      return { peer: p, overlap, top5: contribs.slice(0, 5) };
+    });
+
+    /* Render table — header with peer names, single body row with this fund's
+       overlap to each peer. Cells use a gold gradient by overlap %. */
+    const head = '<thead><tr><th class="comp-overlap-corner"></th>' +
+      cells.map(c =>
+        '<th><a href="fund-detail.html?scheme=' + c.peer.scheme_code + '">' +
+        escapeHtml(c.peer.fund_name) + '</a></th>'
+      ).join('') + '</tr></thead>';
+    const fundLabel = '<th class="comp-overlap-corner">' + escapeHtml(fund.fund_name) + '</th>';
+    const cellHtml = cells.map(c => {
+      if (c.overlap == null) {
+        return '<td class="comp-overlap-cell" data-empty="1">—</td>';
+      }
+      const pct = Math.max(0, Math.min(100, c.overlap));
+      const t = pct / 100;
+      const r = Math.round(255 + (189 - 255) * t);
+      const g = Math.round(255 + (149 - 255) * t);
+      const b = Math.round(255 + (104 - 255) * t);
+      const textCol = pct >= 50 ? '#fff' : '#000';
+      const tipLines = c.top5.map(s =>
+        escapeHtml(s.company) + ': ' +
+        s.ownW.toFixed(2) + '% / ' + s.peerW.toFixed(2) + '%'
+      ).join('\n');
+      const title = 'Overlap ' + pct.toFixed(2) + '%\nTop 5 contributing stocks:\n' + tipLines;
+      return '<td class="comp-overlap-cell" style="background:rgb(' + r + ',' + g + ',' + b + ');color:' + textCol + ';" title="' + escapeHtml(title) + '">' +
+             pct.toFixed(1) + '%</td>';
+    }).join('');
+    wrap.innerHTML = '<table class="comp-overlap-tbl">' + head +
+      '<tbody><tr>' + fundLabel + cellHtml + '</tr></tbody></table>';
   }
 
   /* ============================================================

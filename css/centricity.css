@@ -696,6 +696,22 @@ select:focus-visible,
   max-width: 900px;
   margin: 0 auto;
 }
+/* v4.1 Item J — Top-25 table: every cell centred, including the FUND name
+   sub-line (AMC + scheme code). Overrides the default .perf rules that
+   left-align col-1 and right-align numeric cols. Scoped via .top25-picker
+   so the regular fund-detail performance table is unaffected. */
+.top25-picker table.perf thead th,
+.top25-picker table.perf thead th:first-child,
+.top25-picker table.perf tbody td,
+.top25-picker table.perf tbody td:first-child {
+  text-align: center;
+}
+.top25-picker table.perf tbody td.row-fund-cell > div {
+  display: block;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-mid);
+}
 
 /* ============================================================
    12a. GLOBAL SEARCH DROPDOWN (js/search.js — Fix-List 12)

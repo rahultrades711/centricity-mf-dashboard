@@ -6,9 +6,11 @@
 <meta name="viewport" content="width=1680">
 <link rel="icon" href="assets/logo.png">
 <link rel="stylesheet" href="css/centricity.css">
+<link rel="stylesheet" href="css/transitions.css">
 <link rel="stylesheet" href="css/portfolio-builder.css">
 <script defer src="js/data-loader.js"></script>
 <script defer src="js/search.js"></script>
+<script defer src="js/transitions.js"></script>
 <script defer src="js/state.js"></script>
 <script defer src="js/multi-select.js"></script>
 <script defer src="js/exports.js"></script>
@@ -140,8 +142,14 @@
       </div>
 
       <div id="allocAutoView" class="pb-sub-view">
-        <div class="pb-help" style="margin-top:0;">Indicative allocation derived from risk profile × time horizon. Adjust after generation if needed.</div>
-        <table class="pb-mini-tbl" id="allocAutoTbl"><tbody></tbody></table>
+        <div class="pb-help" style="margin-top:0;">Indicative allocation derived from risk profile × time horizon. Edit any bucket — the others rebalance automatically to keep the total at 100%.</div>
+        <div class="pb-grid-4">
+          <div><label>Equity %</label><input type="number" class="alloc-ain" data-bucket="equity" min="0" max="100" step="5"></div>
+          <div><label>Debt %</label><input type="number" class="alloc-ain" data-bucket="debt" min="0" max="100" step="5"></div>
+          <div><label>Commodities %</label><input type="number" class="alloc-ain" data-bucket="commodities" min="0" max="100" step="5"></div>
+          <div><label>REITs / InvITs %</label><input type="number" class="alloc-ain" data-bucket="reits" min="0" max="100" step="5"></div>
+        </div>
+        <div class="pb-sum-bar"><span>Total</span><span id="allocAutoSum" class="ok">100%</span></div>
       </div>
 
       <div id="allocManualView" class="pb-sub-view" hidden>
@@ -165,19 +173,6 @@
         </div>
         <div class="pb-sum-bar"><span>Total</span><span id="allocPartialSum">100%</span></div>
         <div class="pb-error" id="allocPartialSumErr" hidden>Total = <span id="allocPartialSumNum">0</span>%. Must equal 100%.</div>
-      </div>
-
-      <div class="pb-intl-row" id="pbIntlRow">
-        <div class="pb-intl-h">
-          <span class="pb-intl-arrow">↳</span>
-          International / Global MF allocation
-          <span class="pb-intl-help" title="Sub-slice of Equity. e.g. Equity 60% × Intl 10% = 6% of total portfolio in international funds.">?</span>
-        </div>
-        <div class="pb-intl-row-body">
-          <input type="range" id="intlEquityShare" min="0" max="100" step="5" value="0">
-          <span class="pb-intl-tag" id="intlEquityShareLabel">0 %</span>
-          <span class="pb-intl-of-total" id="intlEquityOfTotal">0 % of total</span>
-        </div>
       </div>
 
       <h4 class="pb-sub-h">Products</h4>
@@ -360,22 +355,29 @@
           <label class="pb-amount">Total ₹<input type="number" id="totalInvAmount" min="100000" step="50000" value="5000000"></label>
           <div class="pb-amount-words" id="totalAmtWords">—</div>
         </div>
-        <button class="pb-btn ghost" id="regenBtn" title="Re-run engine with current wizard inputs">Regenerate</button>
-        <button class="pb-btn ghost" id="shareBtn" title="Copy URL with current state">Copy link</button>
+        <button class="pb-btn primary" id="regenBtn" title="Re-run engine with current wizard inputs">Regenerate</button>
+        <button class="pb-btn primary" id="shareBtn" title="Copy URL with current state">Copy link</button>
       </div>
     </div>
 
     <nav class="pb-tabs" id="pbTabs" hidden>
-      <button class="pb-tab active" data-tab="overview">Overview</button>
+      <button class="pb-tab active" data-tab="rationale">Rationale</button>
+      <button class="pb-tab"        data-tab="overview">Overview</button>
       <button class="pb-tab"        data-tab="returns">Returns</button>
       <button class="pb-tab"        data-tab="analytics">Analytics</button>
       <button class="pb-tab"        data-tab="plan">Plan vs Portfolio</button>
       <button class="pb-tab"        data-tab="funds">Fund Performances</button>
     </nav>
 
-    <div class="pb-tab-pane active" data-tab-pane="overview" hidden>
+    <!-- v4.1 Item H — Selection Rationale tab. First in the tab order; renders
+         one card per selected fund explaining why it was picked. -->
+    <div class="pb-tab-pane active" data-tab-pane="rationale" hidden>
+      <div class="pb-rationale-list" id="pbRationaleList"></div>
+    </div>
+
+    <div class="pb-tab-pane" data-tab-pane="overview" hidden>
       <div class="pb-kpi-row" id="overviewKpiRow"></div>
-      <div class="pb-donut-row">
+      <div class="pb-donut-row" id="pbOverviewDonutRow">
         <div class="pb-donut-card"><h4>Asset Class</h4><canvas id="acDonut" width="240" height="240"></canvas><div class="pb-donut-legend" id="acLegend"></div></div>
         <div class="pb-donut-card"><h4>M-Cap Mix</h4><canvas id="mcDonut" width="240" height="240"></canvas><div class="pb-donut-legend" id="mcLegend"></div></div>
       </div>
