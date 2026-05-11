@@ -1785,10 +1785,14 @@
     /* v4.1 Item K — category-average drawdown overlay (computed from peers). */
     const catAvgDd = _computeCategoryAvgDrawdown(_fund, labels);
 
+    /* Bug-fix 2026-05-11 / ISSUE-0026 Bug 3 — drawdown is always negative,
+       brand standards reserve #931621 Dark Red exclusively for negative-value
+       data. The original gold #BD9568 misapplied the brand colour; switching
+       to Dark Red puts the line in its rightful palette. */
     const datasets = [{
       label: 'Fund',
       data: fundDd.dd,
-      borderColor: '#BD9568', backgroundColor: 'rgba(189,149,104,.12)',
+      borderColor: '#931621', backgroundColor: 'rgba(147,22,33,.12)',
       fill: true, tension: .15, pointRadius: 0, borderWidth: 2,
     }];
     if (benchDd) datasets.push({
@@ -2224,9 +2228,20 @@
   function renderCompetitionAnalysis(fund, cycle) {
     const wrap = document.getElementById('compPeerWrap');
     if (!wrap || !fund || !cycle || !cycle.funds) return;
-    const peers = cycle.funds
-      .filter(p => p.category === fund.category && p.scheme_code !== fund.scheme_code)
+    /* Bug-fix 2026-05-11 / ISSUE-0026 Bug 2 — sort the FULL same-sub-category
+       list (including the current fund) so each fund's index is its true
+       category rank. Excluding the current fund first off-by-ones every peer
+       rank when the current fund sits above them in the score order
+       (e.g. ICICI Pru E&D rank #1 in Aggressive Hybrid → top[0] is the
+       category's rank #2, not rank #1). */
+    const categoryAll = cycle.funds
+      .filter(p => p.category === fund.category)
+      .slice()
       .sort(_competitionSort);
+    const rankOf = new Map();
+    categoryAll.forEach((p, i) => rankOf.set(p.scheme_code, i + 1));
+    const fundRank = rankOf.get(fund.scheme_code) || null;
+    const peers = categoryAll.filter(p => p.scheme_code !== fund.scheme_code);
     /* Spec §19 Q4 — for sub-categories with <7 peers, show all available. */
     const top = peers.slice(0, 7);
     const avg = _avgPeerRow(top);
@@ -2241,9 +2256,9 @@
     const headerHtml = '<thead><tr>' +
       cols.map(c => '<th>' + escapeHtml(c.l) + '</th>').join('') +
       '</tr></thead>';
-    const rowsHtml = top.map((p, i) => _competitionRow(p, i + 1, 'peer'))
+    const rowsHtml = top.map(p => _competitionRow(p, rankOf.get(p.scheme_code), 'peer'))
       .concat([_competitionAvgRow(avg, top.length)])
-      .concat([_competitionRow(fund, '★', 'current')])
+      .concat([_competitionRow(fund, fundRank, 'current')])
       .join('');
     wrap.innerHTML = '<table class="comp-peer-tbl">' + headerHtml +
       '<tbody>' + rowsHtml + '</tbody></table>' +
@@ -2271,8 +2286,14 @@
       const vs = rows.map(r => get(r, path)).filter(v => typeof v === 'number');
       return vs.length ? vs.reduce((s, v) => s + v, 0) / vs.length : null;
     };
+    /* Bug-fix 2026-05-11 / ISSUE-0026 Bug 1 — rolling_3y_stats actual fields
+       are avg_pct + median_pct (the *_3y_cagr_pct names never existed). Also
+       fall back to the top-level rolling_3y_avg_pct on the fund record when
+       the nested block is null. */
     return {
-      r3:     meanOf('rolling_3y_stats.avg_3y_cagr_pct') ?? meanOf('rolling_3y_stats.median_3y_cagr_pct'),
+      r3:     meanOf('rolling_3y_stats.avg_pct')
+           ?? meanOf('rolling_3y_stats.median_pct')
+           ?? meanOf('rolling_3y_avg_pct'),
       ytd:    meanOf('monitor_returns.ytd_pct') ?? meanOf('cy_returns.cy_ytd_pct'),
       sharpe: meanOf('risk_metrics.sharpe_3y'),
       lg:     meanOf('mcap_split.large_pct'),
@@ -2285,7 +2306,10 @@
     const get = (path) => path.split('.').reduce((o, k) => o == null ? o : o[k], f);
     const fmtPct = v => (typeof v !== 'number') ? '—' : (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2) + '%';
     const fmtNum = v => (typeof v !== 'number') ? '—' : v.toFixed(2);
-    const r3  = get('rolling_3y_stats.avg_3y_cagr_pct') ?? get('rolling_3y_stats.median_3y_cagr_pct');
+    /* Bug-fix 2026-05-11 / ISSUE-0026 Bug 1 — see _avgPeerRow comment. */
+    const r3  = get('rolling_3y_stats.avg_pct')
+             ?? get('rolling_3y_stats.median_pct')
+             ?? get('rolling_3y_avg_pct');
     const ytd = get('monitor_returns.ytd_pct') ?? get('cy_returns.cy_ytd_pct');
     const sh  = get('risk_metrics.sharpe_3y');
     const lg  = get('mcap_split.large_pct') || 0;
@@ -2298,8 +2322,15 @@
     const sc = f.scheme_code;
     const linkOpen = sc ? '<a href="fund-detail.html?scheme=' + sc + '">' : '';
     const linkClose = sc ? '</a>' : '';
+    /* Bug-fix 2026-05-11 / ISSUE-0026 Bug 2 — numeric labels render as #N
+       category-rank (no trailing dot, no ★). String labels (the Σ summary
+       row uses _competitionAvgRow, but defensive: any string still renders
+       verbatim). */
+    const rankLabel = (typeof label === 'number')
+      ? '#' + label
+      : escapeHtml(String(label || ''));
     return '<tr class="comp-row-' + cls + '">' +
-      '<td class="comp-rank">' + escapeHtml(String(label)) + '.</td>' +
+      '<td class="comp-rank">' + rankLabel + '</td>' +
       '<td class="comp-fund-cell">' + linkOpen + escapeHtml(f.fund_name || '—') + linkClose + '</td>' +
       '<td>' + fmtPct(r3) + '</td>' +
       '<td>' + fmtPct(ytd) + '</td>' +
