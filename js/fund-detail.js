@@ -2253,7 +2253,13 @@
       { k: 'lms',    l: 'L / M / S' },
       { k: 'stocks', l: '# Stocks' },
     ];
+    /* Bug-fix 2026-05-11 / ISSUE-0027 — body rows have a leading rank <td>
+       (#N or Sigma) but the original <thead> omitted the matching <th>,
+       shifting every header label one column right. Prepend an empty
+       comp-rank <th>; the existing `.comp-peer-tbl thead th { background:#000 }`
+       rule paints the cell so the black bar spans the full table width. */
     const headerHtml = '<thead><tr>' +
+      '<th class="comp-rank"></th>' +
       cols.map(c => '<th>' + escapeHtml(c.l) + '</th>').join('') +
       '</tr></thead>';
     const rowsHtml = top.map(p => _competitionRow(p, rankOf.get(p.scheme_code), 'peer'))
