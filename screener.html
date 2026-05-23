@@ -62,6 +62,8 @@
       <button class="btn ghost deferred" id="exportPptBtn" disabled
               title="Coming after web design lock-in">Export PPT</button>
       <button class="btn ghost" id="compareBtn" disabled>Compare <span class="pip" id="compareCount">0</span></button>
+      <!-- Weights drawer is Equity/Hybrid only; Debt is a screening tool
+           with no score, so the button hides entirely in debt mode. -->
       <button class="btn primary" id="weightsBtn">Edit Weights</button>
     </div>
   </div>
@@ -96,43 +98,11 @@
       <div class="rng" id="rngAum"></div>
     </div>
 
-    <!-- Returns Filters -->
-    <div class="filter-group filter-section">
-      <div class="section-head">
-        <h3 class="section-title">Returns Filters</h3>
-        <button type="button" class="reset-mini" data-section="returns">Reset</button>
-      </div>
-      <div class="rng" id="rngRolling" data-rng="rolling_3y_avg_pct"></div>
-      <div class="rng" id="rngYtd"     data-rng="cy_ytd_pct"></div>
-      <div class="rng" id="rngR1"      data-rng="return_1y_pct"></div>
-      <div class="rng" id="rngR3"      data-rng="return_3y_pct"></div>
-      <div class="rng" id="rngR5"      data-rng="return_5y_pct"></div>
-    </div>
-
-    <!-- Risk Ratios -->
-    <div class="filter-group filter-section">
-      <div class="section-head">
-        <h3 class="section-title">Risk Ratios</h3>
-        <button type="button" class="reset-mini" data-section="risk">Reset</button>
-      </div>
-      <div class="rng" id="rngSharpe"  data-rng="sharpe_3y"></div>
-      <div class="rng" id="rngDownCap" data-rng="down_capture_3y_pct"></div>
-      <div class="rng" id="rngUpCap"   data-rng="up_capture_3y_pct"></div>
-      <div class="rng" id="rngTurn"    data-rng="turnover_pct"></div>
-    </div>
-
-    <!-- Others -->
-    <div class="filter-group filter-section">
-      <div class="section-head">
-        <h3 class="section-title">Others</h3>
-        <button type="button" class="reset-mini" data-section="others">Reset</button>
-      </div>
-      <div class="rng" id="rngMgrTen"  data-rng="manager_tenure_yrs"></div>
-      <div class="rng" id="rngFundTen" data-rng="fund_tenure_yrs"></div>
-      <div class="rng" id="rngStocks"  data-rng="no_of_stocks"></div>
-      <div class="rng" id="rngTer"     data-rng="ter_pct"></div>
-      <div class="rng" id="rngScore"   data-rng="centricity_score"></div>
-    </div>
+    <!-- Dynamic filter sections — rebuilt per asset-class family
+         (Equity/Hybrid → Returns Filters + Risk Ratios + Others; Debt →
+         Debt Profile + Credit Quality + Cost). Sections injected by
+         screener.js so adding/removing a metric needs zero HTML edits. -->
+    <div id="dynamicFilterSections"></div>
 
     <div class="reset-row">
       <button class="btn ghost" id="resetBtn">Reset all filters</button>
@@ -152,7 +122,7 @@
         </span>
       </div>
       <div class="right">
-        <span class="addcol-wrap">
+        <span class="addcol-wrap" id="sectorsWrap">
           <span class="addcol-label">Sectors</span>
           <span id="sectorMS"></span>
         </span>
@@ -165,7 +135,7 @@
     <div class="cap-warn" id="capWarn" hidden>Max 5 funds for Compare</div>
 
     <div class="fund-table-wrap" id="tableWrap"></div>
-    <div class="legend">
+    <div class="legend" id="screenerLegend">
       Edit Weights affects the Score column on this page only — Home, Compare and Fund Detail
       always read the Excel-locked Centricity score.
     </div>

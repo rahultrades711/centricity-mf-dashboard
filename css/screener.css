@@ -533,6 +533,17 @@ table.screener-tbl .score-bar {
 }
 table.screener-tbl .score-bar > i { display: block; height: 100%; background: var(--gold); }
 
+/* ============ DEBT MODE — sticky-column overrides ============
+ * Phase 1 (MF_Debt family). The debt screener has no Rank column, so the
+ * Fund Name slot moves left to abut the checkbox column. CSS-only — the
+ * table renderer omits the Rank cell when _family === 'debt'. Sticky
+ * stack: 36px checkbox · 220px Fund Name (no Rank gap).
+ */
+.fund-table-wrap.debt-mode table.screener-tbl thead th.col-name,
+.fund-table-wrap.debt-mode table.screener-tbl tbody td.col-name {
+  left: 36px;          /* abuts the checkbox column directly */
+}
+
 /* ============ EMPTY STATE ============ */
 .fund-table-wrap > .empty-state {
   border: 0; border-radius: 0; box-shadow: none;
