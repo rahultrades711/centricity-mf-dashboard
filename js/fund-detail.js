@@ -69,8 +69,22 @@
       wireRawJsonLink();
       return;
     }
-    const fund = (cycle.funds || []).find(f => f.scheme_code === schemeCode);
+    let fund = (cycle.funds || []).find(f => f.scheme_code === schemeCode);
+    // Phase 1 (MF_Debt) — debt scheme codes don't appear in the screener-v1
+    // cycle, so on miss we try the debt cycle once before declaring the
+    // scheme unknown. Independent failure mode: if the debt JSON 404s, the
+    // eqh-only behaviour is preserved.
     if (!fund) {
+      try {
+        const debtCycle = await DataLoader.loadDebtCycle();
+        const dFund = (debtCycle.funds || []).find(f => f.scheme_code === schemeCode);
+        if (dFund) {
+          _cycle = debtCycle;
+          _fund  = dFund;
+          renderDebtDetail(dFund, debtCycle);
+          return;
+        }
+      } catch (_) { /* fall through to not-found */ }
       renderNotFound(schemeCode);
       return;
     }
@@ -2585,5 +2599,779 @@
     return String(s).replace(/[&<>"']/g, c => ({
       '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
     }[c]));
+  }
+
+  /* ============================================================
+   * MF_DEBT FAMILY — fund-detail branch (Phase 1)
+   * ============================================================
+   * Mirrors the equity/hybrid one-pager's section rhythm with content
+   * tailored to debt funds. No score / no rank / no peer-Centricity-score
+   * ranking. Reuses the same .hero / .score-card / .block / .port-card
+   * shells so CSS stays consistent.
+   *
+   * Sections rendered:
+   *   • Hero + Debt Quality Snapshot (YTM · Mod Duration · Avg Maturity ·
+   *     dominant credit bucket).
+   *   • Performance — returns table (MTD/YTD/1Y/3Y/5Y/10Y/SI) + grouped
+   *     bar Fund vs Category Avg + (NAV growth chart is suppressed — no
+   *     debt NAV series in v1).
+   *   • Interest-Rate & Credit Risk — cards for Mod Duration, Avg
+   *     Maturity, YTM, credit-quality summary, % in Default.
+   *   • Manager (re-uses the layout; manager_tenure_yrs is null for v1).
+   *   • Credit & Asset Composition — Credit-Quality donut + Asset-Split
+   *     donut + % in Default badge when > 0.
+   *   • Cost — TER (or em-dash) with cat-median context.
+   *   • Verdict — factual debt observations.
+   *
+   * Sections hidden:
+   *   • Hybrid mix card, drawdown chart, sectors panel, holdings panel,
+   *     similar funds, competition analysis, what-changed, rolling-3y grid.
+   * ============================================================ */
+
+  const DEBT_CREDIT_PALETTE = {
+    sov:     '#BD9568',   // Warm Gold — high grade
+    aaa_a1:  '#DBC8B2',   // Light Tan — high grade
+    aa:      '#BFBFBF',   // Medium Grey
+    a_below: '#931621',   // Dark Red — credit-risk concentration
+    unrated: '#E8E4DE',   // Lightest grey
+    cash:    '#6B3F1A',   // Brown — distinct neutral
+    others:  '#0E0E0E',   // Black
+  };
+  const DEBT_ASSET_PALETTE = {
+    debt:   '#BD9568',
+    cash:   '#DBC8B2',
+    equity: '#6B3F1A',
+    others: '#BFBFBF',
+  };
+
+  function renderDebtDetail(fund, cycle) {
+    renderDebtHero(fund, cycle);
+    renderDebtQualitySnapshot(fund);
+    renderDebtPerformance(fund, cycle);
+    renderDebtRisk(fund, cycle);
+    renderDebtManager(fund);
+    renderDebtPortfolio(fund);
+    renderDebtCost(fund, cycle);
+    renderDebtVerdict(fund, cycle);
+    hideEquityOnlySections();
+    renderDebtFooter(cycle);
+    wireBreadcrumb(fund);
+    wireDebtActionButtons(fund);
+    wireToc();
+    wireDebtRawJsonLink(cycle);
+  }
+
+  function renderDebtHero(fund, cycle) {
+    const m = cycle.cycle_meta;
+    const eyebrow = document.getElementById('heroEyebrow');
+    if (eyebrow) {
+      eyebrow.innerHTML =
+        `Debt Fund Report · NAV as on 15 May 2026 · Holdings as on 30 Apr 2026`;
+    }
+    const name = fund.fund_name || 'Fund';
+    const parts = name.trim().split(/\s+/);
+    let titleHtml;
+    if (parts.length > 1) {
+      const last = parts.pop();
+      titleHtml = `${escapeHtml(parts.join(' '))} <em>${escapeHtml(last)}</em>`;
+    } else {
+      titleHtml = escapeHtml(name);
+    }
+    document.getElementById('fundTitle').innerHTML = titleHtml;
+    document.getElementById('crumbName').textContent = name;
+
+    const aumStr = (fund.aum_cr != null)
+      ? `₹ ${DataLoader.fmtINR(fund.aum_cr)} Cr` : '—';
+    const incepStr = fund.inception_date ? escapeHtml(fund.inception_date) : '—';
+    const cells = [
+      ['',          fund.amc || '—'],
+      ['Category',  fund.category || '—'],
+      ['Scheme',    fund.scheme_code || '—'],
+      ['Benchmark', fund.benchmark || '—'],
+      ['AUM',       aumStr],
+      ['Inception', incepStr],
+    ];
+    document.getElementById('heroMeta').innerHTML = cells
+      .map(([k, v]) => k
+        ? `<span>${escapeHtml(k)} · <b>${escapeHtml(String(v))}</b></span>`
+        : `<span><b>${escapeHtml(String(v))}</b></span>`)
+      .join('');
+  }
+
+  function renderDebtQualitySnapshot(fund) {
+    // Replace the Centricity Score card with a debt-flavoured snapshot card.
+    // Reuses the .score-card black-bg / gold-accent shell.
+    const dp = fund.debt_profile || {};
+    const dominant = debtDominantBucket(fund);
+    const card = document.getElementById('scoreCard');
+    if (!card) return;
+    card.classList.add('debt-quality-card');
+    card.innerHTML = `
+      <div>
+        <span class="lbl">Debt Quality Snapshot</span>
+        <div class="debt-snap-head">
+          <span class="debt-snap-dominant">${escapeHtml(dominant.label)}</span>
+          <span class="debt-snap-dominant-pct">${dominant.pct != null ? `${DataLoader.fmtNum(dominant.pct, 1)}%` : '—'}</span>
+        </div>
+        <div class="debt-snap-grid">
+          <div class="cell"><span class="k">YTM</span><span class="v">${dp.ytm_pct != null ? `${DataLoader.fmtNum(dp.ytm_pct, 2)}%` : '—'}</span></div>
+          <div class="cell"><span class="k">Mod Duration</span><span class="v">${dp.mod_duration_yrs != null ? `${DataLoader.fmtNum(dp.mod_duration_yrs, 2)} yrs` : '—'}</span></div>
+          <div class="cell"><span class="k">Avg Maturity</span><span class="v">${dp.avg_maturity_yrs != null ? `${DataLoader.fmtNum(dp.avg_maturity_yrs, 2)} yrs` : '—'}</span></div>
+          <div class="cell"><span class="k">% in Default</span><span class="v ${fund.pct_in_default > 0 ? 'warn' : ''}">${fund.pct_in_default != null ? `${DataLoader.fmtNum(fund.pct_in_default, 2)}%` : '—'}</span></div>
+        </div>
+      </div>`;
+  }
+
+  /**
+   * Identify the dominant credit bucket. SOV + AAA/A1+ are pooled into a
+   * "High Grade" rollup when they together dominate (helps liquid/G-Sec
+   * funds where neither beats the other alone but the sum is ≥ 50%).
+   */
+  function debtDominantBucket(fund) {
+    const cq = fund.credit_quality || {};
+    const labels = (fund && fund.cycle_meta && fund.cycle_meta.credit_bucket_labels) || {
+      sov: 'SOV', aaa_a1: 'AAA / A1+', aa: 'AA', a_below: 'A & Below',
+      unrated: 'Unrated', cash: 'Cash & Equiv', others: 'Others',
+    };
+    const highGrade = (cq.sov || 0) + (cq.aaa_a1 || 0);
+    const entries = [
+      { key: 'sov',     pct: cq.sov,     label: labels.sov || 'SOV' },
+      { key: 'aaa_a1',  pct: cq.aaa_a1,  label: labels.aaa_a1 || 'AAA / A1+' },
+      { key: 'aa',      pct: cq.aa,      label: labels.aa || 'AA' },
+      { key: 'a_below', pct: cq.a_below, label: labels.a_below || 'A & Below' },
+      { key: 'unrated', pct: cq.unrated, label: labels.unrated || 'Unrated' },
+      { key: 'others',  pct: cq.others,  label: labels.others || 'Others' },
+    ].filter(e => e.pct != null);
+    const max = entries.reduce(
+      (a, b) => (a.pct >= b.pct ? a : b),
+      { pct: -Infinity, label: '—' }
+    );
+    if (highGrade >= 60 && (max.key === 'sov' || max.key === 'aaa_a1')) {
+      return { label: 'High Grade (SOV + AAA/A1+)', pct: highGrade };
+    }
+    return max;
+  }
+
+  /* ---------- Performance ---------- */
+  const DEBT_PERF_FIELDS = [
+    { col: 'MTD', key: 'mtd_pct' },
+    { col: 'YTD', key: 'ytd_pct' },
+    { col: '1Y',  key: 'y1_pct'  },
+    { col: '3Y',  key: 'y3_pct'  },
+    { col: '5Y',  key: 'y5_pct'  },
+    { col: '10Y', key: 'y10_pct' },
+    { col: 'SI',  key: 'si_pct'  },
+  ];
+
+  function renderDebtPerformance(fund, cycle) {
+    const peers = (cycle.funds || []).filter(f => f.category === fund.category);
+    const peerCount = peers.length;
+    document.getElementById('perfSubtitle').textContent =
+      `Point-to-point returns. NAV as on 15 May 2026. ` +
+      `Category average from ${peerCount} fund${peerCount === 1 ? '' : 's'} in ${fund.category}.`;
+
+    // Rebuild the perf table with debt periods (7 cols MTD/YTD/1Y/3Y/5Y/10Y/SI)
+    const table = document.querySelector('.perf-table-wrap table.perf');
+    if (table) {
+      const fundReturns = fund.returns || {};
+      const catAvg = (key) => {
+        const vals = peers.map(p => (p.returns || {})[key]).filter(v => v != null && !isNaN(v));
+        if (vals.length < 3) return null;
+        return vals.reduce((s, v) => s + v, 0) / vals.length;
+      };
+      const fundVals = DEBT_PERF_FIELDS.map(f => fundReturns[f.key]);
+      const catVals  = DEBT_PERF_FIELDS.map(f => catAvg(f.key));
+      const excessVals = fundVals.map((fv, i) => (fv != null && catVals[i] != null) ? (fv - catVals[i]) : null);
+
+      const cell = (v) => (v == null || isNaN(v))
+        ? '<td>—</td>'
+        : `<td class="${v < 0 ? 'neg' : ''}">${_dbtFmtPct(v, 2)}</td>`;
+      const excessCell = (v) => {
+        if (v == null || isNaN(v)) return '<td>—</td>';
+        const cls = v > 0 ? 'pos' : (v < 0 ? 'neg' : '');
+        const sign = v < 0 ? '−' : '+';
+        return `<td class="${cls}">${sign}${Math.abs(v).toFixed(2)}%</td>`;
+      };
+      table.innerHTML = `
+        <thead><tr>
+          <th></th>
+          ${DEBT_PERF_FIELDS.map(f => `<th>${escapeHtml(f.col)}</th>`).join('')}
+        </tr></thead>
+        <tbody>
+          <tr class="row-fund">
+            <td>${escapeHtml(fund.fund_name)}</td>
+            ${fundVals.map(cell).join('')}
+          </tr>
+          <tr class="row-cat">
+            <td>${escapeHtml(fund.category)} · Category Avg</td>
+            ${catVals.map(cell).join('')}
+          </tr>
+          <tr class="row-excess">
+            <td><b>Excess Return</b></td>
+            ${excessVals.map(excessCell).join('')}
+          </tr>
+        </tbody>`;
+    }
+    const foot = document.getElementById('perfTableFoot');
+    if (foot) {
+      foot.innerHTML = 'Excess Return = Fund return − Category-average return (point-to-point).';
+    }
+
+    // Grouped bar chart — Fund vs Cat Avg
+    const fundReturns = fund.returns || {};
+    const fundVals = DEBT_PERF_FIELDS.map(f => fundReturns[f.key]);
+    const catVals  = DEBT_PERF_FIELDS.map(f => {
+      const vals = peers.map(p => (p.returns || {})[f.key]).filter(v => v != null && !isNaN(v));
+      return vals.length >= 3 ? vals.reduce((s, v) => s + v, 0) / vals.length : null;
+    });
+
+    ensureChartJs().then(() => {
+      const canvas = document.getElementById('returnsBarChart');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const colourBars = (vals, brandColor) => vals.map(v =>
+        (v != null && v < 0) ? '#931621' : brandColor
+      );
+      const barLabelsPlugin = {
+        id: 'barLabels',
+        afterDatasetsDraw(chart) {
+          const c = chart.ctx;
+          chart.data.datasets.forEach((ds, i) => {
+            const meta = chart.getDatasetMeta(i);
+            meta.data.forEach((bar, j) => {
+              const val = ds.data[j];
+              if (val == null) return;
+              c.save();
+              c.font = "bold 9px 'Cambria', Georgia, serif";
+              c.fillStyle = '#000';
+              c.textAlign = 'center';
+              c.textBaseline = val >= 0 ? 'bottom' : 'top';
+              const yOffset = val >= 0 ? -2 : 2;
+              c.fillText(_dbtFmtPct(val, 2), bar.x, bar.y + yOffset);
+              c.restore();
+            });
+          });
+        },
+      };
+      if (canvas._chartInst) canvas._chartInst.destroy();
+      canvas._chartInst = new window.Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: DEBT_PERF_FIELDS.map(f => f.col),
+          datasets: [
+            { label: 'Fund', data: fundVals, backgroundColor: colourBars(fundVals, '#6B3F1A'), borderWidth: 0 },
+            { label: 'Category Avg', data: catVals, backgroundColor: colourBars(catVals, '#BD9568'), borderWidth: 0 },
+          ],
+        },
+        plugins: [barLabelsPlugin],
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          animation: { duration: 200 },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#000', titleColor: '#BD9568', bodyColor: '#fff',
+              borderColor: '#6B3F1A', borderWidth: 1,
+              callbacks: {
+                label: (ctx) => `${ctx.dataset.label}: ${ctx.raw == null ? '—' : _dbtFmtPct(ctx.raw, 2)}`,
+              },
+            },
+          },
+          scales: {
+            x: { grid: { display: false }, ticks: { font: { family: "'Cambria', Georgia, serif", size: 11 }, color: '#000' } },
+            y: {
+              grid: { color: 'rgba(217, 217, 217, .55)', drawBorder: false },
+              ticks: {
+                font: { family: "'Cambria', Georgia, serif", size: 10 }, color: '#666',
+                callback: (v) => `${v}%`,
+              },
+            },
+          },
+        },
+      });
+    }).catch(() => {});
+
+    // Hide the Fund/Bench/Cat legend swatch for Benchmark (no bench data),
+    // and update the chart-head caption.
+    const chartHead = document.querySelector('#returnsChartWrap .chart-head .legend');
+    if (chartHead) {
+      chartHead.innerHTML =
+        `<span><i style="background:var(--brown)"></i>Fund</span>` +
+        `<span><i style="background:var(--gold)"></i>Category Avg</span>`;
+    }
+    const chartCaption = document.querySelector('#returnsChartWrap .chart-head .chart-caption');
+    if (chartCaption) {
+      chartCaption.textContent =
+        'Fund vs Category Avg across the same 7 periods. Negative values render below the axis in #931621.';
+    }
+    const chartTitleNode = document.querySelector('#returnsChartWrap .chart-head [style*="font-weight:700"]');
+    if (chartTitleNode) chartTitleNode.textContent = 'Returns vs Category';
+
+    // Suppress the NAV "Growth of ₹ 1,00,000" chart — no debt NAV series in v1.
+    const navWrap = document.querySelector('.nav-chart-wrap');
+    if (navWrap) navWrap.style.display = 'none';
+
+    // Suppress the rolling grid (no rolling stats for debt in v1).
+    const ruleBefore = document.querySelector('#performance .rule');
+    if (ruleBefore) ruleBefore.style.display = 'none';
+    const rollHeader = document.querySelector('#performance .block-sub-h');
+    if (rollHeader) rollHeader.style.display = 'none';
+    const rollGrid = document.getElementById('rollGrid');
+    if (rollGrid) rollGrid.style.display = 'none';
+
+    // Update perf section heading + sub
+    const h2 = document.querySelector('#performance h2');
+    if (h2) h2.innerHTML = 'Returns vs <em>Category</em>';
+  }
+
+  function renderDebtRisk(fund, cycle) {
+    const peers = (cycle.funds || []).filter(f => f.category === fund.category);
+    function catAvg(picker) {
+      const vals = peers.map(picker).filter(v => v != null && !isNaN(v));
+      if (vals.length < 3) return null;
+      return vals.reduce((s, v) => s + v, 0) / vals.length;
+    }
+    const dp = fund.debt_profile || {};
+    const cq = fund.credit_quality || {};
+    const catYtm   = catAvg(p => p.debt_profile ? p.debt_profile.ytm_pct : null);
+    const catModDur = catAvg(p => p.debt_profile ? p.debt_profile.mod_duration_yrs : null);
+    const catAvgMat = catAvg(p => p.debt_profile ? p.debt_profile.avg_maturity_yrs : null);
+    const catHigh   = catAvg(p => debtHighGradeFor(p));
+    const catABlw   = catAvg(p => p.credit_quality ? p.credit_quality.a_below : null);
+
+    const highGrade = debtHighGradeFor(fund);
+    const aBlw      = cq.a_below;
+    const pctDef    = fund.pct_in_default;
+
+    const cards = [
+      {
+        lbl: 'Mod Duration', v: dp.mod_duration_yrs,
+        fmt: v => `${DataLoader.fmtNum(v, 2)} yrs`,
+        cmp: `Higher = more rate-sensitive<br>Cat avg · <b>${catModDur != null ? DataLoader.fmtNum(catModDur, 2) + ' yrs' : '—'}</b>`,
+      },
+      {
+        lbl: 'Avg Maturity', v: dp.avg_maturity_yrs,
+        fmt: v => `${DataLoader.fmtNum(v, 2)} yrs`,
+        cmp: `Weighted-avg bond maturity<br>Cat avg · <b>${catAvgMat != null ? DataLoader.fmtNum(catAvgMat, 2) + ' yrs' : '—'}</b>`,
+      },
+      {
+        lbl: 'YTM', v: dp.ytm_pct,
+        fmt: v => `${DataLoader.fmtNum(v, 2)}%`,
+        cmp: `Yield to maturity, pre-TER<br>Cat avg · <b>${catYtm != null ? DataLoader.fmtNum(catYtm, 2) + '%' : '—'}</b>`,
+      },
+      {
+        lbl: 'High Grade (SOV + AAA/A1+)', v: highGrade,
+        fmt: v => `${DataLoader.fmtNum(v, 2)}%`,
+        cmp: `Higher = lower credit risk<br>Cat avg · <b>${catHigh != null ? DataLoader.fmtNum(catHigh, 2) + '%' : '—'}</b>`,
+      },
+      {
+        lbl: 'A & Below %', v: aBlw,
+        fmt: v => `${DataLoader.fmtNum(v, 2)}%`,
+        neg: true,
+        cmp: `Higher = more credit risk<br>Cat avg · <b>${catABlw != null ? DataLoader.fmtNum(catABlw, 2) + '%' : '—'}</b>`,
+      },
+      {
+        lbl: '% in Default', v: pctDef,
+        fmt: v => `${DataLoader.fmtNum(v, 2)}%`,
+        neg: pctDef > 0,
+        cmp: pctDef > 0
+          ? `<b class="warn">Active default exposure</b>`
+          : `No defaulted holdings reported`,
+      },
+    ];
+    document.getElementById('riskGrid').innerHTML = cards.map(c => {
+      const display = c.v != null ? c.fmt(c.v) : '—';
+      const negCls = c.neg && c.v != null && c.v > 0 ? 'neg' : '';
+      return `
+        <div class="risk-card">
+          <span class="lbl">${escapeHtml(c.lbl)}</span>
+          <div class="v ${negCls}">${escapeHtml(display)}</div>
+          <div class="bench-cmp">${c.cmp}</div>
+        </div>`;
+    }).join('');
+
+    // Update risk-section heading + subtitle
+    const h2 = document.querySelector('#risk h2');
+    if (h2) h2.innerHTML = 'Interest-Rate & <em>Credit</em> Risk';
+    const sub = document.getElementById('riskSubtitle');
+    if (sub) sub.textContent =
+      'Mod Duration drives sensitivity to rate moves. Credit-quality mix drives default and migration risk. All values as on 30 Apr 2026.';
+
+    // Hide the drawdown chart (no NAV series for debt in v1).
+    const ddHeader = document.querySelector('#risk .block-sub-h');
+    if (ddHeader) ddHeader.style.display = 'none';
+    const ddWrap = document.querySelector('#risk .dd-chart-wrap');
+    if (ddWrap) ddWrap.style.display = 'none';
+  }
+
+  function debtHighGradeFor(f) {
+    const cq = f && f.credit_quality;
+    if (!cq) return null;
+    if (cq.sov == null && cq.aaa_a1 == null) return null;
+    return (cq.sov || 0) + (cq.aaa_a1 || 0);
+  }
+
+  function renderDebtManager(fund) {
+    const name = fund.manager_name || '—';
+    document.getElementById('mgrName').textContent = name;
+    document.getElementById('mgrTitle').textContent =
+      `${fund.amc || '—'} · Lead Manager · Tenure ${fund.manager_tenure_yrs != null ? DataLoader.fmtNum(fund.manager_tenure_yrs, 1) + ' yrs' : '—'}`;
+    document.getElementById('mgrAvatar').textContent = managerInitials(name);
+    // No bio source for debt managers in v1 — fall through to placeholder.
+    renderManagerBio(null, name);
+
+    const cells = [
+      ['Tenure',         fund.manager_tenure_yrs != null ? `${DataLoader.fmtNum(fund.manager_tenure_yrs, 1)} yrs` : '—'],
+      ['Fund AUM',       fund.aum_cr != null ? `₹ ${DataLoader.fmtINR(fund.aum_cr)} Cr` : '—'],
+      ['Manager Exp',    fund.manager_experience_yrs != null ? `${DataLoader.fmtNum(fund.manager_experience_yrs, 1)} yrs` : '—'],
+      ['Fund Inception', fund.inception_date || '—'],
+    ];
+    document.getElementById('mgrStats').innerHTML = cells
+      .map(([k, v]) => `<div class="cell"><span class="k">${escapeHtml(k)}</span><div class="v">${escapeHtml(String(v))}</div></div>`)
+      .join('');
+
+    // Hide the manager-history details + also-managing rows (debt funds
+    // aren't in manager-history-2026-04-30.json).
+    const hist = document.querySelector('#manager .mgr-history-table-wrap');
+    if (hist) hist.style.display = 'none';
+    const coRow = document.getElementById('mgrCoManagers');
+    if (coRow) coRow.hidden = true;
+    const alsoRow = document.getElementById('mgrAlsoManaging');
+    if (alsoRow) alsoRow.hidden = true;
+  }
+
+  /* ---------- Portfolio (Credit + Asset composition) ---------- */
+  function renderDebtPortfolio(fund) {
+    const cq = fund.credit_quality || {};
+    const as = fund.asset_split   || {};
+
+    // Update section heading + subtitle
+    const h2 = document.querySelector('#portfolio h2');
+    if (h2) h2.innerHTML = 'Credit & <em>Asset</em> Composition';
+    const sub = document.getElementById('portfolioSubtitle');
+    if (sub) sub.textContent =
+      'Credit-quality bucket mix (7 buckets) and asset split (Debt / Cash / Equity / Others). All values as on 30 Apr 2026.';
+
+    // Swap out the m-cap card content with Credit Quality donut
+    const mcapCard = document.querySelector('#portfolio .port-card');
+    if (mcapCard) {
+      const labels = {
+        sov: 'SOV', aaa_a1: 'AAA / A1+', aa: 'AA', a_below: 'A & Below',
+        unrated: 'Unrated', cash: 'Cash & Equiv', others: 'Others',
+      };
+      // % in Default badge — render above the donut when present
+      const defBadge = (fund.pct_in_default > 0)
+        ? `<div class="debt-default-badge"><span class="badge-pip">!</span> ${DataLoader.fmtNum(fund.pct_in_default, 2)}% in Default</div>`
+        : '';
+      mcapCard.innerHTML = `
+        <div class="port-card-h">Credit Quality</div>
+        ${defBadge}
+        <div class="donut-wrap"><canvas id="creditDonut"></canvas></div>
+        <div class="donut-legend" id="creditLegend"></div>`;
+      const order = ['sov', 'aaa_a1', 'aa', 'a_below', 'unrated', 'cash', 'others'];
+      const dataPoints = order.map(k => ({
+        label: labels[k], value: cq[k], colour: DEBT_CREDIT_PALETTE[k], key: k,
+      }));
+      _renderDebtDonut('creditDonut', dataPoints, 'creditLegend');
+    }
+
+    // Hybrid card not used for debt
+    const hybridCard = document.getElementById('hybridMixCard');
+    if (hybridCard) hybridCard.hidden = true;
+
+    // Replace sector-allocation card with Asset Split donut
+    const sectorCard = document.getElementById('sectorDonutCard');
+    if (sectorCard) {
+      sectorCard.innerHTML = `
+        <div class="port-card-h">Asset Split</div>
+        <div class="donut-wrap"><canvas id="assetDonut"></canvas></div>
+        <div class="donut-legend" id="assetLegend"></div>`;
+      const dataPoints = ['debt', 'cash', 'equity', 'others'].map(k => ({
+        label: k[0].toUpperCase() + k.slice(1), value: as[k], colour: DEBT_ASSET_PALETTE[k], key: k,
+      }));
+      _renderDebtDonut('assetDonut', dataPoints, 'assetLegend', { allowNegative: true });
+    }
+
+    // Hide the right column — Top Holdings + Similar Funds (no debt
+    // analytics in v1).
+    const portRight = document.querySelector('#portfolio .port-right');
+    if (portRight) portRight.style.display = 'none';
+    const grid = document.querySelector('#portfolio .portfolio-grid-v2');
+    if (grid) grid.style.gridTemplateColumns = '1fr';
+  }
+
+  /**
+   * Donut renderer for debt buckets. Cash can be negative for liquid/MM
+   * funds — when that happens we skip the negative slice from the donut
+   * geometry (a doughnut can't show negative arcs) but surface it in the
+   * legend with a "−X.XX%" tag in Dark Red, so the numbers still add up
+   * for the analyst.
+   */
+  function _renderDebtDonut(canvasId, dataPoints, legendId, opts) {
+    opts = opts || {};
+    ensureChartJs().then(() => {
+      const canvas = document.getElementById(canvasId);
+      if (!canvas) return;
+      const positive = dataPoints.filter(d => d.value != null && d.value > 0);
+      const negative = dataPoints.filter(d => d.value != null && d.value < 0);
+      const zero     = dataPoints.filter(d => d.value != null && d.value === 0);
+      const labels   = positive.map(d => d.label);
+      const values   = positive.map(d => Number(d.value));
+      const colours  = positive.map(d => d.colour);
+      if (canvas._chartInst) canvas._chartInst.destroy();
+      const ctx = canvas.getContext('2d');
+      canvas._chartInst = new window.Chart(ctx, {
+        type: 'doughnut',
+        data: { labels, datasets: [{ data: values, backgroundColor: colours, borderColor: '#fff', borderWidth: 2, hoverOffset: 6 }] },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          cutout: '62%',
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#000', titleColor: '#BD9568', bodyColor: '#fff',
+              borderColor: '#6B3F1A', borderWidth: 1,
+              callbacks: {
+                label: (c) => `${c.label}  ${DataLoader.fmtNum(c.raw, 2)}%`,
+              },
+            },
+          },
+        },
+      });
+
+      const legendEl = document.getElementById(legendId);
+      if (!legendEl) return;
+      const rowHtml = (d, neg) => {
+        const valTxt = d.value == null ? '—' : `${DataLoader.fmtNum(d.value, 2)}%`;
+        const valCls = (d.value != null && d.value < 0) ? 'dlegend-pct neg' : 'dlegend-pct';
+        return `
+          <div class="dlegend-row${neg ? ' debt-neg-row' : ''}">
+            <span class="dlegend-sw" style="background:${d.colour}"></span>
+            <span class="dlegend-lbl">${escapeHtml(d.label)}</span>
+            <b class="${valCls}">${(d.value != null && d.value < 0 ? '−' : '') + valTxt.replace(/^-/, '')}</b>
+          </div>`;
+      };
+      legendEl.innerHTML =
+        positive.map(d => rowHtml(d, false)).join('') +
+        negative.map(d => rowHtml(d, true)).join('') +
+        zero.map(d => rowHtml(d, false)).join('');
+    }).catch(() => {});
+  }
+
+  function renderDebtCost(fund, cycle) {
+    const peers = (cycle.funds || []).filter(f => f.category === fund.category);
+    const median = (picker) => {
+      const vals = peers.map(picker).filter(v => v != null && !isNaN(v)).sort((a, b) => a - b);
+      if (vals.length === 0) return null;
+      const m = Math.floor(vals.length / 2);
+      return vals.length % 2 ? vals[m] : (vals[m - 1] + vals[m]) / 2;
+    };
+    const ter = fund.ter_pct;
+    const catTer = median(f => f.ter_pct);
+    let terSub;
+    if (ter != null && catTer != null) {
+      const bps = Math.round((ter - catTer) * 100);
+      const cls = bps < 0 ? 'pos' : (bps > 0 ? 'neg' : '');
+      const word = bps === 0 ? 'aligned with category median' :
+        bps < 0 ? `${Math.abs(bps)} bps cheaper` : `${bps} bps pricier`;
+      terSub = `Cat median ${DataLoader.fmtNum(catTer, 2)}% — <b class="${cls}">${escapeHtml(word)}</b>`;
+    } else if (ter == null) {
+      terSub = 'TER data pending for this scheme — check AMC factsheet.';
+    } else {
+      terSub = 'Category median unavailable.';
+    }
+
+    const taxFootnote = '<span class="footnote">Debt funds taxed at slab rate (any holding period) post-Apr 2023. Surcharge &amp; cess applicable additionally.</span>';
+
+    const cards = [
+      {
+        lbl: 'TER',
+        v: ter != null ? `${DataLoader.fmtNum(ter, 2)}%` : '—',
+        sub: terSub,
+      },
+      {
+        lbl: 'Exit Load',
+        v: '—',
+        sub: 'Exit-load data pending — check AMC factsheet / SID.',
+      },
+      {
+        lbl: 'Taxation',
+        v: 'Slab rate',
+        sub: 'Any holding period. ' + taxFootnote,
+      },
+    ];
+    document.getElementById('costGrid').innerHTML = cards.map(c => `
+      <div class="cost-card">
+        <span class="lbl">${escapeHtml(c.lbl)}</span>
+        <div class="v">${escapeHtml(c.v)}</div>
+        <div class="sub">${c.sub}</div>
+      </div>`).join('');
+
+    const h2 = document.querySelector('#cost h2');
+    if (h2) h2.innerHTML = 'What You Pay, & <em>What You Walk Away With</em>';
+    const sub = document.querySelector('#cost .h-sub');
+    if (sub) sub.textContent =
+      'All figures regular-growth plan. Compare to category median for a like-for-like read.';
+  }
+
+  function renderDebtVerdict(fund, cycle) {
+    const peers = (cycle.funds || []).filter(f => f.category === fund.category);
+    const strengths = [];
+    const concerns = [];
+    function nrm(s) { return s.replace(/\s+/g, ' ').trim(); }
+
+    const dp = fund.debt_profile || {};
+    const cq = fund.credit_quality || {};
+    const highGrade = debtHighGradeFor(fund);
+
+    // ---- Strengths ----
+    if (highGrade != null && highGrade >= 80) {
+      strengths.push(nrm(`<b>${DataLoader.fmtNum(highGrade, 1)}%</b> of portfolio in SOV + AAA/A1+ — concentrated high-grade exposure.`));
+    }
+    const catYtm = (function () {
+      const vals = peers.map(p => p.debt_profile ? p.debt_profile.ytm_pct : null).filter(v => v != null);
+      return vals.length >= 3 ? vals.reduce((s, v) => s + v, 0) / vals.length : null;
+    })();
+    if (dp.ytm_pct != null && catYtm != null && dp.ytm_pct > catYtm) {
+      strengths.push(nrm(`YTM <b>${DataLoader.fmtNum(dp.ytm_pct, 2)}%</b> sits above the category average of <b>${DataLoader.fmtNum(catYtm, 2)}%</b>.`));
+    }
+    const r1 = fund.returns ? fund.returns.y1_pct : null;
+    const catR1 = (function () {
+      const vals = peers.map(p => (p.returns || {}).y1_pct).filter(v => v != null);
+      return vals.length >= 3 ? vals.reduce((s, v) => s + v, 0) / vals.length : null;
+    })();
+    if (r1 != null && catR1 != null && r1 > catR1) {
+      strengths.push(nrm(`1Y return <b>${DataLoader.fmtNum(r1, 2)}%</b> beats category average of <b>${DataLoader.fmtNum(catR1, 2)}%</b>.`));
+    }
+    const catTer = (function () {
+      const vals = peers.map(p => p.ter_pct).filter(v => v != null).sort((a, b) => a - b);
+      if (vals.length === 0) return null;
+      const m = Math.floor(vals.length / 2);
+      return vals.length % 2 ? vals[m] : (vals[m - 1] + vals[m]) / 2;
+    })();
+    if (fund.ter_pct != null && catTer != null && fund.ter_pct < catTer) {
+      strengths.push(nrm(`TER <b>${DataLoader.fmtNum(fund.ter_pct, 2)}%</b> cheaper than category median <b>${DataLoader.fmtNum(catTer, 2)}%</b>.`));
+    }
+    if (fund.aum_cr != null && fund.aum_cr >= 5000) {
+      strengths.push(nrm(`Sizeable AUM of <b>₹${DataLoader.fmtINR(fund.aum_cr)} Cr</b> — meaningful scale within ${escapeHtml(fund.category)}.`));
+    }
+
+    // ---- Concerns ----
+    if (cq.a_below != null && cq.a_below >= 10) {
+      concerns.push(nrm(`<b>${DataLoader.fmtNum(cq.a_below, 1)}%</b> rated A & Below — elevated credit-migration risk vs investment-grade peers.`));
+    }
+    if (fund.pct_in_default != null && fund.pct_in_default > 0) {
+      concerns.push(nrm(`<b class="neg">${DataLoader.fmtNum(fund.pct_in_default, 2)}%</b> sits in defaulted instruments — recovery risk on principal.`));
+    }
+    if (dp.mod_duration_yrs != null && dp.mod_duration_yrs >= 7) {
+      concerns.push(nrm(`Mod Duration <b>${DataLoader.fmtNum(dp.mod_duration_yrs, 2)} yrs</b> — high sensitivity to rate moves.`));
+    }
+    if (fund.ter_pct != null && catTer != null && fund.ter_pct > catTer + 0.30) {
+      concerns.push(nrm(`TER <b>${DataLoader.fmtNum(fund.ter_pct, 2)}%</b> sits ${Math.round((fund.ter_pct - catTer) * 100)} bps above category median.`));
+    }
+
+    const grid = document.getElementById('verdictGrid');
+    if (strengths.length === 0 && concerns.length === 0) {
+      grid.innerHTML = `
+        <div class="verdict-empty" style="grid-column:1/-1">
+          <div class="ring-motif gold" aria-hidden="true"></div>
+          <p>Insights activate once enough peers are in the same category. Check back next cycle.</p>
+        </div>`;
+    } else {
+      const strengthsBody = strengths.length
+        ? `<ul>${strengths.map(s => `<li>${s}</li>`).join('')}</ul>`
+        : `<p class="v-empty">No standout strengths above thresholds in this cycle's data.</p>`;
+      const strengthsCol = `
+        <div class="v-col">
+          <h4>Strengths</h4>
+          ${strengthsBody}
+        </div>`;
+      const concernsCol = concerns.length
+        ? `<div class="v-col cons">
+             <h4>Areas to Watch</h4>
+             <ul>${concerns.map(s => `<li>${s}</li>`).join('')}</ul>
+           </div>`
+        : '';
+      grid.style.gridTemplateColumns = concerns.length ? '1fr 1fr' : '1fr';
+      grid.innerHTML = strengthsCol + concernsCol;
+    }
+    const sub = document.getElementById('verdictSubtitle');
+    if (sub) sub.textContent =
+      'Updated 15 May 2026 · Auto-derived from this cycle\'s debt-screener data';
+    const foot = document.getElementById('verdictFoot');
+    if (foot) foot.textContent =
+      'Factual observations from fund-side metrics. No BUY/SELL calls.';
+  }
+
+  function hideEquityOnlySections() {
+    // Competition Analysis — peer Centricity-score ranking has no analogue
+    // for debt (no score).
+    const comp = document.getElementById('competition');
+    if (comp) comp.style.display = 'none';
+    // What Changed — needs a prior debt cycle to compute deltas (v1.x).
+    const changed = document.getElementById('changed');
+    if (changed) changed.style.display = 'none';
+    // TOC links for the hidden sections
+    document.querySelectorAll('aside.toc ol li').forEach(li => {
+      const a = li.querySelector('a');
+      const href = a && a.getAttribute('href');
+      if (href === '#competition' || href === '#changed') li.style.display = 'none';
+    });
+    // TOC disclaimer mentions weight-edit semantics; soften it for debt.
+    const disc = document.querySelector('aside.toc .toc-disclaimer');
+    if (disc) disc.innerHTML =
+      `<b>Disclaimer</b>For internal advisor use. Debt-fund reports are populated from validated screener JSON. Debt is a screening tool — no Centricity score or rank.`;
+  }
+
+  function renderDebtFooter(cycle) {
+    document.getElementById('footUpdated').textContent =
+      'Last updated · 15 May 2026';
+  }
+
+  function wireDebtActionButtons(fund) {
+    const compareBtn = document.getElementById('addToCompareBtn');
+    if (compareBtn) {
+      // Compare page is Eq/Hybrid-aware only in v1; flag the button as
+      // pending so partners don't end up on a broken compare page.
+      compareBtn.disabled = true;
+      compareBtn.title = 'Cross-family compare coming in v1.1';
+    }
+    const watchBtn = document.getElementById('watchlistBtn');
+    function syncWatch() {
+      const on = AppState.isWatched(fund.scheme_code);
+      watchBtn.textContent = on ? '★ Watched' : '☆ Add to Watchlist';
+      watchBtn.classList.toggle('primary', on);
+    }
+    if (watchBtn) {
+      syncWatch();
+      watchBtn.addEventListener('click', () => {
+        if (AppState.isWatched(fund.scheme_code)) AppState.removeFromWatchlist(fund.scheme_code);
+        else AppState.addToWatchlist(fund.scheme_code);
+        syncWatch();
+        showToast(AppState.isWatched(fund.scheme_code) ? 'Added to watchlist.' : 'Removed from watchlist.');
+      });
+    }
+    const shareBtn = document.getElementById('shareLinkBtn');
+    if (shareBtn) shareBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(window.location.href);
+        showToast('Link copied to clipboard.');
+      } catch (_) {
+        showToast('Copy failed — paste from address bar.');
+      }
+    });
+  }
+
+  function wireDebtRawJsonLink(cycle) {
+    const link = document.getElementById('rawJsonLink');
+    if (!link) return;
+    link.href = `data/debt-${cycle.cycle_meta.cycle_date}.json`;
+  }
+
+  function _dbtFmtPct(v, dp) {
+    if (v == null || isNaN(v)) return '—';
+    if (dp == null) dp = 2;
+    const sign = v < 0 ? '−' : '';
+    return sign + Math.abs(v).toFixed(dp) + '%';
   }
 })();

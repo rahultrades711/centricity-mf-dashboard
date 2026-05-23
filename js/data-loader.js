@@ -47,8 +47,14 @@
    * -------------------------------------------------------- */
   /** @type {Map<string, object>}  cycleDate (YYYY-MM-DD) -> full cycle JSON */
   const cycleCache = new Map();
+  /** @type {Map<string, object>}  cycleDate -> MF_Debt cycle JSON */
+  const debtCycleCache = new Map();
   /** @type {object|null}  loaded once from data/manifest.json */
   let manifestCache = null;
+  /** Debt cycle dates the dashboard ships with. v1.x will replace this with a
+   *  manifest-driven list once the converter+Action are wired. For now we
+   *  hardcode the only ship-cycle. */
+  const DEBT_CYCLES = ['2026-05-15'];
 
   /* -------------------------------------------------------- *
    *  loadCycle — lazy fetch + cache
@@ -77,6 +83,39 @@
    */
   function getCachedCycles() {
     return Array.from(cycleCache.keys()).sort();
+  }
+
+  /* -------------------------------------------------------- *
+   *  loadDebtCycle — lazy fetch + cache for the MF_Debt family
+   * --------------------------------------------------------
+   *  Independent pipeline per CLAUDE.md §4.1. The dashboard MUST NEVER merge
+   *  MF_Debt funds with MF_Equity_Hybrid funds in one universe; switching
+   *  family means swapping the active dataset, not concatenating.
+   *
+   *  Guards `cycle_meta.product_family === "MF_Debt"` — a JSON intended for a
+   *  different pipeline (e.g. a Screener cycle accidentally renamed) is
+   *  refused with a clear error.
+   */
+  async function loadDebtCycle(cycleDate) {
+    if (!cycleDate) cycleDate = latestDebtCycleDate();
+    if (!cycleDate) throw new Error('loadDebtCycle: no debt cycle available');
+    if (debtCycleCache.has(cycleDate)) return debtCycleCache.get(cycleDate);
+    const res = await fetch(`data/debt-${cycleDate}.json`, { cache: 'default' });
+    if (!res.ok) throw new Error(`loadDebtCycle: HTTP ${res.status} for ${cycleDate}`);
+    const data = await res.json();
+    const family = data && data.cycle_meta && data.cycle_meta.product_family;
+    if (family !== 'MF_Debt') {
+      throw new Error(`loadDebtCycle: product_family "${family}" — expected "MF_Debt"`);
+    }
+    debtCycleCache.set(cycleDate, data);
+    return data;
+  }
+
+  function latestDebtCycleDate() {
+    return DEBT_CYCLES.slice().sort().pop() || null;
+  }
+  function listDebtCycles() {
+    return DEBT_CYCLES.slice().sort();
   }
 
   /* -------------------------------------------------------- *
@@ -378,6 +417,9 @@
     loadCycle,
     listCycles,
     getCachedCycles,
+    loadDebtCycle,
+    latestDebtCycleDate,
+    listDebtCycles,
     // Selectors
     getFund,
     getFunds,
