@@ -158,6 +158,196 @@ PASSIVE_CATEGORIES = frozenset({
 PASSIVE_STATUS = "Index — Not Scored"
 
 
+# Phase 2.2 — Dividend-Yield category correction. The 15-May workbook moved
+# these 11 Dividend-Yield funds from "Value-Contra" to "Sector-Thematic"; per
+# Rahul's review they're a value strategy and belong in Value-Contra. The
+# converter overrides the category BEFORE compute_parameter_scores so the
+# percentile pool is correct. After scoring, centricity_score is recomputed
+# for every Ranked fund in Value-Contra + Sector-Thematic so the displayed
+# score matches the corrected peer pool.
+DIVIDEND_YIELD_AMFI = frozenset({
+    101738,  # Aditya Birla SL Dividend Yield Fund-Reg(G)
+    152807,  # Baroda BNP Paribas Dividend Yield Fund-Reg(G)
+    103678,  # Franklin India Dividend Yield Fund(G)
+    148610,  # HDFC Dividend Yield Fund-Reg(G)
+    129310,  # ICICI Pru Dividend Yield Equity Fund(G)
+    154099,  # Kotak Dividend Yield Fund-Reg(G)
+    152019,  # LIC MF Dividend Yield Fund-Reg(G)
+    151476,  # SBI Dividend Yield Fund-Reg(G)
+    149697,  # Sundaram Dividend Yield Fund(G)
+    148948,  # Tata Dividend Yield Fund-Reg(G)
+    103026,  # UTI Dividend Yield Fund-Reg(G)
+})
+
+
+# Phase 2.2 — Morningstar manager-name + history primary; MF Monitor fallback
+# only. Source: the dense, dated "Manager Tenure Data as on …".xlsx Morningstar
+# export (24 category sheets; header row 9; Manager History col C; AMFI Code
+# col E). Each `Manager History` cell carries the FULL dated history of every
+# manager who has run the fund — semicolon-separated chunks of
+# `[YYYY-MM-DD -- YYYY-MM-DD] Name` or `[YYYY-MM-DD -- ] Name` (open end = the
+# manager is currently active). Multiple open ends = co-managers.
+#
+# The earlier Part A1 attempt (Phase 2.2 first pass) used a sparse
+# `morningstar_mgr` field inside `FINAL_manager_names_tenure.json` that was
+# populated for only ~241/515 funds, giving 14.5% Morningstar coverage. This
+# loader replaces it with the full export → expected coverage ~787 / ~752
+# non-passive funds (>= 60% gate).
+
+# Strict ISO-date format observed in the 15-May export. We re-derive end-date
+# as None when the bracket reads "[YYYY-MM-DD -- ]" (open / current manager).
+_MGR_HISTORY_CHUNK_RE = re.compile(
+    r"^\s*\[\s*(\d{4}-\d{2}-\d{2})\s*--\s*(\d{4}-\d{2}-\d{2})?\s*\]\s*(.+?)\s*$"
+)
+
+
+def _parse_mgr_history_cell(s: str) -> list[dict]:
+    """Parse one Manager History cell into [{name, start, end}, ...].
+
+    Returns [] for blank cells. `end` is None when the bracket is open
+    (= the manager is currently active). Names are trimmed; dates kept as
+    ISO 'YYYY-MM-DD' strings (not Python date objects so they survive
+    json.dumps without a default).
+    """
+    if s is None:
+        return []
+    text = str(s).strip()
+    if not text:
+        return []
+    out: list[dict] = []
+    for chunk in text.split(";"):
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+        m = _MGR_HISTORY_CHUNK_RE.match(chunk)
+        if not m:
+            continue
+        start = m.group(1)
+        end = m.group(2) or None
+        name = m.group(3).strip()
+        if not name:
+            continue
+        out.append({"name": name, "start": start, "end": end})
+    return out
+
+
+def load_morningstar_mgr_history(path: Path) -> tuple[dict[int, list[dict]], dict]:
+    """Return ({amfi_code: [{name, start, end}, ...]}, diagnostics) from the
+    Morningstar manager-tenure xlsx. Walks every sheet; header row 9; reads
+    the column whose row-9 label contains 'Manager History' and joins by
+    the column whose row-9 label contains 'AMFI'.
+
+    Duplicate AMFI codes: first occurrence wins; the dup AMFIs are recorded
+    in diagnostics for the report.
+    """
+    diag = {
+        "file": path.name,
+        "sheets": 0,
+        "rows_seen": 0,
+        "amfi_codes_loaded": 0,
+        "amfi_dups": [],
+        "amfi_unparseable_history": 0,
+        "sheets_skipped_no_header": [],
+    }
+    if not path.exists():
+        return {}, diag
+
+    wb = openpyxl.load_workbook(path, data_only=True)
+    out: dict[int, list[dict]] = {}
+    seen_codes: set[int] = set()
+
+    for sheet_name in wb.sheetnames:
+        ws = wb[sheet_name]
+        diag["sheets"] += 1
+        if ws.max_row < 10:
+            diag["sheets_skipped_no_header"].append(sheet_name)
+            continue
+
+        # Locate Manager History + AMFI Code by row-9 header text.
+        mh_col = None
+        amfi_col = None
+        for c in range(1, ws.max_column + 1):
+            h = ws.cell(row=9, column=c).value
+            if h is None:
+                continue
+            hs = str(h).strip().lower()
+            if "manager history" in hs:
+                mh_col = c
+            elif "amfi" in hs:
+                amfi_col = c
+        if mh_col is None or amfi_col is None:
+            diag["sheets_skipped_no_header"].append(sheet_name)
+            continue
+
+        # Walk fund rows starting at row 10.
+        for r in range(10, ws.max_row + 1):
+            v = ws.cell(row=r, column=amfi_col).value
+            if v is None:
+                continue
+            try:
+                code = int(v)
+            except (TypeError, ValueError):
+                continue
+            diag["rows_seen"] += 1
+            mh = ws.cell(row=r, column=mh_col).value
+            records = _parse_mgr_history_cell(mh) if mh is not None else []
+            if not records:
+                if mh is not None and str(mh).strip():
+                    diag["amfi_unparseable_history"] += 1
+                # Even with no history, register the AMFI as "seen with
+                # blank history" so we don't mistakenly fall through to
+                # MF Monitor for a fund Morningstar knows but has no past
+                # manager record for. We treat blank as "no current
+                # manager known" -> still flows to fallback in derive().
+                if code not in seen_codes:
+                    seen_codes.add(code)
+                    out[code] = []
+                continue
+            if code in seen_codes:
+                diag["amfi_dups"].append({"amfi": code, "sheet": sheet_name})
+                continue
+            seen_codes.add(code)
+            out[code] = records
+
+    wb.close()
+    # Only AMFI codes whose history actually parsed count toward the
+    # "Morningstar coverage" headline.
+    diag["amfi_codes_loaded"] = sum(1 for v in out.values() if v)
+    return out, diag
+
+
+def derive_current_manager(
+    records: list[dict],
+    cycle_date: _dt.date,
+) -> tuple[str | None, str | None, float | None]:
+    """From a parsed Manager History list, return:
+       (display_name, manager_since_iso, tenure_yrs)
+
+    display_name = ", "-joined current manager names (those with `end` None),
+    in earliest-start-first order so the lead manager surfaces first.
+    manager_since = the earliest current-manager start date.
+    tenure_yrs = (cycle_date - manager_since) / 365.25, rounded 2dp.
+
+    All three are None when there are no current managers in the history.
+    """
+    if not records:
+        return None, None, None
+    current = [r for r in records if not r.get("end")]
+    if not current:
+        return None, None, None
+    current.sort(key=lambda r: r.get("start") or "9999-99-99")
+    names = ", ".join(r["name"] for r in current if r.get("name"))
+    since = current[0].get("start")
+    tenure = None
+    if since:
+        try:
+            sd = _dt.date.fromisoformat(since)
+            tenure = round((cycle_date - sd).days / 365.25, 2)
+        except (TypeError, ValueError):
+            tenure = None
+    return (names or None), since, tenure
+
+
 def _classify_score(raw: Any) -> tuple[str, float | None, float | None]:
     """
     Returns (status, centricity_score_decimal, warning_pct).
@@ -1548,9 +1738,16 @@ def build_funds(
     warnings: list[str],
     monitor_data: dict | None = None,
     monitor_index_data: dict | None = None,
+    morningstar_history: dict[int, list[dict]] | None = None,
 ) -> tuple[list[dict], dict, dict]:
     eq_set = set(contract["categories"]["equity"])
     hb_set = set(contract["categories"]["hybrid"])
+    morningstar_history = morningstar_history or {}
+    # Phase 2.2 §A1-REDO — coverage stats for the manager-name source. Reported
+    # at end of conversion and surfaced on cycle_meta. AMFI is the join key
+    # (workbook scheme_code ↔ Morningstar AMFI Code col E); we DO NOT name-
+    # match anymore.
+    mgr_coverage = {"morningstar": 0, "mf_monitor": 0, "none": 0}
 
     cycle_date = _dt.date.fromisoformat(cycle_meta["cycle_date"])
     targets = {
@@ -1630,6 +1827,12 @@ def build_funds(
             continue
 
         category = d["category"]
+        # Phase 2.2 §A2 — revert 11 Dividend-Yield funds from Sector-Thematic
+        # back to Value-Contra so they're scored / ranked against the right
+        # peer pool. Applied BEFORE compute_parameter_scores so the percentile
+        # pool is correct out of the gate.
+        if d["scheme_code"] in DIVIDEND_YIELD_AMFI and category == "Sector-Thematic":
+            category = "Value-Contra"
         if category in eq_set:
             sub_class = "Equity"
         elif category in hb_set:
@@ -1701,8 +1904,39 @@ def build_funds(
         record["benchmark"] = d["benchmark"]
         record["inception_date"] = d["inception_date_iso"]
         record["fund_tenure_yrs"] = _round(cm["fund_tenure_yrs"], 4)
-        record["manager_name"] = d["manager_name"]
-        record["manager_tenure_yrs"] = _round(d["manager_tenure_yrs"], 4)
+        # Phase 2.2 §A1-REDO — Morningstar full history primary; MF Monitor
+        # fallback only. Join on AMFI code. When the AMFI is in the
+        # Morningstar export AND has at least one current manager (open
+        # bracket), we use that name + structured history + derived tenure;
+        # else we fall back to the workbook MF Monitor name + tenure;
+        # else "—".
+        mh_records = morningstar_history.get(d["scheme_code"]) if d["scheme_code"] is not None else None
+        mh_name, mh_since, mh_tenure = derive_current_manager(mh_records or [], cycle_date)
+        mfm_name = d["manager_name"]
+        if mh_name:
+            record["manager_name"] = mh_name
+            record["manager_name_source"] = "Morningstar"
+            mgr_coverage["morningstar"] += 1
+        elif mfm_name:
+            record["manager_name"] = mfm_name
+            record["manager_name_source"] = "MF Monitor"
+            mgr_coverage["mf_monitor"] += 1
+        else:
+            record["manager_name"] = None
+            record["manager_name_source"] = None
+            mgr_coverage["none"] += 1
+        # manager_tenure_yrs: Morningstar-derived (cycle_date - earliest
+        # current start) when we have history; else workbook MF Monitor.
+        if mh_tenure is not None:
+            record["manager_tenure_yrs"] = mh_tenure
+        else:
+            record["manager_tenure_yrs"] = _round(d["manager_tenure_yrs"], 4)
+        record["manager_since"] = mh_since  # ISO date of earliest current start, or None
+        # Structured full history (every manager who has run this fund),
+        # carried into the JSON so the one-pager can render it and Part B
+        # can detect Apr→May moves (a current start or a recent end inside
+        # the window). Empty list when Morningstar has no entry.
+        record["manager_history"] = mh_records if mh_records else []
         record["aum_cr"] = _round(d["aum_cr"], 4)
         record["ter_pct"] = _round(d["ter_pct"], 4)
         record["turnover_pct"] = _round(d["turnover_pct"], 4)
@@ -1879,6 +2113,10 @@ def build_funds(
 
         funds.append(record)
 
+    # Stash coverage on the funds list (read by convert() post-call) so we
+    # don't change the build_funds() return tuple's positional shape.
+    cycle_meta["_phase22_mgr_coverage"] = mgr_coverage
+
     # Compute centricity_rank_in_category post-pass
     by_cat: dict[str, list[dict]] = {}
     for f in funds:
@@ -1906,12 +2144,41 @@ def build_funds(
 # Main
 # ---------------------------------------------------------------------------
 
-def convert(xlsx_path: Path, monitor_path: Path | None = None) -> Path:
+def convert(
+    xlsx_path: Path,
+    monitor_path: Path | None = None,
+    morningstar_history_path: Path | None = None,
+) -> Path:
     if not xlsx_path.exists():
         raise SchemaError(f"Input file not found: {xlsx_path}")
 
     contract = load_contract()
     print(f"[converter] loaded contract: {CONTRACT_PATH.name} ({contract['contract_version']})", file=sys.stderr)
+
+    # Phase 2.2 §A1-REDO — load the full Morningstar manager-tenure xlsx
+    # ('Manager Tenure Data as on <date>.xlsx'). 24 category sheets; header
+    # row 9; Manager History col + AMFI Code col. Each cell carries the
+    # complete dated history of every manager who has run that fund. Join
+    # key is AMFI scheme_code (workbook col D ↔ Morningstar col E).
+    morningstar_history: dict[int, list[dict]] = {}
+    morningstar_diag: dict = {}
+    if morningstar_history_path is not None and morningstar_history_path.exists():
+        morningstar_history, morningstar_diag = load_morningstar_mgr_history(morningstar_history_path)
+        print(
+            f"[converter] loaded Morningstar manager-history: "
+            f"{morningstar_diag['amfi_codes_loaded']} AMFI codes with parsed history "
+            f"from {morningstar_diag['sheets']} sheets in {morningstar_history_path.name} "
+            f"(rows seen: {morningstar_diag['rows_seen']}, dups: "
+            f"{len(morningstar_diag.get('amfi_dups', []))}, "
+            f"unparseable: {morningstar_diag.get('amfi_unparseable_history', 0)})",
+            file=sys.stderr,
+        )
+    elif morningstar_history_path is not None:
+        print(
+            f"[converter] WARNING: Morningstar manager-history file not found at "
+            f"{morningstar_history_path}; falling back to MF Monitor names on Data col F.",
+            file=sys.stderr,
+        )
 
     # Optional Monitor overlay — Fix-List 5 §A + Fix-List 6 §1A
     monitor_fund_data: dict | None = None
@@ -1960,7 +2227,64 @@ def convert(xlsx_path: Path, monitor_path: Path | None = None) -> Path:
         wb, contract, cycle_meta, warnings,
         monitor_data=monitor_fund_data,
         monitor_index_data=monitor_index_data,
+        morningstar_history=morningstar_history,
     )
+
+    # Phase 2.2 §A1-REDO — surface manager-source coverage on cycle_meta and
+    # report the hard gate (>= 60% of non-passive funds covered by
+    # Morningstar). Passive funds are expected to lack a manager entry and
+    # don't count against the rate.
+    mgr_coverage = cycle_meta.pop("_phase22_mgr_coverage", {"morningstar": 0, "mf_monitor": 0, "none": 0})
+    cycle_meta["manager_name_source"] = "Morningstar primary (full history), MF Monitor fallback"
+    cycle_meta["manager_name_coverage"] = mgr_coverage
+    cycle_meta["morningstar_diagnostics"] = {
+        "file": morningstar_diag.get("file"),
+        "sheets": morningstar_diag.get("sheets"),
+        "amfi_codes_loaded": morningstar_diag.get("amfi_codes_loaded"),
+        "amfi_dups": morningstar_diag.get("amfi_dups", []),
+        "amfi_unparseable_history": morningstar_diag.get("amfi_unparseable_history"),
+        "sheets_skipped_no_header": morningstar_diag.get("sheets_skipped_no_header", []),
+    }
+    non_passive = sum(1 for f in funds if f["centricity_score_status"] != PASSIVE_STATUS)
+    non_passive_morn = sum(
+        1 for f in funds
+        if f["centricity_score_status"] != PASSIVE_STATUS
+        and f.get("manager_name_source") == "Morningstar"
+    )
+    morn_share = (non_passive_morn / non_passive * 100) if non_passive else 0
+    cycle_meta["manager_name_coverage_non_passive"] = {
+        "non_passive_total": non_passive,
+        "morningstar": non_passive_morn,
+        "morningstar_share_pct": round(morn_share, 1),
+    }
+    print(
+        f"[converter] manager-name source: Morningstar {mgr_coverage['morningstar']} / "
+        f"MF Monitor {mgr_coverage['mf_monitor']} / none {mgr_coverage['none']} "
+        f"(total {sum(mgr_coverage.values())})",
+        file=sys.stderr,
+    )
+    print(
+        f"[converter]   Non-passive Morningstar share: "
+        f"{non_passive_morn}/{non_passive} = {morn_share:.1f}% "
+        f"(hard gate: >= 60%)",
+        file=sys.stderr,
+    )
+    if morn_share < 60.0:
+        warnings.append(
+            f"[A1-REDO hard-gate failed] Morningstar coverage {morn_share:.1f}% "
+            f"of {non_passive} non-passive funds — expected >= 60%. "
+            f"Investigate AMFI-join. Sample of unmatched AMFI codes follows."
+        )
+        # Append up to 20 unmatched AMFI samples for the report.
+        unmatched = [
+            (f["scheme_code"], f["fund_name"])
+            for f in funds
+            if f["centricity_score_status"] != PASSIVE_STATUS
+            and f.get("manager_name_source") != "Morningstar"
+        ]
+        cycle_meta["morningstar_diagnostics"]["unmatched_sample"] = [
+            {"amfi": c, "fund_name": n} for c, n in unmatched[:20]
+        ]
 
     # Report Monitor match rate (helps catch name-mismatch problems early)
     if monitor_fund_data is not None:
@@ -1984,14 +2308,84 @@ def convert(xlsx_path: Path, monitor_path: Path | None = None) -> Path:
     summary["fund_count"] = len(funds)
     print(f"[converter] built {len(funds)} fund records", file=sys.stderr)
 
-    if cycle_meta.get("total_funds") not in (None, len(funds)):
-        warnings.append(
-            f"Cycle banner reports total_funds={cycle_meta['total_funds']} but {len(funds)} fund records were built."
+    # Phase 2.2 §A3 — total_funds = actual fund record count (1,249 after the
+    # Quantum-Direct dedup). The Master A2 banner says 1252 (universe count
+    # incl. dedup'd dupes); the dashboard surfaces total_funds in titles +
+    # the count chip, so it has to match what the table actually renders.
+    banner_total = cycle_meta.get("total_funds")
+    if banner_total != len(funds):
+        cycle_meta["total_funds_banner"] = banner_total
+        cycle_meta["total_funds"] = len(funds)
+        print(
+            f"[converter] total_funds: banner reports {banner_total}, "
+            f"record count is {len(funds)} — using record count.",
+            file=sys.stderr,
         )
 
     # 5. Per-parameter normalised scores (powers the right-drawer weight reshuffling)
     print("[converter] computing parameter_scores (per-category percentile rank)...", file=sys.stderr)
     compute_parameter_scores(funds, cycle_meta["scoring_weights"], warnings)
+
+    # Phase 2.2 §A2 — the 11 Dividend-Yield funds were moved into Value-Contra
+    # earlier in build_funds (before compute_parameter_scores), so their
+    # percentile pool is now correct. The workbook's cached centricity_score
+    # for these 11 funds — and for every existing peer in Value-Contra +
+    # Sector-Thematic — is computed against the OLD pools and is therefore
+    # stale. Re-derive centricity_score = Σ(parameter_scores × weight)/100
+    # for every Ranked fund in those two categories so display + ranks
+    # match the corrected pool. Funds in other categories keep the
+    # workbook-stored score (Phase 2 v2 drift behavior, unchanged).
+    AFFECTED_CATS = {"Value-Contra", "Sector-Thematic"}
+    weight_by_param = {w["parameter"]: w["weight_pct"] for w in cycle_meta["scoring_weights"]}
+    recomputed_count = 0
+    for f in funds:
+        if f.get("category") not in AFFECTED_CATS:
+            continue
+        if f.get("centricity_score_status") != "Ranked":
+            continue
+        ps = f.get("parameter_scores") or {}
+        total = 0.0
+        for p, w_pct in weight_by_param.items():
+            v = ps.get(p)
+            if v is None:
+                continue
+            total += v * w_pct
+        f["centricity_score"] = round(total / 100, 6)
+        recomputed_count += 1
+    print(
+        f"[converter] §A2 recomputed centricity_score for {recomputed_count} Ranked funds "
+        f"in {sorted(AFFECTED_CATS)} (Value-Contra + Sector-Thematic peer pools changed).",
+        file=sys.stderr,
+    )
+
+    # Phase 2.2 §A2 — re-derive ranks now that scores in the affected
+    # categories have shifted. build_funds' post-pass ran with the workbook-
+    # cached scores; we redo it with the corrected ones.
+    by_cat: dict[str, list[dict]] = {}
+    for f in funds:
+        by_cat.setdefault(f["category"], []).append(f)
+    for cat, lst in by_cat.items():
+        ranked = [f for f in lst if f["centricity_score"] is not None]
+        ranked.sort(key=lambda x: x["centricity_score"], reverse=True)
+        for i, f in enumerate(ranked, start=1):
+            f["centricity_rank_in_category"] = i
+        # Funds in the cat without a score → null in-cat rank.
+        for f in lst:
+            if f["centricity_score"] is None:
+                f["centricity_rank_in_category"] = None
+    overall_ranked = [f for f in funds if f["centricity_score"] is not None]
+    overall_ranked.sort(key=lambda x: x["centricity_score"], reverse=True)
+    for i, f in enumerate(overall_ranked, start=1):
+        f["centricity_rank_overall"] = i
+    for f in funds:
+        if f["centricity_score"] is None:
+            f["centricity_rank_overall"] = None
+    print(
+        f"[converter] §A2 re-ranked: overall 1..{len(overall_ranked)}; "
+        f"Value-Contra {sum(1 for f in funds if f['category']=='Value-Contra' and f['centricity_score'] is not None)} ranked, "
+        f"Sector-Thematic {sum(1 for f in funds if f['category']=='Sector-Thematic' and f['centricity_score'] is not None)} ranked.",
+        file=sys.stderr,
+    )
 
     # 6. Verify recomputed score == stored centricity_score for every Ranked fund.
     # v1: ±0.0001 (Excel exact-match — proven on 15-Apr cycle). Build fails on
@@ -2063,14 +2457,20 @@ def main(argv: list[str] | None = None) -> int:
     argv = argv if argv is not None else sys.argv[1:]
     if not argv:
         print(
-            "usage: excel_to_json_screener.py <whitelisting.xlsx> [<monitor.xlsx>]",
+            "usage: excel_to_json_screener.py <whitelisting.xlsx> "
+            "[<monitor.xlsx> [<morningstar_manager_tenure.xlsx>]]",
             file=sys.stderr,
         )
         return 2
     path = Path(argv[0])
     monitor_path = Path(argv[1]) if len(argv) > 1 and argv[1] else None
+    morningstar_history_path = Path(argv[2]) if len(argv) > 2 and argv[2] else None
     try:
-        convert(path, monitor_path=monitor_path)
+        convert(
+            path,
+            monitor_path=monitor_path,
+            morningstar_history_path=morningstar_history_path,
+        )
     except SchemaError as e:
         print(f"\nSCHEMA ERROR: {e}\n", file=sys.stderr)
         return 1
