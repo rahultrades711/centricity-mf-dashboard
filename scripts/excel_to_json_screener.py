@@ -2326,21 +2326,24 @@ def convert(
     print("[converter] computing parameter_scores (per-category percentile rank)...", file=sys.stderr)
     compute_parameter_scores(funds, cycle_meta["scoring_weights"], warnings)
 
-    # Phase 2.2 §A2 — the 11 Dividend-Yield funds were moved into Value-Contra
-    # earlier in build_funds (before compute_parameter_scores), so their
-    # percentile pool is now correct. The workbook's cached centricity_score
-    # for these 11 funds — and for every existing peer in Value-Contra +
-    # Sector-Thematic — is computed against the OLD pools and is therefore
-    # stale. Re-derive centricity_score = Σ(parameter_scores × weight)/100
-    # for every Ranked fund in those two categories so display + ranks
-    # match the corrected pool. Funds in other categories keep the
-    # workbook-stored score (Phase 2 v2 drift behavior, unchanged).
-    AFFECTED_CATS = {"Value-Contra", "Sector-Thematic"}
+    # Phase 2.2 §1A — universal score recompute. The 15-May workbook's CM
+    # column AD ("Score") has misaligned cells: for ~80% of Ranked funds it
+    # shows the wrong value (Groww Aggressive Hybrid's AD = 0.847, which
+    # actually belongs to ICICI Pru E&D; ICICI Pru E&D's AD = 0.599, which
+    # belongs to Kotak Aggressive Hybrid IDCW; etc.). The category sheets
+    # themselves are correct (R7 of the Aggressive Hybrid sheet shows ICICI
+    # Pru E&D rank 1 with score 0.847) and Master Table 1 agrees. So the
+    # right fix is: trust our per-fund percentile compute (which mirrors
+    # Excel's COUNTIF logic) and DERIVE centricity_score = Σ(parameter_scores
+    # × weight) / 100 for every Ranked fund, overwriting the bugged CM AD.
+    #
+    # This also subsumes the earlier §A2 fix (Dividend-Yield → Value-Contra
+    # peer-pool change) — the recompute is now universal.
     weight_by_param = {w["parameter"]: w["weight_pct"] for w in cycle_meta["scoring_weights"]}
     recomputed_count = 0
+    max_delta = 0.0
+    cm_ad_swap_examples: list[str] = []
     for f in funds:
-        if f.get("category") not in AFFECTED_CATS:
-            continue
         if f.get("centricity_score_status") != "Ranked":
             continue
         ps = f.get("parameter_scores") or {}
@@ -2350,17 +2353,33 @@ def convert(
             if v is None:
                 continue
             total += v * w_pct
-        f["centricity_score"] = round(total / 100, 6)
+        new_score = round(total / 100, 6)
+        old_score = f.get("centricity_score")
+        if old_score is not None:
+            delta = abs(new_score - old_score)
+            if delta > max_delta:
+                max_delta = delta
+            if delta > 0.20 and len(cm_ad_swap_examples) < 5:
+                cm_ad_swap_examples.append(
+                    f"{f['fund_name']!r} (cat={f['category']}): "
+                    f"CM AD={old_score:.4f} → recompute={new_score:.4f}"
+                )
+        f["centricity_score"] = new_score
         recomputed_count += 1
     print(
-        f"[converter] §A2 recomputed centricity_score for {recomputed_count} Ranked funds "
-        f"in {sorted(AFFECTED_CATS)} (Value-Contra + Sector-Thematic peer pools changed).",
+        f"[converter] §1A universal recompute: replaced centricity_score for "
+        f"{recomputed_count} Ranked funds with Σ(parameter_scores × weight)/100 "
+        f"to fix workbook CM-AD misalignment. Max |Δ| vs CM-AD = {max_delta:.4f}.",
         file=sys.stderr,
     )
+    if cm_ad_swap_examples:
+        print("[converter]   CM-AD swap examples (|Δ| > 0.20):", file=sys.stderr)
+        for ex in cm_ad_swap_examples:
+            print(f"    - {ex}", file=sys.stderr)
 
-    # Phase 2.2 §A2 — re-derive ranks now that scores in the affected
-    # categories have shifted. build_funds' post-pass ran with the workbook-
-    # cached scores; we redo it with the corrected ones.
+    # Re-derive ranks now that scores have been universally re-derived.
+    # build_funds' post-pass ran with the workbook-cached CM-AD scores; redo
+    # everything with the corrected ones. Both in-category and overall ranks.
     by_cat: dict[str, list[dict]] = {}
     for f in funds:
         by_cat.setdefault(f["category"], []).append(f)
@@ -2369,7 +2388,6 @@ def convert(
         ranked.sort(key=lambda x: x["centricity_score"], reverse=True)
         for i, f in enumerate(ranked, start=1):
             f["centricity_rank_in_category"] = i
-        # Funds in the cat without a score → null in-cat rank.
         for f in lst:
             if f["centricity_score"] is None:
                 f["centricity_rank_in_category"] = None
@@ -2381,23 +2399,18 @@ def convert(
         if f["centricity_score"] is None:
             f["centricity_rank_overall"] = None
     print(
-        f"[converter] §A2 re-ranked: overall 1..{len(overall_ranked)}; "
-        f"Value-Contra {sum(1 for f in funds if f['category']=='Value-Contra' and f['centricity_score'] is not None)} ranked, "
-        f"Sector-Thematic {sum(1 for f in funds if f['category']=='Sector-Thematic' and f['centricity_score'] is not None)} ranked.",
+        f"[converter] §1A re-ranked: overall 1..{len(overall_ranked)}; "
+        f"in-category ranks recomputed for {sum(1 for f in funds if f['centricity_rank_in_category'] is not None)} funds.",
         file=sys.stderr,
     )
 
-    # 6. Verify recomputed score == stored centricity_score for every Ranked fund.
-    # v1: ±0.0001 (Excel exact-match — proven on 15-Apr cycle). Build fails on
-    # mismatch.
-    # v2: ±0.001 with warn-only. The 15-May workbook's cached centricity_score
-    # is computed from the 19-param formula (the cat-sheet cached values
-    # pre-date the addition of Avg Mkt Cap / Fund PE / Active Share to Master
-    # Table 2). Our 22-param recompute therefore drifts systematically higher
-    # by ~5-7pp. The dashboard treats the stored score as canonical for
-    # display; the recompute path is only triggered when the user edits
-    # weights, at which point all 22 parameter_scores re-rank correctly.
-    # Emit warnings + summary stats; do not block the build.
+    # 6. Verify recomputed score == stored centricity_score for every Ranked
+    # fund. Phase 2.2 §1A changes this from a meaningful check to a tautology
+    # for v2 cycles: we just overwrote centricity_score with the recompute
+    # itself, so the delta is 0 by construction. We still run the function
+    # because it's the single auditable trace of how scores were derived,
+    # but the Δ should now be uniformly 0. For v1 cycles (15-Apr) the
+    # original Excel-exact-match check (±0.0001) still applies.
     is_v2 = contract.get("contract_version", "").startswith("screener-v2")
     verify_summary = verify_parameter_scores_match(
         funds,

@@ -198,13 +198,13 @@
   }
 
   function renderScoreCard(fund) {
-    // Fix-List 5 §C5 — Recommended pill + Conviction label removed; the
-    // score card now shows only the big score + delta line + 4-cell mini
-    // grid. Verdict copy lives in section 07's strengths/concerns insights.
-    const scoreOutOf10 = (fund.centricity_score != null)
-      ? (fund.centricity_score * 10) : null;
-    // Phase 2.1 — passive funds aren't scored; surface that explicitly
-    // rather than rendering "— / 10" which reads as "data missing".
+    // Phase 2.2 §1A — the score is the **canonical category percentile**
+    // shared with the screener: same field (fund.centricity_score, now
+    // recomputed in the converter via Σ(parameter_scores × weight) / 100),
+    // same format (XX.XX%). Previously this card rendered the score on a
+    // 0-10 scale ("8.47 / 10"), which made the one-pager and screener look
+    // like different metrics. They aren't — they're the same per-category
+    // percentile, and they read the same field now.
     const isPassiveUnscored = fund.centricity_score_status === 'Index — Not Scored';
 
     if (isPassiveUnscored) {
@@ -213,27 +213,23 @@
         `Not Scored<br><span style="font-size:13px;font-weight:400;opacity:.75;letter-spacing:.04em;">Index / Passive</span>` +
         `</span>`;
     } else {
-      document.getElementById('scoreBig').innerHTML = scoreOutOf10 != null
-        ? `${scoreOutOf10.toFixed(2)}<em>/ 10</em>`
-        : `—<em>/ 10</em>`;
+      document.getElementById('scoreBig').innerHTML = (fund.centricity_score != null)
+        ? `${DataLoader.fmtScorePct(fund.centricity_score)}`
+        : `—`;
     }
 
-    /* v4.1 Item M — header rank is category-only, not universe rank.
-       Compute the current fund's rank within funds sharing the same SEBI
-       sub-category (cycle.funds is the universe; filter by category, sort
-       by centricity_score desc, find this fund's position). */
+    /* Phase 2.2 §1B — rank is IN-CATEGORY only. Use the converter-computed
+       centricity_rank_in_category directly (canonical, matches screener);
+       N = count of Ranked funds in the category so "rank #1 of 20" doesn't
+       mislead readers into thinking the Warning + New-Fund funds count
+       toward the denominator. */
     const peerSubCat = (_cycle.funds || []).filter(f => f.category === fund.category);
+    const peerRanked = peerSubCat.filter(f => f.centricity_rank_in_category != null);
     let rankLine = '';
-    if (fund.centricity_score != null && peerSubCat.length) {
-      const sorted = peerSubCat.slice().sort((a, b) =>
-        (b.centricity_score || 0) - (a.centricity_score || 0)
-      );
-      const idx = sorted.findIndex(f => f.scheme_code === fund.scheme_code);
-      if (idx >= 0) {
-        const x = idx + 1;
-        const n = peerSubCat.length;
-        rankLine = `Ranked <b>#${x}</b> of ${n} in ${escapeHtml(fund.category)} category`;
-      }
+    if (fund.centricity_rank_in_category != null && peerRanked.length) {
+      const x = fund.centricity_rank_in_category;
+      const n = peerRanked.length;
+      rankLine = `Ranked <b>#${x}</b> of ${n} in ${escapeHtml(fund.category)} category`;
     }
     document.getElementById('scoreDelta').innerHTML =
       `Cycle change · — (no prior cycle in archive). ${rankLine}`;
@@ -660,6 +656,8 @@
     }
     const rm = fund.risk_metrics || {};
     const sharpe   = rm.sharpe_3y;
+    const sortino  = rm.sortino_3y;
+    const stdDev   = rm.std_dev_3y_pct;
     const downCap  = rm.down_capture_3y_pct;
     const upCap    = rm.up_capture_3y_pct;
     const captureRatio = (upCap != null && downCap != null && downCap !== 0)
@@ -668,6 +666,8 @@
     const beta     = rm.beta_3y;
 
     const catSharpe   = catAvg(f => f.risk_metrics ? f.risk_metrics.sharpe_3y : null);
+    const catSortino  = catAvg(f => f.risk_metrics ? f.risk_metrics.sortino_3y : null);
+    const catStdDev   = catAvg(f => f.risk_metrics ? f.risk_metrics.std_dev_3y_pct : null);
     const catDownCap  = catAvg(f => f.risk_metrics ? f.risk_metrics.down_capture_3y_pct : null);
     const catUpCap    = catAvg(f => f.risk_metrics ? f.risk_metrics.up_capture_3y_pct : null);
     const catBeta     = catAvg(f => f.risk_metrics ? f.risk_metrics.beta_3y : null);
@@ -683,6 +683,17 @@
       {
         lbl: 'Sharpe', v: sharpe, fmt: v => DataLoader.fmtNum(v, 2),
         cmp: `3Y trailing · Rf ${RF_RATE_DISPLAY}<br>Cat avg · <b>${nullOrNum(catSharpe, 2)}</b>`,
+      },
+      {
+        // Phase 2.2 §1C — Sortino isolates downside volatility, so it is
+        // always ≥ Sharpe for the same fund/window.
+        lbl: 'Sortino', v: sortino, fmt: v => DataLoader.fmtNum(v, 2),
+        cmp: `3Y trailing · downside dev<br>Cat avg · <b>${nullOrNum(catSortino, 2)}</b>`,
+      },
+      {
+        // Phase 2.2 §1C — Std Dev = annualised vol of 3Y daily returns.
+        lbl: 'Std Dev', v: stdDev, fmt: v => `${DataLoader.fmtNum(v, 2)}%`,
+        cmp: `Annualised · 3Y daily<br>Cat avg · <b>${nullOrPct(catStdDev, 2)}</b>`,
       },
       {
         // Fix-List 6 §2B — capture ratios in 2dp

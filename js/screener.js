@@ -110,6 +110,8 @@
     { id: 'rngR3',      key: 'return_3y_pct',       label: '3Y',                 accessor: f => f.trailing_returns ? f.trailing_returns.return_3y_pct : null, kind: 'pct', step: 0.5 },
     { id: 'rngR5',      key: 'return_5y_pct',       label: '5Y',                 accessor: f => f.trailing_returns ? f.trailing_returns.return_5y_pct : null, kind: 'pct', step: 0.5 },
     { id: 'rngSharpe',  key: 'sharpe_3y',           label: 'Sharpe',             accessor: f => f.risk_metrics ? f.risk_metrics.sharpe_3y : null, kind: 'num', step: 0.05 },
+    { id: 'rngSortino', key: 'sortino_3y',          label: 'Sortino',            accessor: f => f.risk_metrics ? f.risk_metrics.sortino_3y : null, kind: 'num', step: 0.05 },
+    { id: 'rngStdDev',  key: 'std_dev_3y_pct',      label: 'Std Dev',            accessor: f => f.risk_metrics ? f.risk_metrics.std_dev_3y_pct : null, kind: 'pct-pos', step: 0.5 },
     { id: 'rngDownCap', key: 'down_capture_3y_pct', label: 'Down Capture',       accessor: f => f.risk_metrics ? f.risk_metrics.down_capture_3y_pct : null, kind: 'pct-pos', step: 1 },
     { id: 'rngUpCap',   key: 'up_capture_3y_pct',   label: 'Up Capture',         accessor: f => f.risk_metrics ? f.risk_metrics.up_capture_3y_pct : null, kind: 'pct-pos', step: 1 },
     { id: 'rngTurn',    key: 'turnover_pct',        label: 'Portfolio Turnover', accessor: f => f.turnover_pct,                    kind: 'pct-pos',   step: 1 },
@@ -126,7 +128,7 @@
     },
     {
       key: 'risk', title: 'Risk Ratios',
-      slider_keys: ['sharpe_3y', 'down_capture_3y_pct', 'up_capture_3y_pct', 'turnover_pct'],
+      slider_keys: ['sharpe_3y', 'sortino_3y', 'std_dev_3y_pct', 'down_capture_3y_pct', 'up_capture_3y_pct', 'turnover_pct'],
     },
     {
       key: 'others', title: 'Others',
@@ -190,11 +192,11 @@
       sortable: false,
       sortValue: () => null,
       text: f => `<input type="checkbox" class="row-check" data-scheme="${f.scheme_code}"${_selected.has(f.scheme_code) ? ' checked' : ''} aria-label="Select for compare">` },
-    { key: 'rank',     label: 'Rank',           align: 'center', cls: 'col-rank',
+    { key: 'rank',     label: 'Cat Rank',       align: 'center', cls: 'col-rank',
       sortable: true,
       sortValue: f => f._displayRank,
       text: f => `<span class="num">${f._displayRank != null ? f._displayRank : '—'}</span>`,
-      titleHelp: 'Rank under current weights. Reset weights to see Excel-locked Centricity rank.' },
+      titleHelp: 'Rank within SEBI category under current weights. Cross-category ranks are not comparable (the Centricity score is a per-category percentile).' },
     { key: 'name',     label: 'Fund Name',      align: 'left',   cls: 'col-name',
       sortable: true,
       sortValue: f => (f.fund_name || '').toLowerCase(),
@@ -1131,9 +1133,26 @@
           : null;
         return cloned;
       });
-      const rankedFunds = funds.filter(f => f.centricity_score_status === 'Ranked' && f._displayScore != null);
-      rankedFunds.sort((a, b) => (b._displayScore || 0) - (a._displayScore || 0));
-      rankedFunds.forEach((f, idx) => { f._displayRank = idx + 1; });
+      // Phase 2.2 §1B — rank is IN-CATEGORY only. We previously sorted
+      // every Ranked fund globally and assigned a universal rank 1..N,
+      // which made cross-category comparison meaningless (a Large Cap
+      // 12th-place fund and an Aggressive Hybrid 3rd-place fund look
+      // adjacent at universal ranks 50 / 51). Group by category, sort
+      // by _displayScore desc within each, and assign rank 1..N inside
+      // the category. The Rank column on the screener now answers
+      // "how does this fund rank among its peers" — the only meaningful
+      // read for a percentile score.
+      const ranksByCat = new Map();
+      funds.forEach(f => {
+        if (f.centricity_score_status === 'Ranked' && f._displayScore != null) {
+          if (!ranksByCat.has(f.category)) ranksByCat.set(f.category, []);
+          ranksByCat.get(f.category).push(f);
+        }
+      });
+      ranksByCat.forEach(catFunds => {
+        catFunds.sort((a, b) => (b._displayScore || 0) - (a._displayScore || 0));
+        catFunds.forEach((f, idx) => { f._displayRank = idx + 1; });
+      });
       funds.forEach(f => {
         if (f.centricity_score_status !== 'Ranked' || f._displayScore == null) f._displayRank = null;
       });
