@@ -1,0 +1,723 @@
+{
+  "contract_version": "screener-v2",
+  "created": "2026-05-24",
+  "owner_skill": "mf-dashboard-build",
+  "upstream_skill": "mf-whitelisting v4 (15-May-2026 Round 3.5 final)",
+  "primary_key": "scheme_code",
+  "_v2_changes_summary": "Phase 2 (15-May cycle). Additive superset of v1. New CM cols AI/AJ/AK = Avg Mkt Cap / Fund PE / Active Share %; AL/AM = mcap_goodness / pe_goodness (Tent inputs). 22-row Master weight table at C39:C60 (was C37:C55). CM col B (Univ Rank) removed — overall rank computed by converter from sorting Ranked funds by score desc. Asset-split block (equity_pct/debt_pct/others_pct) now universal — not hybrid-only — populated from CM cols AF/AG/AH for every fund. Categories list extends to 30 Master Table 1 entries (21 equity + 5 traditional hybrid + 3 new hybrid + 1 passive aggregate) plus 7 passive subcategories in the Data sheet (ETFs / Large Cap Index / Mid Cap Index / Multi-Broad Index / Sectoral-Thematic Index / Small Cap Index / Smart-Beta-Factor). 15-Apr cycle keeps rendering against screener-v1 contract.",
+  "description": "Strict input + output contract for the MF Screener pipeline. The Excel-to-JSON converter (scripts/excel_to_json_screener.py) validates every input file against the 'expected_sheets' and 'input_columns' blocks, then emits JSON matching the 'output_schema' block. Schema drift in either direction blocks the deploy.",
+
+  "expected_sheets": {
+    "_note": "Sheets present at minimum. Min row/col counts are floors, not ceilings.",
+    "🏠 Master": {
+      "min_rows": 95,
+      "min_cols": 5,
+      "_v2_note": "v2 workbook drops the explicit 'TABLE 2 ...' banner row above the Parameter header. R36-37 are blank, R38 = 'Parameter'. We anchor on the Parameter header directly.",
+      "header_anchors": [
+        { "cell": "A38", "expected_equals": "Parameter" },
+        { "cell": "A61", "expected_equals": "TOTAL" },
+        { "cell": "A65", "expected_contains": "TABLE 3" },
+        { "cell": "A68", "expected_contains": "TABLE 4" }
+      ]
+    },
+    "📋 Data": {
+      "min_rows": 5,
+      "min_cols": 24,
+      "header_anchors": [
+        { "cell": "A4", "expected_equals": "#" },
+        { "cell": "B4", "expected_equals": "Fund Name" },
+        { "cell": "C4", "expected_equals": "Category" },
+        { "cell": "D4", "expected_equals": "AMFI Code" },
+        { "cell": "E4", "expected_equals": "AUM (Cr)" },
+        { "cell": "F4", "expected_equals": "Manager Name" },
+        { "cell": "G4", "expected_equals": "Mgr Tenure (Yrs)" },
+        { "cell": "H4", "expected_equals": "Inception Date" },
+        { "cell": "I4", "expected_equals": "Turnover (%)" },
+        { "cell": "J4", "expected_equals": "Benchmark" },
+        { "cell": "K4", "expected_equals": "AMC" },
+        { "cell": "L4", "expected_equals": "AMC Score (/10)" },
+        { "cell": "M4", "expected_equals": "TER (%)" },
+        { "cell": "N4", "expected_equals": "No. of Stocks" },
+        { "cell": "O4", "expected_equals": "Large Cap %" },
+        { "cell": "P4", "expected_equals": "Mid Cap %" },
+        { "cell": "Q4", "expected_equals": "Small Cap %" },
+        { "cell": "R4", "expected_equals": "Others %" },
+        { "cell": "S4", "expected_equals": "Equity %" },
+        { "cell": "T4", "expected_equals": "Debt %" },
+        { "cell": "U4", "expected_equals": "Others % (Hybrid)" },
+        { "cell": "V4", "expected_equals": "YTM" },
+        { "cell": "W4", "expected_equals": "Mod Duration" },
+        { "cell": "X4", "expected_equals": "Avg Maturity" }
+      ]
+    },
+    "📊 Computed Metrics": {
+      "min_rows": 4,
+      "min_cols": 39,
+      "_v2_layout_note": "CM v2 shifts columns AE..AJ compared to v1. New cols AI/AJ/AK = Avg Mkt Cap / Fund PE / Active Share %; AL/AM = mcap_goodness / pe_goodness. CM col A is now 'Rank in Category' (was 'Univ. Rank' in v1); CM col B is '(removed)'. Asset-split cols (AF/AG/AH) now apply to every fund — not hybrid-only. Hybrid extension YTM/Mod Duration/Avg Maturity stay on 📋 Data cols V/W/X (no longer mirrored on CM).",
+      "header_anchors": [
+        { "cell": "A3", "expected_contains": "Rank" },
+        { "cell": "C3", "expected_equals": "Fund Name" },
+        { "cell": "D3", "expected_equals": "Category" },
+        { "cell": "E3", "expected_equals": "Fund Tenure (Yrs)" },
+        { "cell": "F3", "expected_equals": "AUM (Cr)" },
+        { "cell": "G3", "expected_equals": "Mgr Tenure (Yrs)" },
+        { "cell": "H3", "expected_equals": "CY2022 (%)" },
+        { "cell": "I3", "expected_equals": "CY2023 (%)" },
+        { "cell": "J3", "expected_equals": "CY2024 (%)" },
+        { "cell": "K3", "expected_equals": "CY2025 (%)" },
+        { "cell": "L3", "expected_starts_with": "CY" },
+        { "cell": "M3", "expected_equals": "Rolling 3Y Avg (%)" },
+        { "cell": "N3", "expected_equals": "Consistency (%)" },
+        { "cell": "O3", "expected_equals": "Sharpe" },
+        { "cell": "P3", "expected_equals": "Beta" },
+        { "cell": "Q3", "expected_equals": "Down Capture (%)" },
+        { "cell": "R3", "expected_equals": "Up Capture (%)" },
+        { "cell": "S3", "expected_equals": "Treynor" },
+        { "cell": "T3", "expected_equals": "Overall Capture (%)" },
+        { "cell": "U3", "expected_equals": "Turnover (%)" },
+        { "cell": "V3", "expected_equals": "TER (%)" },
+        { "cell": "W3", "expected_equals": "AMC Score" },
+        { "cell": "X3", "expected_equals": "No. of Stocks" },
+        { "cell": "Y3", "expected_equals": "Large Cap %" },
+        { "cell": "Z3", "expected_equals": "Mid Cap %" },
+        { "cell": "AA3", "expected_equals": "Small Cap %" },
+        { "cell": "AB3", "expected_equals": "Others %" },
+        { "cell": "AC3", "expected_equals": "Manager Name" },
+        { "cell": "AD3", "expected_equals": "Score" },
+        { "cell": "AE3", "expected_contains": "Rank" },
+        { "cell": "AF3", "expected_equals": "Equity %" },
+        { "cell": "AG3", "expected_equals": "Debt %" },
+        { "cell": "AH3", "expected_equals": "Others %" },
+        { "cell": "AI3", "expected_contains": "Avg Mkt Cap" },
+        { "cell": "AJ3", "expected_equals": "Fund PE" },
+        { "cell": "AK3", "expected_equals": "Active Share %" },
+        { "cell": "AL3", "expected_equals": "mcap_goodness" },
+        { "cell": "AM3", "expected_equals": "pe_goodness" }
+      ]
+    },
+    "📈 Fund NAV": {
+      "min_rows": 100,
+      "min_cols": 2,
+      "header_anchors": [
+        { "cell": "A1", "expected_equals": "AMFI Code" },
+        { "cell": "A2", "expected_equals": "Fund Name" },
+        { "cell": "A3", "expected_equals": "Date" }
+      ],
+      "structure": {
+        "amfi_row": 1,
+        "name_row": 2,
+        "date_label_row": 3,
+        "data_start_row": 4,
+        "date_column": "A",
+        "fund_columns_start": "B"
+      }
+    },
+    "📈 Benchmark NAV": {
+      "min_rows": 100,
+      "min_cols": 2,
+      "_v2_note": "v2 inserts a 'Code' header row above the 'Benchmark Name' row (so name is now in row 2, not row 1). Converter consumes 3 header rows; data starts at row 4.",
+      "header_anchors": [
+        { "cell": "A1", "expected_equals": "Code" },
+        { "cell": "A2", "expected_equals": "Benchmark Name" },
+        { "cell": "A3", "expected_equals": "Date" }
+      ],
+      "structure": {
+        "code_row": 1,
+        "name_row": 2,
+        "date_label_row": 3,
+        "data_start_row": 4,
+        "date_column": "A",
+        "benchmark_columns_start": "B"
+      }
+    }
+  },
+
+  "input_columns": {
+    "_note": "Letter codes follow openpyxl get_column_letter. Storage convention is critical: CY returns are decimals (0.035 = 3.50%); rolling-3Y, capture, consistency, mcap %, TER, turnover are stored as percent values (15.6328 = 15.63%); ratios (Sharpe/Beta/Treynor) are dimensionless.",
+    "📋 Data": {
+      "header_row": 4,
+      "data_start_row": 5,
+      "fund_count_floor": 1,
+      "columns": {
+        "A": { "header": "#", "type": "int", "purpose": "sequence; matches CM A col-1" },
+        "B": { "header": "Fund Name", "type": "string", "purpose": "display name; not primary key" },
+        "C": { "header": "Category", "type": "string", "purpose": "one of 26 SEBI category names" },
+        "D": { "header": "AMFI Code", "type": "int", "purpose": "PRIMARY KEY across all sources" },
+        "E": { "header": "AUM (Cr)", "type": "float", "unit": "₹ Cr" },
+        "F": { "header": "Manager Name", "type": "string|null" },
+        "G": { "header": "Mgr Tenure (Yrs)", "type": "float|null", "unit": "years" },
+        "H": { "header": "Inception Date", "type": "string|date", "format_in": "DD-MMM-YYYY", "format_out": "YYYY-MM-DD" },
+        "I": { "header": "Turnover (%)", "type": "float|null", "unit": "%", "storage": "actual_pct" },
+        "J": { "header": "Benchmark", "type": "string", "purpose": "must match a column in 📈 Benchmark NAV row 1" },
+        "K": { "header": "AMC", "type": "string" },
+        "L": { "header": "AMC Score (/10)", "type": "int", "unit": "/10" },
+        "M": { "header": "TER (%)", "type": "float|null", "unit": "%", "storage": "actual_pct" },
+        "N": { "header": "No. of Stocks", "type": "int|null" },
+        "O": { "header": "Large Cap %", "type": "float|null", "unit": "%", "storage": "actual_pct" },
+        "P": { "header": "Mid Cap %", "type": "float|null", "unit": "%", "storage": "actual_pct" },
+        "Q": { "header": "Small Cap %", "type": "float|null", "unit": "%", "storage": "actual_pct" },
+        "R": { "header": "Others %", "type": "float|null", "unit": "%", "storage": "actual_pct" },
+        "S": { "header": "Equity %", "type": "float|null", "unit": "%", "storage": "actual_pct", "applies_to": "hybrid only" },
+        "T": { "header": "Debt %", "type": "float|null", "unit": "%", "storage": "actual_pct", "applies_to": "hybrid only" },
+        "U": { "header": "Others % (Hybrid)", "type": "float|null", "unit": "%", "storage": "actual_pct", "applies_to": "hybrid only" },
+        "V": { "header": "YTM", "type": "float|null", "unit": "%", "storage": "actual_pct", "applies_to": "hybrid only" },
+        "W": { "header": "Mod Duration", "type": "float|null", "unit": "years", "applies_to": "hybrid only" },
+        "X": { "header": "Avg Maturity", "type": "float|null", "unit": "years", "applies_to": "hybrid only" }
+      }
+    },
+    "📊 Computed Metrics": {
+      "header_row": 3,
+      "data_start_row": 4,
+      "row_offset_from_data": -1,
+      "columns": {
+        "A": { "header": "#", "type": "int" },
+        "B": { "header": "Univ. Rank", "type": "int|null", "purpose": "RANK by score; null for non-ranked young funds" },
+        "C": { "header": "Fund Name", "type": "string", "validates_alignment_with": "📋 Data col B" },
+        "D": { "header": "Category", "type": "string" },
+        "E": { "header": "Fund Tenure (Yrs)", "type": "float", "unit": "years" },
+        "F": { "header": "AUM (Cr)", "type": "float", "unit": "₹ Cr" },
+        "G": { "header": "Mgr Tenure (Yrs)", "type": "float|null", "unit": "years" },
+        "H": { "header": "CY2022 (%)", "type": "float|null", "unit": "%", "storage": "decimal", "convert_x100_for_output": true },
+        "I": { "header": "CY2023 (%)", "type": "float|null", "unit": "%", "storage": "decimal", "convert_x100_for_output": true },
+        "J": { "header": "CY2024 (%)", "type": "float|null", "unit": "%", "storage": "decimal", "convert_x100_for_output": true },
+        "K": { "header": "CY2025 (%)", "type": "float|null", "unit": "%", "storage": "decimal", "convert_x100_for_output": true },
+        "L": { "header": "CY{cycle_year} YTD (%)", "type": "float|null", "unit": "%", "storage": "decimal", "convert_x100_for_output": true, "label_dynamic": true },
+        "M": { "header": "Rolling 3Y Avg (%)", "type": "float|null", "unit": "%", "storage": "actual_pct" },
+        "N": { "header": "Consistency (%)", "type": "float|null", "unit": "%", "storage": "actual_pct" },
+        "O": { "header": "Sharpe", "type": "float|null" },
+        "P": { "header": "Beta", "type": "float|null" },
+        "Q": { "header": "Down Capture (%)", "type": "float|null", "unit": "%", "storage": "actual_pct" },
+        "R": { "header": "Up Capture (%)", "type": "float|null", "unit": "%", "storage": "actual_pct" },
+        "S": { "header": "Treynor", "type": "float|null" },
+        "T": { "header": "Overall Capture (%)", "type": "float|null", "unit": "%", "storage": "actual_pct" },
+        "U": { "header": "Turnover (%)", "type": "float|null", "unit": "%", "storage": "actual_pct" },
+        "V": { "header": "TER (%)", "type": "float|null", "unit": "%", "storage": "actual_pct" },
+        "W": { "header": "AMC Score", "type": "int", "unit": "/10" },
+        "X": { "header": "No. of Stocks", "type": "int|null" },
+        "Y": { "header": "Large Cap %", "type": "float|null", "unit": "%", "storage": "actual_pct" },
+        "Z": { "header": "Mid Cap %", "type": "float|null", "unit": "%", "storage": "actual_pct" },
+        "AA": { "header": "Small Cap %", "type": "float|null", "unit": "%", "storage": "actual_pct" },
+        "AB": { "header": "Others %", "type": "float|null", "unit": "%", "storage": "actual_pct" },
+        "AC": { "header": "Manager Name", "type": "string|null" },
+        "AD": { "header": "Score", "type": "float|string|null", "purpose": "0-1 decimal for ranked; '⚠️ XX.XX%' for 1-3yr; '🆕 New Fund — Monitoring' for <1yr" },
+        "AE": { "header": "Equity %", "type": "float|null", "applies_to": "hybrid only" },
+        "AF": { "header": "Debt %", "type": "float|null", "applies_to": "hybrid only" },
+        "AG": { "header": "Others %", "type": "float|null", "applies_to": "hybrid only" },
+        "AH": { "header": "YTM", "type": "float|null", "applies_to": "hybrid only" },
+        "AI": { "header": "Mod Duration", "type": "float|null", "applies_to": "hybrid only" },
+        "AJ": { "header": "Avg Maturity", "type": "float|null", "applies_to": "hybrid only" }
+      }
+    }
+  },
+
+  "categories": {
+    "_note": "v2 (15-May cycle, mf-whitelisting v4 Round 3.5). Equity = 21 active + 7 passive subcategories. Hybrid = 5 traditional + 3 new (Arbitrage, Conservative Hybrid, Balanced Hybrid). Master Table 1 rolls the 7 passive subcats up into a single 'Index Funds' aggregate (R35) but the Data sheet uses the finer-grained category names per fund — both are reflected here so cycle_meta.categories matches what Data emits.",
+    "equity": [
+      "Large Cap", "Large & Mid Cap", "Flexi Cap", "Multi Cap", "Focused",
+      "Mid Cap", "Small Cap", "Value-Contra", "ELSS", "Special-Opp",
+      "Infrastructure", "Banking-FinServ", "Healthcare-Pharma", "Manufacturing", "Technology",
+      "FMCG-Consumption", "Defence", "PSU", "ESG", "MNC", "Sector-Thematic",
+      "Large Cap Index", "Mid Cap Index", "Small Cap Index",
+      "Multi/Broad Index", "Sectoral/Thematic Index", "Smart-Beta/Factor", "ETFs"
+    ],
+    "hybrid": [
+      "Aggressive Hybrid", "BAF", "DAF", "Equity Savings", "Multi Asset Allocation",
+      "Arbitrage", "Conservative Hybrid", "Balanced Hybrid"
+    ]
+  },
+
+  "scoring_weights_locked": {
+    "_note": "v2 — sourced from Master Table 2 (rows 38-61). Weights at C39:C60 (22 parameters); TOTAL at C61. Direction column may carry 'Higher ↑', 'Lower ↓', or 'Tent — closer to category centre = best'. Sum must equal 100%. Validated by converter.",
+    "weight_rows_first": 39,
+    "weight_rows_last": 60,
+    "total_row": 61,
+    "expected_sum_pct": 100,
+    "tolerance": 0.01,
+    "directions": ["Higher", "Lower", "Tent"]
+  },
+
+  "output_schema": {
+    "_note": "Shape of the JSON written to data/screener-YYYY-MM-DD.json. The dashboard reads this exact shape.",
+    "top_level": {
+      "contract_version": "string — must equal 'screener-v1'",
+      "cycle_meta": "object — see cycle_meta_schema",
+      "funds": "array of fund_record (length = total_funds)",
+      "analytics_pending_fields": "array of string — names of fund_record fields that will be populated by the Analytics pipeline (currently null)",
+      "schema_validation_summary": "object — { sheets_validated: int, anchors_passed: int, weights_total_pct: float, fund_count: int }"
+    },
+    "cycle_meta_schema": {
+      "product_family": {
+        "type": "string",
+        "required": true,
+        "values_locked": ["MF_Equity_Hybrid", "MF_Debt", "PMS", "AIF"],
+        "v1_value": "MF_Equity_Hybrid",
+        "_note": "Identifies which Centricity product family this cycle JSON belongs to. Per CLAUDE.md §4.1 (4 product families × 3 source types grid), the dashboard MUST NOT merge cycles across families — each family has its own primary key (AMFI int for MF, SEBI PMS reg-no string for PMS, SEBI AIF code string for AIF) and its own scoring methodology. Hardcoded by each family's converter at emission time. v1 ships with MF_Equity_Hybrid only."
+      },
+      "cycle_date": { "type": "string", "format": "YYYY-MM-DD", "example": "2026-04-15" },
+      "cycle_label": { "type": "string", "example": "U2 Apr 2026", "derivation": "U1 if day <= 10 (1st-5th cycle window), else U2", "_status": "deprecated for display 2026-05-06; retained for backward compatibility. UI surfaces read cycle_label_date instead." },
+      "cycle_label_date": { "type": "string", "example": "15th Apr 2026", "format": "{day}{ordinal_suffix} {Mon} {YYYY}", "derivation": "Day-with-ordinal-suffix display label. Canonical cycle caption for every UI surface (Home heading, Screener page header, Fund Detail provenance, Archive tile labels, Compare cycle column, footer, exports). Replaces cycle_label for display per Cowork direction 2026-05-06." },
+      "as_on_display": { "type": "string", "example": "15 Apr 2026", "format": "DD MMM YYYY" },
+      "total_funds": { "type": "int", "example": 676 },
+      "category_count": { "type": "int", "example": 26 },
+      "categories": {
+        "type": "array",
+        "item_shape": {
+          "name": "string",
+          "sub_class": "Equity | Hybrid",
+          "fund_count": "int",
+          "top_fund_name": "string | null",
+          "top_score": "float | null",
+          "benchmark": "string"
+        }
+      },
+      "rf_rate_annual": { "type": "float", "unit": "decimal", "example": 0.045 },
+      "rf_rate_display": { "type": "string", "example": "4.5% p.a." },
+      "master_cutoff_date": { "type": "string", "format": "YYYY-MM-DD", "example": "2026-03-31" },
+      "source_dates": {
+        "screener": { "type": "string", "format": "YYYY-MM-DD", "example": "2026-04-15" },
+        "analytics": { "type": "string|null", "v1_value": null, "future_value": "YYYY-MM-DD" },
+        "monitor": { "type": "string|null", "v1_value": null, "future_value": "YYYY-MM-DD" }
+      },
+      "flag_summary": {
+        "type": "object|null",
+        "v1_default": null,
+        "_note": "Cycle-level flag rollup for the Home hero pulse strip and the Active Flags section. Computed by the post-processing step compute_cycle_flags.py (v1.x), which runs in the GitHub Action after the Excel converter and before commit. Null when no prior cycle exists in the archive (the very first cycle has nothing to diff against).",
+        "shape_when_populated": {
+          "total_flags": "int",
+          "high_severity_count": "int",
+          "rank_drop_count": "int",
+          "manager_change_count": "int",
+          "aum_swing_count": "int",
+          "fund_entered_count": "int",
+          "fund_exited_count": "int",
+          "fund_recategorised_count": "int"
+        }
+      },
+      "amc_scores": {
+        "type": "array",
+        "item_shape": { "amc": "string", "score": "int (1-10)" }
+      },
+      "scoring_weights": {
+        "type": "array",
+        "item_shape": {
+          "parameter": "string",
+          "unit": "string",
+          "weight_pct": "float",
+          "direction": "Higher | Lower"
+        }
+      },
+      "schema_version": { "type": "string", "example": "screener-v2" },
+      "generated_at": { "type": "string", "format": "ISO 8601 UTC datetime" },
+      "source_file": { "type": "string", "example": "MutualFund_Whitelisting_15Apr2026.xlsx" }
+    },
+    "fund_record_schema": {
+      "scheme_code": { "type": "int", "primary_key": true, "source": "📋 Data col D" },
+      "fund_name": { "type": "string", "source": "📋 Data col B" },
+      "category": { "type": "string", "source": "📋 Data col C", "must_be_in": "categories.equity ∪ categories.hybrid" },
+      "sub_category_class": { "type": "string", "values": ["Equity", "Hybrid"], "derived_from": "categories block" },
+      "amc": { "type": "string", "source": "📋 Data col K" },
+      "amc_score": { "type": "int", "unit": "/10", "source": "📋 Data col L" },
+      "benchmark": { "type": "string", "source": "📋 Data col J", "matches_column_in": "📈 Benchmark NAV row 1" },
+      "inception_date": { "type": "string|null", "format": "YYYY-MM-DD", "source": "📋 Data col H" },
+      "fund_tenure_yrs": { "type": "float|null", "source": "📊 CM col E" },
+      "manager_name": { "type": "string|null", "source": "📋 Data col F" },
+      "manager_tenure_yrs": { "type": "float|null", "source": "📋 Data col G" },
+      "aum_cr": { "type": "float", "unit": "₹ Cr", "source": "📋 Data col E" },
+      "ter_pct": { "type": "float|null", "unit": "%", "source": "📋 Data col M" },
+      "turnover_pct": { "type": "float|null", "unit": "%", "source": "📋 Data col I" },
+      "no_of_stocks": { "type": "int|null", "source": "📋 Data col N" },
+      "mcap_split": {
+        "large_pct": { "type": "float|null", "source": "📋 Data col O" },
+        "mid_pct": { "type": "float|null", "source": "📋 Data col P" },
+        "small_pct": { "type": "float|null", "source": "📋 Data col Q" },
+        "others_pct": { "type": "float|null", "source": "📋 Data col R" }
+      },
+      "hybrid_extension": {
+        "_note": "Populated only for funds where sub_category_class == 'Hybrid'. All-null for equity funds. ytm/mod_duration_yrs/avg_maturity_yrs sourced from 📋 Data cols V/W/X — these v1 fields are kept under hybrid_extension because the v2 workbook still files those columns under hybrid funds on the Data sheet.",
+        "equity_pct": { "type": "float|null", "source": "📋 Data col S" },
+        "debt_pct": { "type": "float|null", "source": "📋 Data col T" },
+        "others_pct_hybrid": { "type": "float|null", "source": "📋 Data col U" },
+        "ytm": { "type": "float|null", "source": "📋 Data col V" },
+        "mod_duration_yrs": { "type": "float|null", "source": "📋 Data col W" },
+        "avg_maturity_yrs": { "type": "float|null", "source": "📋 Data col X" }
+      },
+      "asset_split": {
+        "_added": "2026-05-24 (Phase 2 — screener-v2). Universal across every fund (equity, hybrid, passive). Populated from 📊 Computed Metrics cols AF/AG/AH which carry the real per-fund equity/debt/others split — including for equity funds (where v1 left these null on hybrid_extension and the dashboard had to assume 100% equity). For Aditya Birla SL Large Cap, e.g., the split reads 98 / 0.47 / 1.53 = 100%, capturing the small cash/derivative slice that v1 ignored.",
+        "equity_pct": { "type": "float|null", "source": "📊 CM col AF" },
+        "debt_pct": { "type": "float|null", "source": "📊 CM col AG" },
+        "others_pct": { "type": "float|null", "source": "📊 CM col AH" }
+      },
+      "avg_mcap_cr": {
+        "type": "float|null", "unit": "₹ Cr",
+        "_added": "2026-05-24 (Phase 2 — screener-v2)",
+        "source": "📊 CM col AI",
+        "_note": "Weighted-average market cap of the fund's portfolio holdings, in ₹ Cr. Null for international funds, domestic-100 strategies, and Invesco index funds (intentional set — see Active Share note). Parameter 'Avg Market Cap' (Master R58, weight 3%) scores it via the TENT method using mcap_goodness as percentile input."
+      },
+      "fund_pe": {
+        "type": "float|null",
+        "_added": "2026-05-24 (Phase 2 — screener-v2)",
+        "source": "📊 CM col AJ",
+        "_note": "Fund's weighted-average price-earnings ratio. Null for international/index/non-equity-only funds. Parameter 'Fund PE' (Master R59, weight 2.5%) scores it via the TENT method using pe_goodness as percentile input."
+      },
+      "active_share_pct": {
+        "type": "float|null", "unit": "%",
+        "_added": "2026-05-24 (Phase 2 — screener-v2)",
+        "source": "📊 CM col AK",
+        "_note": "Active Share % — measures how much of the fund's portfolio differs from its benchmark. Null ('–' in Excel) for the intentional set: 5 international funds, 3 domestic-100 funds, 2 Invesco index funds. ISNUMBER guard in the scoring formula drops these funds from the percentile pool for the 'Active Share' parameter (Master R60, weight 3%, monotonic Higher ↑)."
+      },
+      "mcap_goodness": {
+        "type": "float|null",
+        "_added": "2026-05-24 (Phase 2 — screener-v2)",
+        "source": "📊 CM col AL",
+        "_note": "Negative-absolute deviation from category-centre market cap, so higher (closer to zero) = better. Internal percentile input for the 'Avg Market Cap' parameter — the dashboard's weight-drawer recompute uses this column under the hood when the user adjusts that weight. Kept on the record so the recompute works without re-reading the workbook."
+      },
+      "pe_goodness": {
+        "type": "float|null",
+        "_added": "2026-05-24 (Phase 2 — screener-v2)",
+        "source": "📊 CM col AM",
+        "_note": "Same idea as mcap_goodness — negative-absolute deviation from category-centre PE; internal percentile input for the 'Fund PE' parameter."
+      },
+      "centricity_rank_overall": { "type": "int|null", "source": "📊 CM col B", "null_when": "fund tenure < 3y" },
+      "centricity_rank_in_category": { "type": "int|null", "derived": true, "formula": "rank within category by centricity_score desc, only Ranked funds" },
+      "centricity_score": { "type": "float|null", "unit": "0-1 decimal", "source": "📊 CM col AD when numeric" },
+      "centricity_score_status": {
+        "type": "string",
+        "values": ["Ranked", "1-3yr Warning", "New Fund Monitoring"],
+        "derived_from": "📊 CM col AD type/content"
+      },
+      "centricity_score_warning_pct": { "type": "float|null", "purpose": "extracted percentage from '⚠️ XX.XX%' string when status == '1-3yr Warning'" },
+      "cy_returns": {
+        "cy2022_pct": { "type": "float|null", "source": "📊 CM col H", "transform": "× 100" },
+        "cy2023_pct": { "type": "float|null", "source": "📊 CM col I", "transform": "× 100" },
+        "cy2024_pct": { "type": "float|null", "source": "📊 CM col J", "transform": "× 100" },
+        "cy2025_pct": { "type": "float|null", "source": "📊 CM col K", "transform": "× 100" },
+        "cy_ytd_pct": { "type": "float|null", "source": "📊 CM col L", "transform": "× 100", "label_year": "from cycle_meta.cycle_date year" }
+      },
+      "rolling_3y_avg_pct": { "type": "float|null", "unit": "%", "source": "📊 CM col M" },
+      "consistency_pct": { "type": "float|null", "unit": "%", "source": "📊 CM col N" },
+      "nav_latest_value": {
+        "type": "float|null",
+        "_added": "2026-05-06 (Fund Detail Fix-List 1 §A.1, additive)",
+        "source": "Last non-null NAV in 📈 Fund NAV for the fund's column. Null when the fund has no NAV series row."
+      },
+      "nav_latest_date": {
+        "type": "string|null",
+        "format": "YYYY-MM-DD",
+        "_added": "2026-05-06 (Fund Detail Fix-List 1 §A.1, additive)",
+        "source": "Date of the last non-null NAV row in 📈 Fund NAV for this fund. Null when the fund has no NAV series."
+      },
+      "monitor_returns": {
+        "type": "object",
+        "_added": "2026-05-07 (Fund Detail Fix-List 5 §A, additive)",
+        "_overview": "Point-to-point returns sourced from the MF Monitor Excel. Joined to fund records by Scheme Name (Monitor col 0 == fund_name). All values null when no Monitor file was supplied at convert-time, OR when the fund's name doesn't appear in any Monitor sheet (e.g., 1-3yr Warning funds that postdate the Monitor build).",
+        "shape": {
+          "ytd_pct":        "float|null — Monitor 'YTD' column",
+          "return_1m_pct":  "float|null — Monitor '1 Month'",
+          "return_1y_pct":  "float|null — Monitor '1 Year'",
+          "return_3y_pct":  "float|null — Monitor '3 Years'",
+          "return_5y_pct":  "float|null — Monitor '5 Years'",
+          "return_10y_pct": "float|null — Monitor '10 Years' (null when fund tenure < 10y)"
+        },
+        "_note": "These are POINT-TO-POINT returns, not CAGR — render as-is on the page. fund-detail.html's returns table sources the Fund row from this block (replacing the converter-derived trailing_returns for display purposes)."
+      },
+      "exit_load": {
+        "type": "string|null",
+        "_added": "2026-05-07 (Fund Detail Fix-List 5 §A, additive)",
+        "_overview": "Free-text exit-load string from the MF Monitor file. Equity sheets carry it under '[Exit Load]' (col 22); hybrid sheets carry it under 'Remark' (col 26). The Monitor extractor reads whichever header is present. Null when no Monitor file was supplied or when the fund's name doesn't match a Monitor row."
+      },
+      "monitor_ter_pct": {
+        "type": "float|null",
+        "_added": "2026-05-07 (Fund Detail Fix-List 5 §A, additive)",
+        "_overview": "Regular-plan TER as reported in the MF Monitor 'Ratio' column. Distinct from `ter_pct` above — the Whitelisting Excel ter_pct field appears to carry the direct-plan TER (e.g., HDFC Focused: 0.47 in Whitelisting vs 1.6 in Monitor). Both fields are preserved on the record; fund-detail.html displays `monitor_ter_pct` since that's the partner-facing regular-plan number. Per Fund Detail Fix-List 5 §A data-quality note: do NOT overwrite ter_pct — keep both, document the discrepancy."
+      },
+      "benchmark_monitor_returns": {
+        "type": "object",
+        "_added": "2026-05-07 (Fund Detail Fix-List 6 §1, additive)",
+        "_overview": "Point-to-point returns for the fund's benchmark INDEX, sourced from the index rows at the bottom of each Monitor category sheet (rows after the 'BenchMark' marker). Joined to the fund record by matching `fund.benchmark` (e.g. 'NIFTY 50 - TRI') against the index name in those rows; tries exact match first, then strips/adds a ' - TRI' suffix as fallback. All values null when no Monitor file was supplied at convert-time, when the fund has no benchmark, OR when the benchmark name doesn't match any Monitor index row.",
+        "shape": {
+          "ytd_pct":        "float|null — Monitor index 'YTD' column",
+          "return_1m_pct":  "float|null — Monitor index '1 Month'",
+          "return_1y_pct":  "float|null — Monitor index '1 Year'",
+          "return_3y_pct":  "float|null — Monitor index '3 Years'",
+          "return_5y_pct":  "float|null — Monitor index '5 Years'",
+          "return_10y_pct": "float|null — Monitor index '10 Years' (null when the index series is < 10y)"
+        },
+        "_note": "Fund Detail's returns table prefers `benchmark_monitor_returns` over the converter-derived `benchmark_returns` because it has the full 6-period set (YTD / 1M / 10Y are missing from `benchmark_returns`). Falls back to `benchmark_returns` for 1Y/3Y/5Y when the Monitor row is unavailable."
+      },
+      "rolling_3y_stats": {
+        "type": "object|null",
+        "_added": "2026-05-06 (Fund Detail Fix-List 1 §A.2, additive)",
+        "_overview": "Daily-roll 3Y CAGR statistics from 📈 Fund NAV against the fund's benchmark series. Powers Fund Detail's 6-card Rolling Returns grid (avg / median / best / worst / pct > 0% / pct above 12% / pct beat benchmark). Null when fewer than 252 daily NAV observations exist (sub-1Y data — can't form a single 3Y window).",
+        "shape_when_populated": {
+          "avg_pct": "float — arithmetic mean of all 3Y CAGRs across the rolling window pool, in %",
+          "median_pct": "float — median of the same pool, in %",
+          "best_pct": "float — max 3Y CAGR observation, in %",
+          "best_window_start": "string YYYY-MM-DD — start date of the best window",
+          "worst_pct": "float — min 3Y CAGR observation, in %",
+          "worst_window_start": "string YYYY-MM-DD — start date of the worst window",
+          "pct_positive": "float — % of windows with CAGR > 0%",
+          "pct_above_12": "float — % of windows with CAGR > 12% (realistic India equity floor)",
+          "pct_beat_benchmark": "float|null — % of windows where fund 3Y CAGR > benchmark 3Y CAGR (same window). Null when no benchmark series matched.",
+          "observation_count": "int — number of 3Y windows tallied"
+        }
+      },
+      "risk_metrics": {
+        "_note": "Order matches Master Design Brief §5.3 Fund Detail Quants strip: Sharpe | Sortino | Std Dev | Max DD | Beta | Treynor | Up/Down Capture. Three fields are DERIVED at JSON-build time from 📈 Fund NAV (sortino_3y, std_dev_3y_pct, max_drawdown_3y_pct); the remaining six are sourced directly from 📊 Computed Metrics. All nine are null when fund_tenure_yrs < 3.",
+        "sharpe_3y": { "type": "float|null", "source": "📊 CM col O" },
+        "sortino_3y": { "type": "float|null", "derived": true, "window": "trailing 3Y daily" },
+        "std_dev_3y_pct": { "type": "float|null", "unit": "% (annualised)", "derived": true, "window": "trailing 3Y daily" },
+        "max_drawdown_3y_pct": { "type": "float|null", "unit": "% (negative)", "derived": true, "window": "trailing 3Y daily" },
+        "beta_3y": { "type": "float|null", "source": "📊 CM col P" },
+        "treynor_3y": { "type": "float|null", "source": "📊 CM col S" },
+        "up_capture_3y_pct": { "type": "float|null", "source": "📊 CM col R" },
+        "down_capture_3y_pct": { "type": "float|null", "source": "📊 CM col Q" },
+        "overall_capture_3y_pct": { "type": "float|null", "source": "📊 CM col T" }
+      },
+      "trailing_returns": {
+        "_note": "DERIVED at JSON-build time from 📈 Fund NAV. Never sourced from an Excel column. See derived_fields_documentation.",
+        "return_1y_pct": { "type": "float|null", "unit": "% (annualised)", "derived": true },
+        "return_3y_pct": { "type": "float|null", "unit": "% (CAGR)", "derived": true },
+        "return_5y_pct": { "type": "float|null", "unit": "% (CAGR)", "derived": true },
+        "return_si_pct": { "type": "float|null", "unit": "% (CAGR)", "derived": true }
+      },
+      "benchmark_returns": {
+        "_note": "DERIVED from 📈 Benchmark NAV using the column matching fund.benchmark text.",
+        "return_1y_pct": { "type": "float|null", "derived": true },
+        "return_3y_pct": { "type": "float|null", "derived": true },
+        "return_5y_pct": { "type": "float|null", "derived": true }
+      },
+      "alpha": {
+        "_note": "DERIVED. Excess return over benchmark on the same window.",
+        "alpha_3y_pct": { "type": "float|null", "formula": "trailing_returns.return_3y_pct − benchmark_returns.return_3y_pct" },
+        "alpha_5y_pct": { "type": "float|null", "formula": "trailing_returns.return_5y_pct − benchmark_returns.return_5y_pct" }
+      },
+      "parameter_scores": {
+        "_note": "Per-parameter percentile (0–1) within the fund's category, faithfully reproducing the Excel category-sheet score formula from mf-whitelisting/SKILL.md §4.2. Keys MUST match cycle_meta.scoring_weights[].parameter exactly. Drives the dashboard's right-drawer 'Edit weights' live-recalculation: the JS recomputes centricity_score = Σ(parameter_scores[p] × weight_pct[p]) / 100 against user-edited weights, with no re-percentiling on the client.",
+        "_value_type": "float|null",
+        "_null_when": [
+          "fund's centricity_score_status != 'Ranked' (all parameters null)",
+          "fund's underlying metric value for that parameter is null (parameter dropped per Excel ISNUMBER check)"
+        ],
+        "_recompute_formula": "centricity_score = Σ over p in scoring_weights of ((parameter_scores[p] or 0) × scoring_weights[p].weight_pct) / 100",
+        "_dashboard_use": "Right-drawer 'Edit weights' slider re-renders Screener rank by recomputing the score with edited weights against these stored percentiles. Per Designed-for-Change rule 1, the drawer enumerates parameters dynamically from cycle_meta.scoring_weights[] only — no hardcoded parameter list, no decorative parameters. Decorative parameters in mockup HTML (if any) are stripped during Step 4 wiring."
+      },
+      "verdict": { "type": "string|null", "values_when_assigned": ["BUY", "HOLD", "REVIEW", "AVOID"], "v1_default": null, "future": "manual or rule-based assignment, not in v1" },
+      "verdict_reasons": { "type": "array<string>|null", "v1_default": null },
+      "analyst_note": { "type": "object|null", "v1_default": null, "future": "Phase 5 — pre-baked in GitHub Action via Claude API call per fund per cycle" },
+      "cycle_flags": {
+        "type": "array|null",
+        "v1_default": null,
+        "_note": "Per-fund flags computed by post-processing step compute_cycle_flags.py (v1.x). Each item: { kind, severity, delta, message }. Null when no prior cycle exists for cycle-to-cycle diff (i.e., the first cycle ever). Source A — auto cycle-to-cycle deltas — only for v1.x; Sources B (threshold breaches) and C (manual curated events) deferred to v1.x+.",
+        "item_shape_when_populated": {
+          "kind": "rank_drop | rank_gain | score_drop | score_gain | manager_change | aum_swing | fund_entered | fund_exited | fund_recategorised",
+          "severity": "high | medium | low",
+          "delta": "object — kind-specific delta payload (e.g., { from_rank, to_rank } for rank_drop)",
+          "message": "string — short Persona-A voice human-readable line"
+        }
+      },
+      "analytics_pending": {
+        "_note": "All values null in v1. Populated when scripts/excel_to_json_analytics.py ships (v1.1, contract bumps to screener-v2 + analytics-v1).",
+        "top_10_holdings": { "type": "array|null", "v1_default": null },
+        "sector_allocation": { "type": "array|null", "v1_default": null },
+        "full_holdings": { "type": "array|null", "v1_default": null },
+        "top_10_concentration_pct": { "type": "float|null", "v1_default": null },
+        "top_3_sector_concentration_pct": { "type": "float|null", "v1_default": null },
+        "manager_change_history": { "type": "array|null", "v1_default": null },
+        "category_history": { "type": "array|null", "v1_default": null },
+        "aum_trend": { "type": "array|null", "v1_default": null, "_alt_note": "could be filled from prior cycle JSONs in archive — Phase 4" },
+        "ter_trend": { "type": "array|null", "v1_default": null },
+        "rank_history": { "type": "array|null", "v1_default": null }
+      }
+    }
+  },
+
+  "derived_fields_documentation": {
+    "sub_category_class": "Equity if category in categories.equity; Hybrid if category in categories.hybrid. Else throw.",
+    "centricity_rank_in_category": "Sort funds by centricity_score descending within each category; rank 1 = highest score; only assigned to funds with centricity_score_status == 'Ranked'; null otherwise.",
+    "centricity_score_status": {
+      "Ranked": "📊 CM col AD value is numeric (Python int|float)",
+      "1-3yr Warning": "📊 CM col AD is a string starting with '⚠️' or '⚠'",
+      "New Fund Monitoring": "📊 CM col AD is a string containing 'New Fund'"
+    },
+    "centricity_score_warning_pct": "When status == '1-3yr Warning', extract trailing percentage from string ('⚠️ 39.36%' → 39.36)",
+    "trailing_returns": {
+      "method": "Per AMFI code, locate fund's column in 📈 Fund NAV row 1 (cell value == scheme_code as int). End NAV = last non-null in that column at or before cycle_date. Start NAVs picked at calendar offsets, snapping back to nearest trading day with a non-null NAV.",
+      "return_1y_pct": "((NAV_t / NAV_(t−1Y_calendar)) − 1) × 100. Null if start_NAV is null or fund inception within 1 year.",
+      "return_3y_pct": "((NAV_t / NAV_(t−3Y_calendar)) ^ (1/3) − 1) × 100. Null if start_NAV is null or fund inception within 3 years.",
+      "return_5y_pct": "((NAV_t / NAV_(t−5Y_calendar)) ^ (1/5) − 1) × 100. Null if data unavailable (NAV history begins 1-Mar-2021 per v3.3).",
+      "return_si_pct": "((NAV_t / NAV_first) ^ (365.25 / days_elapsed) − 1) × 100. Null if fewer than 30 days of NAV history."
+    },
+    "benchmark_returns": {
+      "method": "Per fund.benchmark text, locate matching column in 📈 Benchmark NAV row 1 (exact-string match required). Same windowing as trailing_returns.",
+      "fallback": "If exact match not found, set all benchmark_returns to null and log warning to converter stderr — do not fail the build."
+    },
+    "alpha_3y_pct": "trailing_returns.return_3y_pct − benchmark_returns.return_3y_pct. Null if either is null.",
+    "alpha_5y_pct": "trailing_returns.return_5y_pct − benchmark_returns.return_5y_pct. Null if either is null.",
+    "risk_metrics_3y_derived": {
+      "_overview": "Three risk metrics computed at JSON-build time from the trailing-3Y window of 📈 Fund NAV. Same calendar-offset start-date logic as trailing_returns: target_3y = cycle_date − 3 calendar years, snap back to last non-null trading day. All three null when fund_tenure_yrs < 3 or when fewer than 30 daily NAV observations sit inside the window.",
+      "_window": "[ target_3y_date , cycle_date ]  (inclusive both ends)",
+      "_daily_returns": "ret_t = NAV_t / NAV_(t-1) − 1, computed on consecutive non-null NAVs inside the window.",
+      "_rf_daily": "rf_annual / 252, where rf_annual is sourced from cycle_meta.rf_rate_annual (e.g. 0.045 → 0.0001786 daily).",
+      "sortino_3y": {
+        "formula": "(mean_excess_return × 252) / (downside_std × √252)",
+        "where": {
+          "excess_t": "daily_return_t − rf_daily",
+          "mean_excess_return": "arithmetic mean of excess_t across the window",
+          "downside_std": "sample standard deviation (n−1) of {excess_t : excess_t < 0}"
+        },
+        "null_when": [
+          "fund_tenure_yrs < 3",
+          "fewer than 30 daily observations inside the window",
+          "fewer than 2 negative excess-return days (no downside dispersion)",
+          "downside_std == 0",
+          "rf_annual is null"
+        ],
+        "rounding": "4 decimal places"
+      },
+      "std_dev_3y_pct": {
+        "formula": "stdev(daily_returns) × √252 × 100",
+        "where": {
+          "stdev": "sample standard deviation (n−1) of all daily_returns inside the window — fund returns, not excess returns"
+        },
+        "unit": "% (annualised)",
+        "null_when": [
+          "fund_tenure_yrs < 3",
+          "fewer than 30 daily observations inside the window"
+        ],
+        "rounding": "4 decimal places"
+      },
+      "max_drawdown_3y_pct": {
+        "formula": "min over window of ((NAV_t − running_peak_to_t) / running_peak_to_t) × 100",
+        "interpretation": "Maximum peak-to-trough drawdown observed inside the window, returned as a NEGATIVE percentage (e.g. −18.52). 0% means the fund never closed below its running peak in this window.",
+        "null_when": [
+          "fund_tenure_yrs < 3",
+          "fewer than 30 daily observations inside the window"
+        ],
+        "rounding": "4 decimal places"
+      }
+    },
+    "parameter_scores": {
+      "_overview": "Per-parameter, per-fund percentile rank within the fund's category, faithfully reproducing the Excel category-sheet scoring formula from mf-whitelisting/SKILL.md §4.2. Each percentile is in (0, 1].",
+      "_method_source": "mf-whitelisting v3.7 §4.2 — 'Higher↑ percentile' and 'Lower↓ percentile' formulas verbatim.",
+      "method": "For each (category, parameter) pair: collect numeric metric values from all funds in that category whose value is non-null; let N = count; for each fund in the category whose own value is non-null, percentile is computed by direction:",
+      "Higher_direction_formula": "percentile = COUNTIF(category_range, '<=' & value) / COUNT(category_range)    (Excel verbatim)",
+      "Lower_direction_formula": "percentile = (COUNT(category_range) − COUNTIF(category_range, '<=' & value) + 1) / COUNT(category_range)    (Excel verbatim)",
+      "ties": "Ties get the same percentile (Excel COUNTIF behaviour preserved). All funds tied at value v share percentile = COUNTIF(<=v) / N for Higher↑ direction.",
+      "missing_metric": "If a fund's metric value for parameter P is null, parameter_scores[P] = null. Per the Excel score formula's ISNUMBER check, that parameter contributes 0 to the score numerator. The denominator stays at 100 (mf-whitelisting/SKILL.md §4.2 'fixed denominator — known design decision, not adaptive').",
+      "excel_quirk_blanks_coerced_to_zero": {
+        "_summary": "Excel's category-sheet score formula uses COUNTIF/COUNT over ranges that inherit values from 📊 Computed Metrics. Two distinct sources of 'None' behave differently in those COUNTIFs.",
+        "preserved_as_empty_string": {
+          "_explanation": "CY-return cells (CM cols H-L) are Excel formulas of the form =IFERROR((NAV/NAV-1),\"\"). When NAV data is unavailable, the formula returns a literal empty string '' which Excel preserves as text. COUNT excludes text cells, COUNTIF with '<=' & numeric_value skips them. openpyxl reads them as None. No coercion needed; my Python's 'if v is not None' filter matches Excel's behaviour directly.",
+          "scope": ["CY2022 Return", "CY2023 Return", "CY2024 Return", "CY2025 Return", "CY{year} YTD"]
+        },
+        "coerced_to_zero": {
+          "_explanation": "Two sub-cases cause Excel to materialise numeric 0 in the CM cell, which the cat sheet inherits and COUNT/COUNTIF then include as 0 in the peer pool: (a) Python-pasted CM cols M-T are blank for funds with tenure < 3Y, and the cat-sheet XLOOKUP coerces blank-source-cell to literal 0; (b) XLOOKUP-from-Data CM cols G/U/V/W produce literal 0 in the CM cell when the source Data cell is blank (Excel coerces blank source to 0 in numeric context, even when the XLOOKUP's 'if_not_found' arg is '' — that arg only fires when the lookup KEY is absent, not when the lookup result CELL is empty).",
+          "implication": "To reproduce the stored centricity_score within ±0.0001, the peer pool for the 12 affected params substitutes None → 0. The subject fund's own raw value is unchanged.",
+          "python_pasted_cm_M_to_T": [
+            "Rolling 3Y Avg",
+            "Consistency Score",
+            "Sharpe Ratio",
+            "Beta",
+            "Down Capture",
+            "Up Capture",
+            "Treynor Ratio",
+            "Overall Capture"
+          ],
+          "xlookup_from_data_cm_G_U_V_W": [
+            "Mgr Tenure",
+            "Portfolio Turnover",
+            "TER (%)",
+            "AMC Score"
+          ]
+        },
+        "non_affected_params_explanation": "Fund Tenure (CM E) and Fund AUM (CM F) — Fund Tenure is computed by an Excel formula that returns 0 for missing inception dates (effectively never; every fund has an inception); Fund AUM is XLOOKUP-from-Data and would coerce to 0 if missing, but in practice every fund has a non-null AUM. Defensively safe to omit from the coercion list, but harmless to include.",
+        "verification": "Build-time recompute assertion within ±0.0001 catches any drift; without this rule the worst case observed on 15-Apr-2026 was ~0.026 absolute on Ranked funds, well above tolerance."
+      },
+      "non_ranked_funds": "All parameter_scores set to null for funds where centricity_score_status != 'Ranked' (1-3yr Warning or New Fund Monitoring). The Excel category-sheet score formula does not produce a numeric score for these funds; reproducing them here would mislead the dashboard's weight-drawer recompute.",
+      "score_formula": {
+        "stored_centricity_score": "centricity_score (sourced from 📊 CM col AD when numeric)",
+        "recomputed_centricity_score": "Σ over p in cycle_meta.scoring_weights of ((parameter_scores[p] or 0) × scoring_weights[p].weight_pct) / 100",
+        "tolerance": "±0.0001",
+        "reasoning_for_fixed_100_denominator": "Per mf-whitelisting/SKILL.md §4.2: 'Funds with missing data: NaN parameters drop out of the numerator but the denominator stays at 100. Known design; do not change without explicit user instruction.'"
+      },
+      "build_time_assertion": "The converter recomputes centricity_score for every Ranked fund and asserts agreement within ±0.0001 with the Excel-sourced centricity_score. If the assertion fails, the build aborts with a SchemaError naming the failing fund(s) and the delta, since a divergence indicates the normalisation reproduction is wrong and would mislead the dashboard's weight-drawer recompute.",
+      "parameter_to_field_mapping": {
+        "_note": "Parameter names match Master Table 2 col A. The CY-YTD parameter name is dynamic (e.g. 'CY2026 YTD' for cycle year 2026, 'CY2027 YTD' next year); the converter resolves it by 'YTD' substring match. v2 adds 3 new parameters: Avg Market Cap (Tent, scores mcap_goodness), Fund PE (Tent, scores pe_goodness), Active Share (Higher).",
+        "Fund Tenure": "fund_tenure_yrs",
+        "Fund AUM": "aum_cr",
+        "Mgr Tenure": "manager_tenure_yrs",
+        "CY2022 Return": "cy_returns.cy2022_pct",
+        "CY2023 Return": "cy_returns.cy2023_pct",
+        "CY2024 Return": "cy_returns.cy2024_pct",
+        "CY2025 Return": "cy_returns.cy2025_pct",
+        "CY{year} YTD": "cy_returns.cy_ytd_pct",
+        "Rolling 3Y Avg": "rolling_3y_avg_pct",
+        "Consistency Score": "consistency_pct",
+        "Sharpe Ratio": "risk_metrics.sharpe_3y",
+        "Beta": "risk_metrics.beta_3y    (direction Lower)",
+        "Down Capture": "risk_metrics.down_capture_3y_pct    (direction Lower)",
+        "Up Capture": "risk_metrics.up_capture_3y_pct",
+        "Treynor Ratio": "risk_metrics.treynor_3y",
+        "Overall Capture": "risk_metrics.overall_capture_3y_pct",
+        "Portfolio Turnover": "turnover_pct    (direction Lower)",
+        "TER (%)": "ter_pct    (direction Lower)",
+        "AMC Score": "amc_score",
+        "Avg Market Cap": "mcap_goodness    (direction Tent — scores the goodness column, which is -|deviation from category centre|; higher goodness = closer to centre = better)",
+        "Fund PE": "pe_goodness    (direction Tent — same construction as Avg Market Cap)",
+        "Active Share": "active_share_pct    (direction Higher; null for the 10-fund intentional set — 5 international, 3 domestic-100, 2 Invesco index — dropped from the percentile pool via ISNUMBER guard)"
+      }
+    },
+    "cycle_flags": {
+      "_overview": "Active Flags — auto-surfaced per fund and per cycle on every cycle update. Three sources mapped (locked 2026-05-05); v1.x ships Source A only. compute_cycle_flags.py is a separate post-processing step that runs in the GitHub Action AFTER scripts/excel_to_json_screener.py and BEFORE commit; it reads the current cycle JSON + the most recent prior cycle JSON, diffs them, writes cycle_flags onto each affected fund and flag_summary onto cycle_meta. The Excel converter itself NEVER computes flags — its job stays 'one Excel → one JSON, deterministic'. See ISSUE-0009.",
+      "sources": {
+        "A_auto_cycle_to_cycle_deltas": "v1.x scope. Diffs current vs prior cycle JSON. Produces the 9 flag kinds below.",
+        "B_auto_threshold_breaches": "v1.x+. Absolute-value rules — e.g., AUM crosses category cap, TER > 2.5%, manager tenure < 6 months on a Ranked fund. Rules to be authored in a Products Team workshop before v1.1 ships.",
+        "C_manual_curated_events": "v1.x+. SEBI category reclassifications, AMC corporate events, regulatory notices — entered into a manually-maintained data/manual_flags/<cycle>.json file by an analyst, merged into cycle_flags by compute_cycle_flags.py."
+      },
+      "v1.x_flag_kinds_source_A": {
+        "rank_drop": "Universe rank moved upward (worse) by N positions. Severity: high if N ≥ 10, medium if N ≥ 5, low otherwise. Delta: { from_rank, to_rank, positions: N }.",
+        "rank_gain": "Universe rank moved downward (better) by N positions. Severity: medium if N ≥ 10, else low. Delta: same shape.",
+        "score_drop": "centricity_score dropped by ≥ X percentage points. Severity: high if X ≥ 5pp, medium if X ≥ 2pp, low otherwise. Delta: { from_score, to_score, pp_drop: X }.",
+        "score_gain": "centricity_score rose by ≥ X percentage points. Severity: low informational only. Delta: same shape.",
+        "manager_change": "manager_name differs from prior cycle. Severity: high if departing manager_tenure_yrs ≥ 5; medium if 2–5; low if < 2. Delta: { from_manager, to_manager, departed_tenure_yrs }.",
+        "aum_swing": "AUM moved by ≥ X percent versus prior cycle. Severity: high if |X| ≥ 30%, medium if |X| ≥ 15%, low otherwise. Delta: { from_aum_cr, to_aum_cr, pct_change: X }.",
+        "fund_entered": "Scheme code present in current cycle but not in prior cycle. Severity: low. Delta: { entered_at_rank }.",
+        "fund_exited": "Scheme code present in prior cycle but not in current cycle. Severity: medium (assumes wind-up / merger / re-categorisation). Delta: { from_rank, last_seen_cycle }.",
+        "fund_recategorised": "category differs from prior cycle. Severity: high (SEBI reclassification, peer pool change). Delta: { from_category, to_category }."
+      },
+      "thresholds_locked_first_pass": "rank_drop ≥10=high, ≥5=medium, <5=low; score_drop ≥5pp=high, ≥2pp=medium, <2pp=low; aum_swing ≥30%=high, ≥15%=medium, <15%=low. The other six kinds use the severity rules listed above. Products Team workshop will refine these before v1.1 ships; thresholds are stored in a separate config file (data/flag-rules.json, v1.x) so refinement doesn't require a code change.",
+      "v1_default": "Both fund_record.cycle_flags and cycle_meta.flag_summary are null in v1 (no prior cycle exists; converter emits null; UI renders the empty state). Source A activates with the 30-Apr-2026 cycle when there's a prior cycle to diff against."
+    }
+  },
+
+  "schema_validation_rules": [
+    "All sheets in expected_sheets must be present.",
+    "All header_anchors must match exactly (or expected_contains/starts_with where specified).",
+    "📋 Data row 4 col A == '#' AND data starts at row 5.",
+    "📊 CM row 3 col A contains 'Rank' AND data starts at row 4. (v2 — col A is 'Rank in Category', not '#' as in v1.)",
+    "Number of funds in 📋 Data must equal number of funds in 📊 Computed Metrics (matched by fund_name pairwise; v1's seq-based check is dropped since v2 CM col A is rank-in-cat, not seq).",
+    "Master Table 2 weights (cells C39:C60) must sum to 100% within tolerance 0.01. (v2 — 22 rows; v1 used C37:C55, 19 rows.)",
+    "Last NAV date in 📈 Fund NAV col A must equal cycle_date inferred from filename or master cutoff line.",
+    "Every fund's category must be in categories.equity ∪ categories.hybrid. (v2 categories list adds 7 passive subcategories + 3 new hybrid SEBI categories.)",
+    "Every fund's benchmark string must match an existing column header in 📈 Benchmark NAV row 1; failures degrade gracefully (null returns) but warning is logged.",
+    "Every Score string follows the documented patterns (Ranked numeric / '⚠️ XX.XX%' / 'New Fund'); unknown patterns fail the build."
+  ],
+
+  "v1_defaults_explicit_null": [
+    "verdict",
+    "verdict_reasons",
+    "analyst_note",
+    "cycle_flags",
+    "cycle_meta.flag_summary",
+    "analytics_pending.top_10_holdings",
+    "analytics_pending.sector_allocation",
+    "analytics_pending.full_holdings",
+    "analytics_pending.top_10_concentration_pct",
+    "analytics_pending.top_3_sector_concentration_pct",
+    "analytics_pending.manager_change_history",
+    "analytics_pending.category_history",
+    "analytics_pending.aum_trend",
+    "analytics_pending.ter_trend",
+    "analytics_pending.rank_history"
+  ]
+}

@@ -203,10 +203,20 @@
     // grid. Verdict copy lives in section 07's strengths/concerns insights.
     const scoreOutOf10 = (fund.centricity_score != null)
       ? (fund.centricity_score * 10) : null;
+    // Phase 2.1 — passive funds aren't scored; surface that explicitly
+    // rather than rendering "— / 10" which reads as "data missing".
+    const isPassiveUnscored = fund.centricity_score_status === 'Index — Not Scored';
 
-    document.getElementById('scoreBig').innerHTML = scoreOutOf10 != null
-      ? `${scoreOutOf10.toFixed(2)}<em>/ 10</em>`
-      : `—<em>/ 10</em>`;
+    if (isPassiveUnscored) {
+      document.getElementById('scoreBig').innerHTML =
+        `<span style="font-size:24px;font-weight:700;letter-spacing:-.01em;line-height:1.2;display:inline-block;">` +
+        `Not Scored<br><span style="font-size:13px;font-weight:400;opacity:.75;letter-spacing:.04em;">Index / Passive</span>` +
+        `</span>`;
+    } else {
+      document.getElementById('scoreBig').innerHTML = scoreOutOf10 != null
+        ? `${scoreOutOf10.toFixed(2)}<em>/ 10</em>`
+        : `—<em>/ 10</em>`;
+    }
 
     /* v4.1 Item M — header rank is category-only, not universe rank.
        Compute the current fund's rank within funds sharing the same SEBI

@@ -147,8 +147,11 @@
     }
     manifestCache = {
       generated_at: null,
-      latest: '2026-04-15',
-      cycles: [{ date: '2026-04-15', label: 'U2 Apr 2026', label_date: '15th Apr 2026' }],
+      latest: '2026-05-15',
+      cycles: [
+        { date: '2026-05-15', label: 'U2 May 2026', label_date: '15th May 2026', schema_version: 'screener-v2' },
+        { date: '2026-04-15', label: 'U2 Apr 2026', label_date: '15th Apr 2026', schema_version: 'screener-v1' },
+      ],
       _source: 'bootstrap',  // GitHub Action will overwrite with _source: 'action'
     };
     return manifestCache;

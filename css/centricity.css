@@ -305,6 +305,7 @@ main { padding: 0; }
 .badge.ranked     { background: var(--tan); color: var(--black); }
 .badge.warning-13 { background: rgba(189, 149, 104, .15); color: var(--gold-deep); border: 1px solid var(--gold); }
 .badge.new-fund   { background: rgba(102, 102, 102, .10); color: var(--text-mid); border: 1px solid var(--grey-mid); }
+.badge.not-scored { background: rgba(217, 217, 217, .35); color: var(--text-mid); border: 1px solid var(--rule); }
 
 /* ============================================================
    6. ALERT SEVERITY DOTS (Brand Standards §7)

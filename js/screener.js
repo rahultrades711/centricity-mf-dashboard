@@ -287,10 +287,15 @@
     { value: 'mcap_split.small_pct',   label: 'Small Cap %',   group: 'Holdings',         kind: 'pct-pos' },
     { value: 'mcap_split.others_pct',  label: 'Others %',      group: 'Holdings',         kind: 'pct-pos' },
     { value: 'no_of_stocks',           label: 'No. of Stocks', group: 'Holdings',         kind: 'int' },
-    // Hybrid extension
-    { value: 'hybrid_extension.equity_pct',       label: 'Equity %',          group: 'Hybrid extension', kind: 'pct-pos' },
-    { value: 'hybrid_extension.debt_pct',         label: 'Debt %',            group: 'Hybrid extension', kind: 'pct-pos' },
-    { value: 'hybrid_extension.others_pct_hybrid',label: 'Others % (Hybrid)', group: 'Hybrid extension', kind: 'pct-pos' },
+    // v2 — Avg Mkt Cap, Fund PE, Active Share (added 2026-05-24, Phase 2)
+    { value: 'avg_mcap_cr',            label: 'Avg Market Cap (₹ Cr)', group: 'Holdings',  kind: 'inr' },
+    { value: 'fund_pe',                label: 'Fund PE',       group: 'Holdings',         kind: 'num' },
+    { value: 'active_share_pct',       label: 'Active Share %', group: 'Holdings',        kind: 'pct-pos' },
+    // v2 — universal asset split (was hybrid-only in v1)
+    { value: 'asset_split.equity_pct', label: 'Equity %',       group: 'Asset split',     kind: 'pct-pos' },
+    { value: 'asset_split.debt_pct',   label: 'Debt %',         group: 'Asset split',     kind: 'pct-pos' },
+    { value: 'asset_split.others_pct', label: 'Others %',       group: 'Asset split',     kind: 'pct-pos' },
+    // Hybrid extension — debt-side fields kept for hybrid funds (YTM, durations)
     { value: 'hybrid_extension.ytm',              label: 'YTM',               group: 'Hybrid extension', kind: 'pct-pos' },
     { value: 'hybrid_extension.mod_duration_yrs', label: 'Mod Duration',      group: 'Hybrid extension', kind: 'num', suffix: ' yrs' },
     { value: 'hybrid_extension.avg_maturity_yrs', label: 'Avg Maturity',      group: 'Hybrid extension', kind: 'num', suffix: ' yrs' },
@@ -654,7 +659,15 @@
 
   function niceMin(v, cfg) {
     if (cfg.kind === 'int') return Math.max(0, Math.floor(v));
-    if (cfg.kind === 'pct-pos') return 0;
+    if (cfg.kind === 'pct-pos') {
+      // v2 — some "pct-pos" metrics (Up/Down Capture) can swing negative
+      // for international/hybrid funds (e.g. ICICI Pru US Bluechip Down
+      // Capture = -4.68%). When the observed minimum is below zero, drop
+      // the floor to round down (in 5pt buckets) so those funds aren't
+      // silently filtered out by the slider's default lower bound.
+      if (v < 0) return Math.floor(v / 5) * 5;
+      return 0;
+    }
     if (cfg.kind === 'num') return Math.floor(v * 10) / 10;
     if (cfg.kind === 'pct') return Math.floor(v / 5) * 5;
     return v;
@@ -1029,10 +1042,18 @@
     const wrap = document.getElementById('weightInputs');
     wrap.innerHTML = _scoringWeights.map(w => {
       const v = (_draftWeights && _draftWeights[w.parameter] != null) ? _draftWeights[w.parameter] : w.weight_pct;
-      const dirArrow = w.direction === 'Higher' ? '↑' : '↓';
+      // v2 introduces a third direction, 'Tent' — closer to category centre = best
+      // (Avg Market Cap, Fund PE). Render with a ⊙ marker (centre-target glyph)
+      // and a tooltip explaining the scoring intent.
+      const dirArrow = w.direction === 'Higher' ? '↑'
+                     : w.direction === 'Tent'   ? '⊙'
+                     : '↓';
+      const dirTitle = w.direction === 'Tent'
+        ? ' title="Tent — closer to category centre = best"'
+        : '';
       return `
         <div class="weight-row" data-param="${escapeHtml(w.parameter)}">
-          <span class="name">${escapeHtml(w.parameter)} <span class="dir">${dirArrow}</span></span>
+          <span class="name">${escapeHtml(w.parameter)} <span class="dir"${dirTitle}>${dirArrow}</span></span>
           <span style="display:inline-flex;align-items:center;">
             <input type="number" min="0" max="100" step="0.01" value="${Number(v).toFixed(2)}">
             <span class="pct-suffix">%</span>
@@ -1371,6 +1392,13 @@
     if (status === '1-3yr Warning') {
       const w = f.centricity_score_warning_pct;
       return `<span class="badge warning-13">Warning${w != null ? ' ' + w.toFixed(2) + '%' : ''}</span>`;
+    }
+    // Phase 2.1 — passive funds carry no score; render a subtle "Not scored"
+    // chip rather than the New-Fund-Monitoring badge or a misleading "0.00".
+    // These funds still sort by AUM / returns / TER / mcap-split etc.; only
+    // the Score cell is suppressed.
+    if (status === 'Index — Not Scored') {
+      return `<span class="badge not-scored">Not scored</span>`;
     }
     return `<span class="badge new-fund">New Fund — Monitoring</span>`;
   }
