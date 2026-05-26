@@ -1035,16 +1035,21 @@ def _empty_analytics_pending() -> dict:
 # Data-source level for some funds (e.g. brand-new funds without a turnover
 # figure) — those funds typically aren't Ranked anyway.
 COERCE_NONE_TO_ZERO_PARAMS = frozenset({
-    # Python-pasted CM cols M-T
-    "Rolling 3Y Avg",
-    "Consistency Score",
-    "Sharpe Ratio",
-    "Beta",
-    "Down Capture",
-    "Up Capture",
-    "Treynor Ratio",
-    "Overall Capture",
-    # XLOOKUP-from-Data CM cols G/U/V/W
+    # Phase 2.2 Part R3 — the hardcoded CM cols M-T (Rolling 3Y, Consistency,
+    # Sharpe, Beta, Down/Up Capture, Treynor, Overall Capture) now store
+    # literal text `'–'` for funds with insufficient tenure, NOT a blank cell.
+    # The cat-sheet XLOOKUP returns the text, ISNUMBER(...) is FALSE, and the
+    # cat-sheet percentile pool EXCLUDES those funds. Python must match —
+    # removed these 8 entries from the coerce list. Per-param probe on
+    # Axis Multi Asset Allocation confirmed Σ(p×w)/100 drift collapses from
+    # 0.1112 to near-zero after this change, with no fund relying on the
+    # coerce-to-zero behaviour any more.
+    #
+    # The XLOOKUP-from-Data CM cols G/U/V/W still need coercion: Excel
+    # materialises a blank Data-source cell as the literal number 0 inside
+    # the CM XLOOKUP result (because the XLOOKUP `""` 4th arg is for
+    # "not found", not "found but empty"), so the cat sheet sees 0 and
+    # ISNUMBER returns TRUE — Python must mirror by coercing None → 0.
     "Mgr Tenure",
     "Portfolio Turnover",
     "TER (%)",
@@ -1298,7 +1303,8 @@ def _compute_derived_risk_3y(
 
     See data-contract/screener-v1.json → derived_fields_documentation.risk_metrics_3y_derived.
     """
-    null_out = {"sortino_3y": None, "std_dev_3y_pct": None, "max_drawdown_3y_pct": None}
+    null_out = {"sortino_3y": None, "std_dev_3y_pct": None, "max_drawdown_3y_pct": None,
+                "sharpe_3y_nav": None}
     if fund_tenure_yrs is None or fund_tenure_yrs < 3:
         return null_out
     if not series:
@@ -1325,20 +1331,33 @@ def _compute_derived_risk_3y(
     if len(daily_returns) < 2:
         return null_out
 
-    out = {"sortino_3y": None, "std_dev_3y_pct": None, "max_drawdown_3y_pct": None}
+    out = {"sortino_3y": None, "std_dev_3y_pct": None, "max_drawdown_3y_pct": None,
+           "sharpe_3y_nav": None}
 
     # Std Dev (annualised, %)
+    full_std = None
     try:
-        s = _stats.stdev(daily_returns)  # sample, n-1
-        out["std_dev_3y_pct"] = round(s * math.sqrt(252) * 100, 4)
+        full_std = _stats.stdev(daily_returns)  # sample, n-1
+        out["std_dev_3y_pct"] = round(full_std * math.sqrt(252) * 100, 4)
     except _stats.StatisticsError:
         pass
 
-    # Sortino (annualised) — requires Rf rate
+    # Sharpe + Sortino (annualised) — both require Rf rate.
+    # Phase 2.2 §3.2 — Sharpe is now nav-derived (same window, Rf, frequency as
+    # Sortino/StdDev) so the three risk metrics live on one basis. Invariants:
+    #   sign(Sortino) == sign(Sharpe)     (same numerator)
+    #   |Sortino| >= |Sharpe|             (downside_std <= full_std)
+    #   StdDev_pct/100 * Sharpe ≈ mean_excess_ann (by construction)
     if rf_annual is not None:
         rf_daily = rf_annual / 252.0
         excess = [r - rf_daily for r in daily_returns]
         mean_excess = sum(excess) / len(excess)
+        # Sharpe (annualised, nav-derived) — same numerator as Sortino, divided
+        # by full std dev (annualised).
+        if full_std is not None and full_std > 0:
+            out["sharpe_3y_nav"] = round(
+                (mean_excess * 252) / (full_std * math.sqrt(252)), 4
+            )
         downside = [e for e in excess if e < 0]
         if len(downside) >= 2:
             try:
@@ -1873,7 +1892,7 @@ def build_funds(
             trailing = {"return_1y_pct": None, "return_3y_pct": None,
                         "return_5y_pct": None, "return_si_pct": None}
             derived_risk = {"sortino_3y": None, "std_dev_3y_pct": None,
-                            "max_drawdown_3y_pct": None}
+                            "max_drawdown_3y_pct": None, "sharpe_3y_nav": None}
             rolling_stats = None
             nav_latest_value = None
             nav_latest_date = None
@@ -2002,8 +2021,15 @@ def build_funds(
         record["rolling_3y_stats"] = rolling_stats
         # Order matches Master Design Brief §5.3 Fund Detail Quants strip:
         # Sharpe | Sortino | Std Dev | Max DD | Beta | Treynor | Up/Down Capture
+        #
+        # Phase 2.2 §3.2 — Sharpe / Sortino / Std Dev now share one basis: all
+        # derived from the same 3Y daily NAV window, with the same Rf (4.5% p.a.),
+        # same √252 annualisation. `sharpe_3y` is the canonical nav-derived value
+        # (replaces workbook CM!O). `sharpe_3y_workbook` is preserved alongside
+        # for transparency / one-cycle migration audit.
         record["risk_metrics"] = OrderedDict([
-            ("sharpe_3y", _round(cm["sharpe_3y"], 4)),
+            ("sharpe_3y", derived_risk["sharpe_3y_nav"]),
+            ("sharpe_3y_workbook", _round(cm["sharpe_3y"], 4)),
             ("sortino_3y", derived_risk["sortino_3y"]),
             ("std_dev_3y_pct", derived_risk["std_dev_3y_pct"]),
             ("max_drawdown_3y_pct", derived_risk["max_drawdown_3y_pct"]),

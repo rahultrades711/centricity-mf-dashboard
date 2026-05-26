@@ -462,9 +462,10 @@
         }
       },
       "risk_metrics": {
-        "_note": "Order matches Master Design Brief §5.3 Fund Detail Quants strip: Sharpe | Sortino | Std Dev | Max DD | Beta | Treynor | Up/Down Capture. Three fields are DERIVED at JSON-build time from 📈 Fund NAV (sortino_3y, std_dev_3y_pct, max_drawdown_3y_pct); the remaining six are sourced directly from 📊 Computed Metrics. All nine are null when fund_tenure_yrs < 3.",
-        "sharpe_3y": { "type": "float|null", "source": "📊 CM col O" },
-        "sortino_3y": { "type": "float|null", "derived": true, "window": "trailing 3Y daily" },
+        "_note": "Order matches Master Design Brief §5.3 Fund Detail Quants strip: Sharpe | Sortino | Std Dev | Max DD | Beta | Treynor | Up/Down Capture. Phase 2.2 §3.2: sharpe_3y / sortino_3y / std_dev_3y_pct now share a SINGLE basis — all derived at JSON-build time from the trailing 3Y window of 📈 Fund NAV, daily returns, Rf 4.5% p.a., annualised by ×252 (mean) and √252 (stdev). The pre-Phase-2.2 workbook-sourced Sharpe is preserved in sharpe_3y_workbook for transparency. All risk fields are null when fund_tenure_yrs < 3.",
+        "sharpe_3y": { "type": "float|null", "derived": true, "window": "trailing 3Y daily", "rf_annual_pct": 4.5, "_formula": "(mean(daily_excess) × 252) / (stdev(daily_returns) × √252)" },
+        "sharpe_3y_workbook": { "type": "float|null", "source": "📊 CM col O", "_note": "Workbook's cached Sharpe (window/Rf set by Excel workbook author). Diagnostic — not used for scoring or display. Kept for one-cycle migration audit." },
+        "sortino_3y": { "type": "float|null", "derived": true, "window": "trailing 3Y daily", "rf_annual_pct": 4.5, "_formula": "(mean(daily_excess) × 252) / (stdev(downside_excess) × √252)" },
         "std_dev_3y_pct": { "type": "float|null", "unit": "% (annualised)", "derived": true, "window": "trailing 3Y daily" },
         "max_drawdown_3y_pct": { "type": "float|null", "unit": "% (negative)", "derived": true, "window": "trailing 3Y daily" },
         "beta_3y": { "type": "float|null", "source": "📊 CM col P" },
