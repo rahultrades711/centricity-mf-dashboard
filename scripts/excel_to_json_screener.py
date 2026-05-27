@@ -15,6 +15,7 @@ No pandas dependency; openpyxl-only.
 """
 from __future__ import annotations
 
+import csv as _csv
 import datetime as _dt
 import json
 import math
@@ -156,6 +157,211 @@ PASSIVE_CATEGORIES = frozenset({
     "Smart-Beta/Factor",
 })
 PASSIVE_STATUS = "Index — Not Scored"
+
+
+# ---------------------------------------------------------------------------
+# Phase 2.2 §benchmark — basis classification, international USD/INR conversion,
+# Underlying-Index inference, no-sensible-proxy themes, NAV unit-split detect.
+# Ported from scripts/final_pass_bench.py (the Part-1 evidence script verified
+# by Cowork on 2026-05-27). Workbook benchmark NAVs are TRI by default; the 8
+# BSE indices added in 2026 carry PRI only. The 4 INR-converted pseudo-series
+# (Nasdaq 100, S&P 500, NYSE FANG+, MSCI World) live only in memory inside this
+# converter — the workbook does NOT carry the converted series, so the matcher
+# replicates the conversion in-process.
+# ---------------------------------------------------------------------------
+
+NEW_BSE_NAMES = frozenset({
+    "BSE Sensex", "BSE 100", "BSE 200", "BSE 500", "BSE Midcap",
+    "BSE Smallcap", "BSE 250 LargeMidcap", "BSE Sensex Next 50",
+})
+
+# International USD-denominated index → INR-converted pseudo-series. Regexes
+# match the FUND NAME (not the stated benchmark) because most international
+# funds list a generic 'Underlying Index' as their stated benchmark.
+INTERNATIONAL_USD = [
+    (r'\bUS\s+Bluechip\b|\bUS Equity\b', 'S&P 500 (INR)'),
+    (r'\bUS\s+Opp\b|\bUS\s+Opportun', 'S&P 500 (INR)'),
+    (r'\bNASDAQ[- ]?100\b', 'Nasdaq 100 (INR)'),
+    (r'\bS&P[- ]?500\b(?!\s+Top)', 'S&P 500 (INR)'),
+    (r'\bS&P 500 Top 50\b', 'S&P 500 (INR)'),
+    (r'\bFANG\+?\b|\bNYSE FANG', 'NYSE FANG+ (INR)'),
+    (r'\bGlobal\b.*\bAdvantage\b|\bMSCI World\b|\bGlobal Equity\b', 'MSCI World (INR)'),
+    (r'\bInternational Equity\b', 'MSCI World (INR)'),
+    (r'\bGlobal Emerging Market', 'MSCI World (INR)'),
+]
+
+# International non-USD: we have no daily FX series for these currencies, so
+# any TE/TD would be FX-noise. Force absent.
+INTERNATIONAL_NON_USD = [
+    r'\bJapan\b', r'\bTaiwan\b', r'\bHang Seng\b', r'\bChina\b(?!\b)',
+    r'\bGreater China\b', r'\bSingapore\b', r'\bKorea\b', r'\bAustralia\b',
+    r'\bASEAN\b', r'\bEurope\b', r'\bGermany\b', r'\bBrazil\b',
+]
+
+# Narrow themes with no plausible Indian-broad-index proxy.
+NO_SENSIBLE_PROXY = [
+    r'\bRailways PSU\b', r'\bRailway PSU\b',
+    r'\bBSE Hospitals\b', r'\bBSE Power\b',
+    r'\bSelect IPO\b',
+]
+
+# Underlying-Index inference table — for funds whose stated benchmark is
+# 'Underlying Index' (or blank), infer the actual index from the FUND NAME.
+# Tuple = (regex, target_workbook_series, is_proxy). is_proxy=True means the
+# match is structural (BSE→Nifty cross-family, factor variant → parent, etc.)
+# and is subject to the post-loop proxy-validity gate (TE > 5% ⇒ absent,
+# except equal-weight which is a structural exception).
+UI_INFER = [
+    # BSE direct (PRI workbook series)
+    (r'\bBSE Sensex(?!.*Next)', 'BSE Sensex', False),
+    (r'(?<!BSE )\bSensex\b(?!.*Next)', 'BSE Sensex', False),
+    (r'\bBSE Sensex Next 50\b|\bSensex Next 50\b', 'BSE Sensex Next 50', False),
+    (r'\bBSE Sensex Next 30\b|\bSensex Next 30\b', 'BSE Sensex Next 50', True),
+    (r'\bBSE 100\b', 'BSE 100', False),
+    (r'\bBSE 200 Equal Weight\b', 'BSE 200', True),
+    (r'\bBSE 200\b', 'BSE 200', False),
+    (r'\bBSE 500 (?:Momentum|Quality|Value|Dividend|Low Vol)', 'BSE 500', True),
+    (r'\bBSE[- ]?500\b', 'BSE 500', False),
+    (r'\bBSE Midcap Select\b', 'BSE Midcap', True),
+    (r'\bBSE Midcap\b', 'BSE Midcap', False),
+    (r'\bBSE Smallcap\b', 'BSE Smallcap', False),
+    (r'\bBSE 250 LargeMidcap\b', 'BSE 250 LargeMidcap', False),
+    # Legacy bare 'Nifty Index Fund'
+    (r'\bNifty Index Fund\b(?!.*\b(?:50|100|200|500|Bank|Midcap|Smallcap|Next|Auto|Pharma|FMCG|IT|Realty|Healthcare)\b)', 'Nifty 50', False),
+    (r'\bIndex Fund Nifty Plan\b|\bNifty Plan\b', 'Nifty 50', False),
+    (r'\bIndex Fund Sensex Plan\b|\bSensex Plan\b', 'BSE Sensex', False),
+    # BSE sectoral / cross-family proxies (TRI proxy of a BSE-family fund)
+    (r'\bBSE Healthcare\b', 'Nifty Healthcare Index', True),
+    (r'\bBSE\s+(?:India\s+)?Select Top 10 Banks\b|\bBSE\s+(?:India\s+)?Top 10 Banks\b', 'Nifty Bank', True),
+    (r'\bBSE India Infrastructure\b', 'Nifty Infrastructure', True),
+    (r'\bBSE Quality\b', 'NIFTY100 Quality 30', True),
+    (r'\bBSE Low Volatility\b', 'Nifty100 Low Volatility 30', True),
+    (r'\bBSE Enhanced Value\b', 'NIFTY500 Value 50', True),
+    (r'\bBSE\s+(?:India\s+)?Sector Leaders\b', 'Nifty 500', True),
+    (r'\bBSE 1000\b', 'Nifty Total Market', True),
+    (r'\bBSE Select Business Groups\b', 'Nifty 100', True),
+    (r'\bBSE Internet Economy\b', 'Nifty India Digital', True),
+    (r'\bBSE Housing\b', 'Nifty Housing', True),
+    (r'\bBSE Capital Markets\b', 'Nifty Capital Markets', True),
+    (r'\bMSCI India\b', 'Nifty 500', True),
+    (r'\bBSE PSU\b', 'Nifty PSU Bank', True),
+    (r'\bBSE Financials ex Bank\b', 'Nifty Financial Services Ex-Bank', True),
+    (r'\bBSE\s+(?:India\s+)?Defence\b|\bBSE Defence\b', 'Nifty India Defence', True),
+    (r'\bBSE Multicap Consumption\b', 'Nifty FMCG', True),
+    # Nifty broad
+    (r'\bNifty Next 50\b', 'Nifty Next 50', False),
+    (r'\bNifty Total Market\b', 'Nifty Total Market', False),
+    (r'\bNifty Midcap 150\b(?!\s+Momentum)(?!\s+Quality)', 'Nifty Midcap 150', False),
+    (r'\bNifty Smallcap 250\b(?!\s+Quality)(?!\s+Momentum)', 'Nifty Smallcap 250', False),
+    (r'\bNifty Microcap\b', 'Nifty Microcap 250', False),
+    (r'\bNifty Midcap Select\b', 'Nifty Midcap Select', False),
+    (r'\bNifty Midcap 50\b', 'Nifty Midcap 50', False),
+    (r'\bNifty Smallcap 50\b', 'Nifty Smallcap 50', False),
+    (r'\bNifty Midcap 100\b', 'Nifty Midcap 150', True),
+    (r'\bNifty Smallcap 100\b', 'Nifty Smallcap 250', True),
+    # Nifty 50 specific variants first
+    (r'\bNifty 50 Arbitrage\b', 'Nifty 50 Arbitrage', False),
+    (r'\bNifty 50 Equal Weight\b|\bNifty50 Equal Weight\b', 'NIFTY50 Equal Weight', False),
+    (r'\bNifty 50 Value 20\b|\bNifty50 Value 20\b', 'Nifty50 Value 20', False),
+    (r'\bNifty 50 Shariah\b|\bNifty50 Shariah\b', 'Nifty50 Shariah', False),
+    (r'\bNifty500 Shariah\b|\bNifty 500 Shariah\b', 'Nifty500 Shariah', False),
+    (r'\bNifty500 Multicap\b|\bNifty 500 Multicap\b', 'Nifty500 Multicap 50:25:25', False),
+    # Bare numerics (after variants)
+    (r'\bNifty 50\b(?!\s+(?:Arbitrage|Equal|Value|Shariah))', 'Nifty 50', False),
+    (r'\bNifty 100\b(?!\s+(?:Low|Quality|Equal|Alpha|ESG))', 'Nifty 100', False),
+    (r'\bNifty 200\b(?!\s+(?:Quality|Momentum|Value|Alpha))', 'Nifty 200', False),
+    (r'\bNifty 500\b(?!\s+(?:Multicap|Value|Quality|Shariah|Momentum|Healthcare|Flexicap|Low Vol))', 'Nifty 500', False),
+    # Sectoral
+    (r'\bNifty Bank\b(?!\s*Ex[- ]?Bank)', 'Nifty Bank', False),
+    (r'\bNifty IT\b', 'Nifty IT', False),
+    (r'\bNifty FMCG\b', 'Nifty FMCG', False),
+    (r'\bNifty Pharma\b', 'Nifty Pharma', False),
+    (r'\bNifty Healthcare\b', 'Nifty Healthcare Index', False),
+    (r'\bNifty Auto\b', 'Nifty Auto', False),
+    (r'\bNifty Energy\b', 'Nifty Energy', False),
+    (r'\bNifty Realty\b', 'Nifty Realty', False),
+    (r'\bNifty Oil\s*[& ]+\s*Gas\b', 'Nifty Oil & Gas', False),
+    (r'\bNifty PSU Bank\b', 'Nifty PSU Bank', False),
+    (r'\bNifty Financial Services Ex[- ]?Bank\b', 'Nifty Financial Services Ex-Bank', False),
+    (r'\bNifty Financial Services 25.?50\b', 'Nifty Financial Services 25/50', False),
+    (r'\bNifty Financial Services\b', 'Nifty Financial Services', False),
+    (r'\bNifty Consumer Durables\b', 'Nifty Consumer Durables', False),
+    (r'\bNifty Capital Markets?\b', 'Nifty Capital Markets', False),
+    (r'\bNifty Chemicals\b', 'Nifty Chemicals', False),
+    (r'\bNifty\s+(?:India\s+)?Infrastructure(?:\s*&\s*Logistics)?\b', 'Nifty Infrastructure', False),
+    (r'\bNifty Media\b', 'Nifty Media', False),
+    (r'\bNifty Transportation\b', 'Nifty Transportation & Logistics', False),
+    (r'\bNifty Housing\b', 'Nifty Housing', False),
+    (r'\bNifty IPO\b', 'Nifty IPO', False),
+    (r'\bNifty REIT', 'Nifty REITs & InvITs', False),
+    (r'\bNifty High Beta\b', 'Nifty High Beta 50', False),
+    (r'\bNifty Low Volatility 50\b', 'Nifty Low Volatility 50', False),
+    (r'\bNifty Commodities\b', 'Nifty Commodities', False),
+    (r'\bNifty MidSmallcap[- ]?400\b(?!.*Momentum)', 'Nifty MidSmallcap 400', False),
+    (r'\bNifty MidSmallcap 400 Momentum Quality\b', 'Nifty MidSmallcap400 Momentum Quality 100', False),
+    (r'\bNifty India Defence\b|\bIndia Defence\b', 'Nifty India Defence', False),
+    (r'\bNifty India Manufacturing\b', 'Nifty India Manufacturing', False),
+    (r'\bNifty India Digital\b', 'Nifty India Digital', False),
+    (r'\bNifty India Internet\b', 'Nifty India Digital', True),
+    (r'\bNifty India Tourism\b', 'Nifty India Tourism', False),
+    (r'\bMidSmall IT (?:and|&) Telecom\b|\bMidSmall IT\b', 'Nifty MidSmall IT & Telecom', False),
+    (r'\bNifty\s+Large\s*Mid\s*Cap\s*250\b|\bLargeMidcap 250\b', 'NIFTY LargeMidcap 250', False),
+    (r'\bNifty EV(?:\s*&|\s*and)?\s*New Age Auto', 'Nifty Auto', True),
+    (r'\bNifty India New Age Consumption\b|\bNifty Non-Cyclical Consumer\b', 'Nifty FMCG', True),
+    (r'\bNifty\s+(?:India\s+)?Consumption\b', 'Nifty FMCG', True),
+    (r'\bNifty Dividend Opportunities\b', 'Nifty 50', True),
+    (r'\bCPSE\b|\bBharat 22\b', 'Nifty PSU Bank', True),
+    (r'\bNifty MNC\b', 'Nifty 100', True),
+    (r'\bNifty Metal\b', 'Nifty Energy', True),
+    (r'\bNifty PSE\b', 'Nifty PSU Bank', True),
+    (r'\bNifty Private Bank\b|\bNifty Pvt Bank\b', 'Nifty Bank', True),
+    (r'\bNifty 500 Healthcare\b', 'Nifty Healthcare Index', True),
+    (r'\bNifty500 Momentum 50\b|\bNifty 500 Momentum 50\b', 'Nifty200 Momentum 30', True),
+    (r'\bNifty500 Flexicap Quality\b|\bFlexicap Quality 30\b', 'Nifty500 Quality 50', True),
+    (r'\bNifty Total Market Momentum Quality\b', 'Nifty MidSmallcap400 Momentum Quality 100', True),
+    (r'\bNifty Growth Sectors\b', 'Nifty Top 15 Equal Weight', True),
+    (r'\bNifty Services Sector\b', 'Nifty Financial Services', True),
+    # Factor combos
+    (r'\bNifty100 Low Volatility 30\b|\bNifty 100 Low Vol(?:atility)? 30\b', 'Nifty100 Low Volatility 30', False),
+    (r'\bNifty100 Equal Weight\b|\bNifty 100 Equal Weight\b', 'Nifty100 Equal Weight', False),
+    (r'\bNifty100 ESG\b|\bNifty 100 ESG\b', 'Nifty100 ESG Sector Leaders', False),
+    (r'\bNifty100 Quality\b|\bNifty 100 Quality\b', 'NIFTY100 Quality 30', False),
+    (r'\bNifty100 Alpha\b|\bNifty 100 Alpha\b', 'NIFTY100 Alpha 30', False),
+    (r'\bNifty200 Alpha\b|\bNifty 200 Alpha\b', 'Nifty200 Alpha 30', False),
+    (r'\bNifty200 Momentum\b|\bNifty 200 Momentum\b', 'Nifty200 Momentum 30', False),
+    (r'\bNifty200 Quality\b|\bNifty 200 Quality\b', 'NIFTY200 Quality 30', False),
+    (r'\bNifty200 Value\b|\bNifty 200 Value\b', 'Nifty200 Value 30', False),
+    (r'\bNifty500 Equal Weight\b|\bNifty 500 Equal Weight\b', 'Nifty500 Equal Weight', False),
+    (r'\bNifty500 Low Vol\b|\bNifty 500 Low Vol\b', 'Nifty500 Low Volatility 50', False),
+    (r'\bNifty500 Quality\b|\bNifty 500 Quality\b', 'Nifty500 Quality 50', False),
+    (r'\bNifty500 Value\b|\bNifty 500 Value\b|\bNIFTY500 Value 50\b', 'NIFTY500 Value 50', False),
+    (r'\bNifty Alpha 50\b', 'Nifty Alpha 50', False),
+    (r'\bNifty Midcap150 Momentum\b|\bMidcap 150 Momentum\b', 'Nifty Midcap150 Momentum 50', False),
+    (r'\bNifty Midcap150 Quality\b|\bMidcap 150 Quality\b', 'NIFTY Midcap150 Quality 50', False),
+    (r'\bNifty Smallcap250 Quality\b|\bSmallcap 250 Quality\b', 'Nifty Smallcap250 Quality 50', False),
+    (r'\bNifty Smallcap250 Momentum Quality\b|\bSmallcap 250 Momentum Quality\b', 'Nifty Smallcap250 Momentum Quality 100', False),
+    (r'\bNifty MidSmall Financial Services\b', 'Nifty MidSmall Financial Services', False),
+    (r'\bNifty MidSmall Healthcare\b', 'Nifty MidSmall Healthcare', False),
+    (r'\bNifty MidSmall India Consumption\b', 'Nifty MidSmall India Consumption', False),
+    (r'\bNIFTY Alpha Low.Volatility 30\b|\bNifty Alpha Low - Volatility 30\b', 'NIFTY Alpha Low-Volatility 30', False),
+    (r'\bNIFTY Alpha Quality Value Low-Volatility\b', 'NIFTY Alpha Quality Value Low-Volatility 30', False),
+    (r'\bNIFTY Alpha Quality Low-Volatility\b', 'NIFTY Alpha Quality Low-Volatility 30', False),
+    (r'\bNIFTY Quality Low-Volatility 30\b', 'NIFTY Quality Low-Volatility 30', False),
+    (r'\bNifty Top 10 Equal Weight\b', 'Nifty Top 10 Equal Weight', False),
+    (r'\bNifty Top 15 Equal Weight\b', 'Nifty Top 15 Equal Weight', False),
+    (r'\bNifty Top 20 Equal Weight\b', 'Nifty Top 20 Equal Weight', False),
+    (r'\bNifty SME EMERGE\b', 'NIFTY SME EMERGE', False),
+]
+
+# Equal-weight is a structural exception to the proxy-validity gate (EW vs
+# cap-weighted index ≈ 4–5% TE is structurally expected, not a bad match).
+EW_PATTERNS = [r'\bEqual Weight\b']
+
+# NAV unit-split detection thresholds (matches Part-1 exactly).
+SPLIT_THRESHOLD = 0.40
+CLEAN_FACTORS = (1/2, 1/3, 1/4, 1/5, 1/10, 1/20, 1/50, 1/100,
+                 2, 3, 4, 5, 10, 20, 50, 100)
+CLEAN_TOLERANCE = 0.03
 
 
 # Phase 2.2 — Dividend-Yield category correction. The 15-May workbook moved
@@ -547,6 +753,286 @@ def _absolute_return_pct(end_nav: float, start_nav: float) -> float | None:
     if end_nav is None or start_nav is None or start_nav <= 0:
         return None
     return round(((end_nav / start_nav) - 1) * 100, 4)
+
+
+# ---------------------------------------------------------------------------
+# Phase 2.2 §benchmark — helpers ported from scripts/final_pass_bench.py.
+#
+# The matcher walks 4 tiers per fund:
+#   Tier 0  international  fund-name matches INTERNATIONAL_(USD|NON_USD)
+#   Tier 1  alias-fold     canon(stated_bm) hits the workbook's canon map
+#   Tier 2  UI inference   stated == 'Underlying Index' → fund-name regex
+#                          against UI_INFER → workbook series (proxy flagged)
+#   Tier 3  absent         NO_SENSIBLE_PROXY themes or no rule matched
+#
+# The proxy-validity gate runs AFTER per-fund TE/TD compute (in build_funds)
+# so it can use the actual TE value to downgrade > 5% passive proxies.
+#
+# NAV unit-split adjust is applied to every fund's series before any nav-
+# derived metric runs (trailing returns, Sharpe/Sortino/StdDev/MaxDD, TE/TD).
+# 'clean-split-adjusted' = every detected ±40% jump is within 3% of a round
+# ratio (1/2, 1/5, 1/10, …) → pre-split NAVs ×= factor in place.
+# 'nav-split-suspect' = at least one factor isn't a clean ratio → series is
+# left raw but the per-fund block forces every nav-derived metric to null.
+# ---------------------------------------------------------------------------
+
+def _canon_stated(s: Any) -> str:
+    """Alias fold for stated benchmark match. Strips ' - TRI'/' - PRI', common
+    punctuation, generic tokens. Same canonicalisation as Part-1."""
+    s = re.sub(r"\s*-\s*TRI\s*$", "", str(s or "").strip(), flags=re.IGNORECASE)
+    s = re.sub(r"\s*-\s*PRI\s*$", "", s, flags=re.IGNORECASE)
+    s = s.lower()
+    for ch in "-()/&,+":
+        s = s.replace(ch, " ")
+    GENERIC = {"etf", "fund", "reg", "plan", "direct", "growth", "g", "idcw", "index"}
+    tokens = [t for t in s.split() if t and t not in GENERIC]
+    return "".join(tokens)
+
+
+def _parse_investing_csv(path: Path) -> dict[_dt.date, float]:
+    """Investing.com daily history parser. Returns {date: close}."""
+    out: dict[_dt.date, float] = {}
+    if not path.exists():
+        return out
+    with open(path, encoding="utf-8-sig", newline="") as f:
+        rdr = _csv.reader(f)
+        next(rdr, None)  # header
+        for row in rdr:
+            if not row or len(row) < 2:
+                continue
+            ds, ps = row[0].strip(), row[1].strip()
+            if not ds or not ps:
+                continue
+            try:
+                d = _dt.datetime.strptime(ds, "%d-%m-%Y").date()
+            except ValueError:
+                continue
+            try:
+                v = float(ps.replace(",", "").replace('"', ""))
+            except ValueError:
+                continue
+            if v > 0:
+                out[d] = v
+    return out
+
+
+def _detect_splits(series: list[tuple[_dt.date, float]]
+                   ) -> list[tuple[_dt.date, float, bool]]:
+    """Detect ±SPLIT_THRESHOLD jumps. Returns [(date, factor, is_clean), ...]."""
+    out: list[tuple[_dt.date, float, bool]] = []
+    for i in range(1, len(series)):
+        v0 = series[i - 1][1]
+        v1 = series[i][1]
+        if v0 is None or v0 <= 0 or v1 is None:
+            continue
+        r = v1 / v0 - 1
+        if abs(r) > SPLIT_THRESHOLD:
+            factor = v1 / v0
+            is_clean = any(abs(factor - cf) / cf < CLEAN_TOLERANCE for cf in CLEAN_FACTORS)
+            out.append((series[i][0], factor, is_clean))
+    return out
+
+
+def _split_adjust(series: list[tuple[_dt.date, float]],
+                  splits: list[tuple[_dt.date, float, bool]]
+                  ) -> list[tuple[_dt.date, float]] | None:
+    """Multiply pre-split NAVs by clean factor. Returns None when any split is
+    non-clean (caller treats as 'nav-split-suspect')."""
+    if not splits:
+        return series
+    if any(not is_clean for _, _, is_clean in splits):
+        return None
+    adjusted = list(series)
+    for split_date, factor, _ in splits:
+        for i, (d, v) in enumerate(adjusted):
+            if d < split_date:
+                adjusted[i] = (d, v * factor)
+    return adjusted
+
+
+def _apply_nav_split_adjustments(
+    nav_by_amfi: dict[int, list[tuple[_dt.date, float]]],
+) -> tuple[dict[int, str], int, int]:
+    """Detect splits across every fund series. CLEAN splits mutate the series
+    in place; SUSPECT splits leave the series untouched but the AMFI is
+    marked so the caller nulls its nav-derived metrics. Returns
+    (status_by_amfi, clean_count, suspect_count)."""
+    status_by_amfi: dict[int, str] = {}
+    clean = 0
+    suspect = 0
+    for amfi, series in nav_by_amfi.items():
+        sp = _detect_splits(series)
+        if not sp:
+            continue
+        all_clean = all(c for _, _, c in sp)
+        if all_clean:
+            adj = _split_adjust(series, sp)
+            if adj is not None:
+                nav_by_amfi[amfi] = adj
+                status_by_amfi[amfi] = "clean-split-adjusted"
+                clean += 1
+            else:
+                status_by_amfi[amfi] = "nav-split-suspect"
+                suspect += 1
+        else:
+            status_by_amfi[amfi] = "nav-split-suspect"
+            suspect += 1
+    return status_by_amfi, clean, suspect
+
+
+def _load_inr_converted_series(
+    global_dir: Path,
+) -> tuple[dict[str, list[tuple[_dt.date, float]]], dict]:
+    """Build INR-converted pseudo-series for Nasdaq 100 / S&P 500 / NYSE FANG+ /
+    MSCI World by multiplying their USD daily series by daily USD/INR. The 4
+    Investing.com CSVs + the USD/INR CSV live in
+        <cycle>/Data/BM NAV/Global & Others BM NAV/
+    alongside the workbook. Returns ({pseudo_name: sorted list}, diagnostics).
+    Caller registers the dict into bm_by_name; absence triggers a warning and
+    forces all USD-international funds to 'absent (currency-mismatch)'."""
+    diag = {
+        "global_dir": str(global_dir),
+        "exists": global_dir.exists() if global_dir else False,
+        "usd_inr_pts": 0,
+        "series_loaded": {},
+        "series_inr_pts": {},
+    }
+    out: dict[str, list[tuple[_dt.date, float]]] = {}
+    if not global_dir or not global_dir.exists():
+        return out, diag
+
+    files = {
+        "Nasdaq 100 (INR)":    global_dir / "Nasdaq 100 Historical Data (1).csv",
+        "S&P 500 (INR)":       global_dir / "S&P 500 Historical Data (3).csv",
+        "NYSE FANG+ (INR)":    global_dir / "NYSE FANG+TM Historical Data.csv",
+        "MSCI World (INR)":    global_dir / "MSCI World Historical Data.csv",
+    }
+    fx = _parse_investing_csv(global_dir / "USD_INR Historical Data (1).csv")
+    diag["usd_inr_pts"] = len(fx)
+    if not fx:
+        return out, diag
+
+    for pseudo_name, path in files.items():
+        usd = _parse_investing_csv(path)
+        diag["series_loaded"][pseudo_name] = len(usd)
+        inr_points: list[tuple[_dt.date, float]] = []
+        for d, v in usd.items():
+            if d in fx:
+                inr_points.append((d, v * fx[d]))
+        inr_points.sort(key=lambda x: x[0])
+        diag["series_inr_pts"][pseudo_name] = len(inr_points)
+        if inr_points:
+            out[pseudo_name] = inr_points
+    return out, diag
+
+
+def _is_equal_weight(fund_name: str) -> bool:
+    for p in EW_PATTERNS:
+        if re.search(p, fund_name, re.IGNORECASE):
+            return True
+    return False
+
+
+def _match_international(fund_name: str) -> dict | None:
+    """Returns match dict for international funds; None for everything else."""
+    for pat in INTERNATIONAL_NON_USD:
+        if re.search(pat, fund_name, re.IGNORECASE):
+            return {"matched_series": None, "is_proxy": False, "basis": None,
+                    "status": "absent (currency-mismatch, no INR conversion)",
+                    "td_basis": None}
+    for pat, target in INTERNATIONAL_USD:
+        if re.search(pat, fund_name, re.IGNORECASE):
+            is_proxy = ("FANG" in target or "MSCI" in target) or ("Emerging" in fund_name)
+            return {"matched_series": target, "is_proxy": is_proxy, "basis": "PRI-INR",
+                    "status": "matched (USD→INR converted)", "td_basis": "PRI-INR"}
+    return None
+
+
+def _match_fund(
+    stated_bm: str | None,
+    fund_name: str | None,
+    bm_canon: dict[str, str],
+    bm_basis_for_name: dict[str, str],
+) -> dict:
+    """4-tier matcher. Returns
+        {matched_series, is_proxy, basis, status, td_basis}
+    with matched_series=None for absent statuses."""
+    stated = (stated_bm or "").strip()
+    name = fund_name or ""
+
+    # Tier 0 — international first (must catch before any matched status)
+    intl = _match_international(name)
+    if intl:
+        return intl
+
+    # Tier 1 — alias-fold on stated_bm
+    if stated and stated.lower() != "underlying index":
+        cs = _canon_stated(stated)
+        if cs and cs in bm_canon:
+            wb_name = bm_canon[cs]
+            basis = bm_basis_for_name.get(wb_name, "TRI")
+            return {"matched_series": wb_name, "is_proxy": False, "basis": basis,
+                    "status": "matched (alias-fold)", "td_basis": basis}
+
+    # Tier 2 — UI inference
+    if stated.lower() == "underlying index" or stated == "":
+        for pat, target, is_proxy in UI_INFER:
+            if re.search(pat, name, re.IGNORECASE):
+                if target not in bm_basis_for_name:
+                    continue  # this target index isn't in the workbook this cycle
+                basis = bm_basis_for_name[target]
+                status = "matched-proxy" if is_proxy else "matched"
+                return {"matched_series": target, "is_proxy": is_proxy, "basis": basis,
+                        "status": status, "td_basis": basis}
+
+    # Tier 3 — no-sensible-proxy themes
+    for pat in NO_SENSIBLE_PROXY:
+        if re.search(pat, name, re.IGNORECASE):
+            return {"matched_series": None, "is_proxy": False, "basis": None,
+                    "status": "absent (no real series, no sensible proxy)",
+                    "td_basis": None}
+
+    # Tier 4 — absent
+    return {"matched_series": None, "is_proxy": False, "basis": None,
+            "status": "absent (no rule matched)", "td_basis": None}
+
+
+def _compute_te_td(
+    fund_series: list[tuple[_dt.date, float]],
+    bm_series:   list[tuple[_dt.date, float]],
+    start: _dt.date,
+    end:   _dt.date,
+) -> tuple[float | None, float | None, int, float | None, float | None]:
+    """Annualised tracking error (std-dev of daily-return diffs ×√252) + tracking
+    difference (fund CAGR − bench CAGR) over [start, end] ∩ common dates.
+    Returns (TE_pct, TD_pct, n_common_days, fund_cagr_pct, bm_cagr_pct).
+    All four numeric values None when fewer than 30 common observations."""
+    if not fund_series or not bm_series:
+        return None, None, 0, None, None
+    f_map = {d: v for d, v in fund_series if v is not None and v > 0}
+    b_map = {d: v for d, v in bm_series   if v is not None and v > 0}
+    common = sorted(d for d in f_map if d in b_map and start <= d <= end)
+    n = len(common)
+    if n < 30:
+        return None, None, n, None, None
+    f_ret: list[float] = []
+    b_ret: list[float] = []
+    for i in range(1, n):
+        d0, d1 = common[i - 1], common[i]
+        f_ret.append(f_map[d1] / f_map[d0] - 1)
+        b_ret.append(b_map[d1] / b_map[d0] - 1)
+    diff = [a - b for a, b in zip(f_ret, b_ret)]
+    if len(diff) < 2:
+        return None, None, n, None, None
+    sd = _stats.stdev(diff)
+    te = round(sd * math.sqrt(252) * 100, 4)
+    d0, d1 = common[0], common[-1]
+    yrs = (d1 - d0).days / 365.25
+    if yrs <= 0:
+        return te, None, n, None, None
+    f_cagr = ((f_map[d1] / f_map[d0]) ** (1 / yrs) - 1) * 100
+    b_cagr = ((b_map[d1] / b_map[d0]) ** (1 / yrs) - 1) * 100
+    return te, round(f_cagr - b_cagr, 4), n, round(f_cagr, 4), round(b_cagr, 4)
 
 
 # ---------------------------------------------------------------------------
@@ -1758,6 +2244,7 @@ def build_funds(
     monitor_data: dict | None = None,
     monitor_index_data: dict | None = None,
     morningstar_history: dict[int, list[dict]] | None = None,
+    global_bm_dir: Path | None = None,
 ) -> tuple[list[dict], dict, dict]:
     eq_set = set(contract["categories"]["equity"])
     hb_set = set(contract["categories"]["hybrid"])
@@ -1779,9 +2266,55 @@ def build_funds(
     nav_by_amfi, _name_by_amfi = load_fund_nav(wb)
     print(f"[converter]   loaded {len(nav_by_amfi)} fund NAV series", file=sys.stderr)
 
+    # Phase 2.2 §benchmark — NAV unit-split detect + adjust BEFORE any nav-
+    # derived metric runs. Trailing returns, derived 3Y risk metrics, rolling
+    # 3Y stats, and the benchmark TE/TD all consume the resulting (cleaned)
+    # series. 'clean-split-adjusted' funds get their pre-split NAVs ×= factor;
+    # 'nav-split-suspect' funds keep their raw series but the per-fund block
+    # below forces every nav-derived metric to null.
+    split_status_by_amfi, _clean_n, _suspect_n = _apply_nav_split_adjustments(nav_by_amfi)
+    print(
+        f"[converter]   NAV split scan: {len(split_status_by_amfi)} funds with ±40% jumps "
+        f"({_clean_n} clean-adjusted, {_suspect_n} suspect-nulled)",
+        file=sys.stderr,
+    )
+
     print("[converter] streaming Benchmark NAV into memory...", file=sys.stderr)
     bm_by_name = load_benchmark_nav(wb)
     print(f"[converter]   loaded {len(bm_by_name)} benchmark NAV series", file=sys.stderr)
+
+    # Phase 2.2 §benchmark — basis classification. Workbook NAVs are TRI by
+    # default; the 8 BSE indices added in 2026 are PRI-only.
+    bm_basis_for_name: dict[str, str] = {
+        nm: ("PRI" if nm in NEW_BSE_NAMES else "TRI") for nm in bm_by_name
+    }
+
+    # Phase 2.2 §benchmark — load Investing.com USD CSVs + USD/INR and register
+    # 4 INR-converted pseudo-series in bm_by_name. The workbook does NOT carry
+    # the converted series, so the converter replicates the conversion here.
+    # If the global BM dir is missing (e.g. CI run from a slim data/ folder),
+    # the 4 USD-international funds gracefully fall back to absent (currency-
+    # mismatch).
+    inr_series, inr_diag = _load_inr_converted_series(global_bm_dir)
+    if inr_series:
+        for nm, lst in inr_series.items():
+            bm_by_name[nm] = lst
+            bm_basis_for_name[nm] = "PRI-INR"
+        print(
+            f"[converter]   registered {len(inr_series)} INR-converted pseudo-series: "
+            f"{list(inr_series.keys())} (USD/INR pts: {inr_diag['usd_inr_pts']})",
+            file=sys.stderr,
+        )
+    else:
+        print(
+            f"[converter]   WARNING: Global BM dir not found or unusable at "
+            f"{global_bm_dir}; USD-international funds will be 'absent (currency-mismatch)'. "
+            f"diag={inr_diag}",
+            file=sys.stderr,
+        )
+
+    # Canonical-alias lookup for Tier-1 (alias-fold) matching.
+    bm_canon: dict[str, str] = {_canon_stated(nm): nm for nm in bm_by_name}
 
     # Pre-compute benchmark returns once per benchmark
     bm_cache: dict[str, dict] = {}
@@ -1912,6 +2445,38 @@ def build_funds(
             nav_latest_date = last_d.isoformat() if last_d is not None else None
 
         bm_ret = benchmark_returns_for(d["benchmark"])
+
+        # Phase 2.2 §benchmark — for 'nav-split-suspect' funds the ±40% jump's
+        # source is ambiguous, so all nav-derived metrics in this record are
+        # forced to null (matches Part-1's behaviour). 'clean-split-adjusted'
+        # funds need no action here — their series was already adjusted before
+        # _trailing_returns_from_series / _compute_derived_risk_3y ran above.
+        nav_split_status = split_status_by_amfi.get(d["scheme_code"], "")
+        if nav_split_status == "nav-split-suspect":
+            trailing = {"return_1y_pct": None, "return_3y_pct": None,
+                        "return_5y_pct": None, "return_si_pct": None}
+            derived_risk = {"sortino_3y": None, "std_dev_3y_pct": None,
+                            "max_drawdown_3y_pct": None, "sharpe_3y_nav": None}
+            rolling_stats = None
+
+        # Phase 2.2 §benchmark — 4-tier matcher + TE/TD compute. The proxy-
+        # validity gate runs AFTER this loop (it needs the TE value to decide
+        # whether to downgrade a passive proxy to absent). `series` has already
+        # been split-adjusted for clean splits.
+        bench_match = _match_fund(
+            d["benchmark"], d["fund_name"], bm_canon, bm_basis_for_name
+        )
+        matched_name = bench_match["matched_series"]
+        te_v: float | None = None
+        td_v: float | None = None
+        if (matched_name
+                and series
+                and nav_split_status != "nav-split-suspect"):
+            matched_bm_list = bm_by_name.get(matched_name)
+            if matched_bm_list:
+                te_v, td_v, _n_obs, _fc, _bc = _compute_te_td(
+                    series, matched_bm_list, targets["3Y"], cycle_date
+                )
 
         record = OrderedDict()
         record["scheme_code"] = d["scheme_code"]
@@ -2061,6 +2626,20 @@ def build_funds(
             ("alpha_3y_pct", _round(a3, 4) if a3 is not None else None),
             ("alpha_5y_pct", _round(a5, 4) if a5 is not None else None),
         ])
+        # Phase 2.2 §benchmark — TE/TD against the matched benchmark series.
+        # Output of the 4-tier matcher + TE/TD compute (above). The proxy-
+        # validity gate (post-loop) may later overwrite these with nulls for
+        # passive proxy matches whose TE > 5% and which aren't equal-weight.
+        # See derived_fields_documentation.benchmark_match in screener-v2.json.
+        record["tracking_error_3y_pct"]      = te_v
+        record["tracking_difference_3y_pct"] = td_v
+        record["benchmark_matched_series"]   = matched_name
+        record["benchmark_is_proxy"]         = bench_match["is_proxy"]
+        record["benchmark_basis"]            = bench_match["basis"]
+        record["td_basis"]                   = bench_match["td_basis"]
+        record["currency_adjusted"]          = (bench_match["basis"] == "PRI-INR")
+        record["nav_split_status"]           = nav_split_status
+        record["benchmark_match_status"]     = bench_match["status"]
         # Monitor file overlay (Fix-List 5 §A) — point-to-point returns,
         # exit load, and the regular-plan TER. Joined by Scheme Name (col 0
         # of Monitor) → fund_name. All fields render as null when no Monitor
@@ -2143,6 +2722,43 @@ def build_funds(
     # don't change the build_funds() return tuple's positional shape.
     cycle_meta["_phase22_mgr_coverage"] = mgr_coverage
 
+    # Phase 2.2 §benchmark — proxy-validity gate. For PASSIVE funds (ETFs +
+    # *Index categories + Smart-Beta/Factor) that matched a proxy series, if
+    # TE > 5% AND the fund isn't an Equal-Weight structural exception, downgrade
+    # to absent: the index pair is too divergent for the proxy to be meaningful
+    # (typical case: BSE→Nifty cross-family produces 8-22% TE; equal-weight vs
+    # cap-weight produces 4-5% which is structurally expected). NO_SENSIBLE_PROXY
+    # themes already filtered into absent at match time; this catches the rest.
+    proxy_downgrades: list[tuple[str, str, float]] = []
+    for f in funds:
+        if f.get("centricity_score_status") != PASSIVE_STATUS:
+            continue
+        if not f.get("benchmark_is_proxy"):
+            continue
+        te = f.get("tracking_error_3y_pct")
+        if te is None or te <= 5.0:
+            continue
+        if _is_equal_weight(f.get("fund_name") or ""):
+            continue
+        ms = f.get("benchmark_matched_series") or ""
+        proxy_downgrades.append((f["fund_name"], ms, te))
+        f["tracking_error_3y_pct"] = None
+        f["tracking_difference_3y_pct"] = None
+        f["benchmark_matched_series"] = None
+        f["benchmark_is_proxy"] = False
+        f["benchmark_basis"] = None
+        f["td_basis"] = None
+        f["currency_adjusted"] = False
+        f["benchmark_match_status"] = f"absent (proxy TE={te:.2f}% > 5%, downgraded)"
+    if proxy_downgrades:
+        print(
+            f"[converter] benchmark proxy gate: {len(proxy_downgrades)} passive "
+            f"proxy funds downgraded to absent (TE > 5%, not Equal-Weight).",
+            file=sys.stderr,
+        )
+        for nm, ms, te in proxy_downgrades[:10]:
+            print(f"    {nm[:55]} (was proxy→{ms}, TE={te:.2f}%)", file=sys.stderr)
+
     # Compute centricity_rank_in_category post-pass
     by_cat: dict[str, list[dict]] = {}
     for f in funds:
@@ -2159,6 +2775,21 @@ def build_funds(
     overall_ranked.sort(key=lambda x: x["centricity_score"], reverse=True)
     for i, f in enumerate(overall_ranked, start=1):
         f["centricity_rank_overall"] = i
+
+    # Surface benchmark-match summary counts on cycle_meta so the QA report has
+    # a single anchor to validate against the Part-1 evidence CSV. Excludes the
+    # 'downgraded' status from matched counts.
+    bm_status_counts: dict[str, int] = {}
+    for f in funds:
+        st = f.get("benchmark_match_status") or "unknown"
+        bm_status_counts[st] = bm_status_counts.get(st, 0) + 1
+    cycle_meta["benchmark_match_summary"] = {
+        "match_status_counts": bm_status_counts,
+        "proxy_downgrades": len(proxy_downgrades),
+        "split_clean_adjusted": _clean_n,
+        "split_suspect_nulled": _suspect_n,
+        "inr_converted_series_registered": len(inr_series) if inr_series else 0,
+    }
 
     # Return NAV maps alongside the fund list so convert() can emit the
     # separate nav-series-YYYY-MM-DD.json file without re-reading the
@@ -2243,6 +2874,17 @@ def convert(
     cycle_meta = build_cycle_meta(wb, xlsx_path.name, summary, contract)
     print(f"[converter] cycle: {cycle_meta['cycle_label_date']} (internal {cycle_meta['cycle_label']}) | as on {cycle_meta['as_on_display']} | Rf {cycle_meta['rf_rate_display']}", file=sys.stderr)
 
+    # Phase 2.2 §benchmark — Global PRI source data (Nasdaq 100 / S&P 500 /
+    # NYSE FANG+ / MSCI World USD CSVs + USD/INR daily) lives sibling to the
+    # workbook on the local file system at <cycle>/Data/BM NAV/Global &
+    # Others BM NAV/. When the converter is invoked from the production
+    # data/ folder (no sibling Data tree) the dir simply won't exist and
+    # the loader falls back gracefully (the 4 USD-international funds → absent).
+    global_bm_dir = (
+        xlsx_path.resolve().parent.parent
+        / "Data" / "BM NAV" / "Global & Others BM NAV"
+    )
+
     # 4. Funds — also returns the in-memory NAV maps so we can emit the
     # separate nav-series-YYYY-MM-DD.json file without re-reading the
     # workbook (Fund Detail Fix-List 1 §A.3). monitor_fund_data overlays
@@ -2254,6 +2896,7 @@ def convert(
         monitor_data=monitor_fund_data,
         monitor_index_data=monitor_index_data,
         morningstar_history=morningstar_history,
+        global_bm_dir=global_bm_dir,
     )
 
     # Phase 2.2 §A1-REDO — surface manager-source coverage on cycle_meta and

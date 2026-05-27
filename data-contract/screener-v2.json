@@ -492,6 +492,54 @@
         "alpha_3y_pct": { "type": "float|null", "formula": "trailing_returns.return_3y_pct − benchmark_returns.return_3y_pct" },
         "alpha_5y_pct": { "type": "float|null", "formula": "trailing_returns.return_5y_pct − benchmark_returns.return_5y_pct" }
       },
+      "tracking_error_3y_pct": {
+        "type": "float|null",
+        "_added": "2026-05-27 Phase 2.2 §benchmark",
+        "_overview": "Annualised tracking error against benchmark_matched_series over the trailing 3Y window: std-dev of daily (fund_return − bench_return) × √252 × 100. Null when no benchmark matched, when nav_split_status == 'nav-split-suspect', or when fewer than 30 common observations exist in the window. Series are split-adjusted for clean splits before the compute runs."
+      },
+      "tracking_difference_3y_pct": {
+        "type": "float|null",
+        "_added": "2026-05-27 Phase 2.2 §benchmark",
+        "_overview": "Annualised tracking difference (fund_cagr − bench_cagr) over the same window as tracking_error_3y_pct. Null whenever tracking_error_3y_pct is null."
+      },
+      "benchmark_matched_series": {
+        "type": "string|null",
+        "_added": "2026-05-27 Phase 2.2 §benchmark",
+        "_overview": "Name of the benchmark series our 4-tier matcher resolved to. One of 97 workbook benchmark series OR one of 4 INR-converted pseudo-series ('Nasdaq 100 (INR)', 'S&P 500 (INR)', 'NYSE FANG+ (INR)', 'MSCI World (INR)') for USD-denominated international funds. Null when the fund is absent (currency-mismatch, no rule matched, no sensible proxy, or proxy TE > 5% downgrade)."
+      },
+      "benchmark_is_proxy": {
+        "type": "boolean",
+        "_added": "2026-05-27 Phase 2.2 §benchmark",
+        "_overview": "True iff the match is a structural proxy (BSE→Nifty cross-family, equal-weight vs cap-weight, factor variant → parent, FANG+/MSCI World as proxy for the fund's stated index). False for direct alias-fold matches and clean USD→INR conversions of the fund's own stated index."
+      },
+      "benchmark_basis": {
+        "type": "string|null",
+        "_added": "2026-05-27 Phase 2.2 §benchmark",
+        "_values": ["TRI", "PRI", "PRI-INR", null],
+        "_overview": "Basis of the matched series. Workbook benchmark NAVs are TRI by default; the 8 BSE indices added in 2026 are PRI-only; the 4 INR-converted USD pseudo-series carry 'PRI-INR' (USD PRI × USD/INR)."
+      },
+      "td_basis": {
+        "type": "string|null",
+        "_added": "2026-05-27 Phase 2.2 §benchmark",
+        "_values": ["TRI", "PRI", "PRI-INR", null],
+        "_overview": "Basis attribute of tracking_difference_3y_pct (always equals benchmark_basis in v2; preserved as a separate field so future cycles can distinguish TE-basis vs TD-basis if a hybrid methodology lands)."
+      },
+      "currency_adjusted": {
+        "type": "boolean",
+        "_added": "2026-05-27 Phase 2.2 §benchmark",
+        "_overview": "True iff TE/TD were computed against an INR-converted USD index series (basis == 'PRI-INR'). False otherwise — including for absent matches."
+      },
+      "nav_split_status": {
+        "type": "string",
+        "_added": "2026-05-27 Phase 2.2 §benchmark",
+        "_values": ["", "clean-split-adjusted", "nav-split-suspect"],
+        "_overview": "Empty string when no ±40% NAV jump was detected. 'clean-split-adjusted' when every ±40% jump factor is within 3% of a round ratio (1/2, 1/5, 1/10, …) — pre-split NAVs in the series were multiplied by the clean factor before any nav-derived metric ran (trailing returns, Sharpe/Sortino/StdDev/MaxDD, TE/TD). 'nav-split-suspect' when at least one jump's factor isn't a clean ratio — the series is left raw and every nav-derived metric in this record is forced to null."
+      },
+      "benchmark_match_status": {
+        "type": "string",
+        "_added": "2026-05-27 Phase 2.2 §benchmark",
+        "_overview": "Diagnostic string from the 4-tier matcher (post-gate). One of: 'matched', 'matched-proxy', 'matched (alias-fold)', 'matched (USD→INR converted)', 'absent (currency-mismatch, no INR conversion)', 'absent (no real series, no sensible proxy)', 'absent (no rule matched)', 'absent (proxy TE=X.XX% > 5%, downgraded)'. Used by QA to verify match outcomes against the Part-1 evidence CSV; the dashboard surfaces benchmark_basis + benchmark_is_proxy + currency_adjusted for users."
+      },
       "parameter_scores": {
         "_note": "Per-parameter percentile (0–1) within the fund's category, faithfully reproducing the Excel category-sheet score formula from mf-whitelisting/SKILL.md §4.2. Keys MUST match cycle_meta.scoring_weights[].parameter exactly. Drives the dashboard's right-drawer 'Edit weights' live-recalculation: the JS recomputes centricity_score = Σ(parameter_scores[p] × weight_pct[p]) / 100 against user-edited weights, with no re-percentiling on the client.",
         "_value_type": "float|null",
