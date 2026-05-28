@@ -525,24 +525,35 @@ def load_morningstar_mgr_history(path: Path) -> tuple[dict[int, list[dict]], dic
 def derive_current_manager(
     records: list[dict],
     cycle_date: _dt.date,
-) -> tuple[str | None, str | None, float | None]:
+) -> tuple[str | None, list[str], str | None, float | None]:
     """From a parsed Manager History list, return:
-       (display_name, manager_since_iso, tenure_yrs)
+       (lead_name, co_managers_list, manager_since_iso, tenure_yrs)
 
-    display_name = ", "-joined current manager names (those with `end` None),
-    in earliest-start-first order so the lead manager surfaces first.
-    manager_since = the earliest current-manager start date.
-    tenure_yrs = (cycle_date - manager_since) / 365.25, rounded 2dp.
+    Phase 2.2 Patch (mgr attribution) — `manager_name` is now the SINGLE
+    lead name (earliest-current active manager); the full list lives in a
+    separate `manager_co_managers` array (lead at index 0). The previous
+    behaviour wrote a comma-joined string of all currently-active managers
+    into `manager_name`, which the partner-facing one-pager then rendered
+    as "Manager: Banthia, Naren, Kalawadia, …" — see catalogue §7.8.
 
-    All three are None when there are no current managers in the history.
+    lead_name        = earliest-start active manager's name; None if no
+                       currently-active managers.
+    co_managers_list = ALL currently-active manager names, ordered by
+                       `start` ascending (lead at index 0). Empty when no
+                       currently-active managers.
+    manager_since    = the lead's `start` (ISO date string).
+    tenure_yrs       = (cycle_date - manager_since) / 365.25, 2dp.
+
+    All four are None / [] when records carry no currently-active manager.
     """
     if not records:
-        return None, None, None
+        return None, [], None, None
     current = [r for r in records if not r.get("end")]
     if not current:
-        return None, None, None
+        return None, [], None, None
     current.sort(key=lambda r: r.get("start") or "9999-99-99")
-    names = ", ".join(r["name"] for r in current if r.get("name"))
+    co_managers = [r["name"] for r in current if r.get("name")]
+    lead = co_managers[0] if co_managers else None
     since = current[0].get("start")
     tenure = None
     if since:
@@ -551,7 +562,66 @@ def derive_current_manager(
             tenure = round((cycle_date - sd).days / 365.25, 2)
         except (TypeError, ValueError):
             tenure = None
-    return (names or None), since, tenure
+    return lead, co_managers, since, tenure
+
+
+def _load_analytics_equity_counts(
+    analytics_dir: Path | None,
+) -> tuple[dict[str, int], dict]:
+    """Phase 2.2 Patch (no_of_stocks) — count `Asset == "Equity"` analytics
+    rows per Scheme Name, across every .xlsx in `analytics_dir`. Excludes
+    Debt + Others (REITs / InvITs / cash equivalents).
+
+    The 3 analytics files (Equity / Hybrid / Debt) share a fixed schema:
+    Sheet1, row 1 = headers, col A = Scheme Name, col J = Asset
+    ({"Equity", "Debt", "Others"}). The converter loads all of them so
+    equity, hybrid, and debt funds all flow through the same code path —
+    pure-debt funds simply count to zero (no Equity rows).
+
+    Returns ({scheme_name: equity_row_count}, diagnostics).
+
+    Gracefully returns ({}, diag) when the dir is absent — caller falls
+    back to the workbook's `📋 Data` col N count (which over-counts because
+    it includes Others). See catalogue §7.8 and the ICICI E&D audit.
+    """
+    diag = {
+        "analytics_dir": str(analytics_dir) if analytics_dir else None,
+        "exists": analytics_dir.exists() if analytics_dir else False,
+        "files_loaded": {},
+        "schemes_with_equity_rows": 0,
+    }
+    counts: dict[str, int] = {}
+    if not analytics_dir or not analytics_dir.exists():
+        return counts, diag
+
+    for path in sorted(analytics_dir.glob("*.xlsx")):
+        # Skip lock/temp files openpyxl can't open.
+        if path.name.startswith("~$"):
+            continue
+        try:
+            wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+        except Exception as e:
+            diag["files_loaded"][path.name] = f"open_error: {e}"
+            continue
+        per_file = 0
+        for sheet_name in wb.sheetnames:
+            ws = wb[sheet_name]
+            # Header row 1; data starts row 2. Col 1 = Scheme Name, col 10 = Asset.
+            for row in ws.iter_rows(min_row=2, values_only=True):
+                if not row:
+                    continue
+                scheme = row[0]
+                asset = row[9] if len(row) > 9 else None
+                if not scheme or not isinstance(scheme, str):
+                    continue
+                if asset and str(asset).strip().lower() == "equity":
+                    counts[scheme] = counts.get(scheme, 0) + 1
+                    per_file += 1
+        wb.close()
+        diag["files_loaded"][path.name] = per_file
+
+    diag["schemes_with_equity_rows"] = len(counts)
+    return counts, diag
 
 
 def _classify_score(raw: Any) -> tuple[str, float | None, float | None]:
@@ -2245,10 +2315,12 @@ def build_funds(
     monitor_index_data: dict | None = None,
     morningstar_history: dict[int, list[dict]] | None = None,
     global_bm_dir: Path | None = None,
+    analytics_equity_counts: dict[str, int] | None = None,
 ) -> tuple[list[dict], dict, dict]:
     eq_set = set(contract["categories"]["equity"])
     hb_set = set(contract["categories"]["hybrid"])
     morningstar_history = morningstar_history or {}
+    analytics_equity_counts = analytics_equity_counts or {}
     # Phase 2.2 §A1-REDO — coverage stats for the manager-name source. Reported
     # at end of conversion and surfaced on cycle_meta. AMFI is the join key
     # (workbook scheme_code ↔ Morningstar AMFI Code col E); we DO NOT name-
@@ -2495,7 +2567,9 @@ def build_funds(
         # else we fall back to the workbook MF Monitor name + tenure;
         # else "—".
         mh_records = morningstar_history.get(d["scheme_code"]) if d["scheme_code"] is not None else None
-        mh_name, mh_since, mh_tenure = derive_current_manager(mh_records or [], cycle_date)
+        mh_name, mh_co_managers, mh_since, mh_tenure = derive_current_manager(
+            mh_records or [], cycle_date
+        )
         mfm_name = d["manager_name"]
         if mh_name:
             record["manager_name"] = mh_name
@@ -2516,6 +2590,18 @@ def build_funds(
         else:
             record["manager_tenure_yrs"] = _round(d["manager_tenure_yrs"], 4)
         record["manager_since"] = mh_since  # ISO date of earliest current start, or None
+        # Phase 2.2 Patch (mgr attribution) — manager_co_managers carries
+        # ALL currently-active managers in start-ascending order. Lead is
+        # at index 0 (== manager_name). UI's co-strip reads index 1: for
+        # the secondary panel. Single-manager funds get a 1-element array;
+        # MF-Monitor-fallback funds get the single Monitor name (we don't
+        # have the dated history for them). Funds with no manager get [].
+        if mh_co_managers:
+            record["manager_co_managers"] = mh_co_managers
+        elif mfm_name:
+            record["manager_co_managers"] = [mfm_name]
+        else:
+            record["manager_co_managers"] = []
         # Structured full history (every manager who has run this fund),
         # carried into the JSON so the one-pager can render it and Part B
         # can detect Apr→May moves (a current start or a recent end inside
@@ -2524,7 +2610,18 @@ def build_funds(
         record["aum_cr"] = _round(d["aum_cr"], 4)
         record["ter_pct"] = _round(d["ter_pct"], 4)
         record["turnover_pct"] = _round(d["turnover_pct"], 4)
-        record["no_of_stocks"] = d["no_of_stocks"]
+        # Phase 2.2 Patch (no_of_stocks) — count ONLY analytics rows where
+        # Asset == "Equity" (excludes Debt + Others/REITs/InvITs/cash). For
+        # ICICI Pru E&D this fixes the workbook's 148 (Equity + Others)
+        # value to ~131 (Equity only). Falls back to the workbook 📋 Data
+        # col N count when the fund isn't in any analytics file (e.g.
+        # brand-new fund, or analytics_dir unavailable at convert time).
+        # See catalogue §7.8 and AUDIT_ICICI_FINDINGS_2026-05-28.md #1.
+        analytics_count = analytics_equity_counts.get(d["fund_name"])
+        if analytics_count is not None:
+            record["no_of_stocks"] = analytics_count
+        else:
+            record["no_of_stocks"] = d["no_of_stocks"]
         record["mcap_split"] = OrderedDict([
             ("large_pct", _round(d["large_cap_pct"], 4)),
             ("mid_pct", _round(d["mid_cap_pct"], 4)),
@@ -2885,6 +2982,25 @@ def convert(
         / "Data" / "BM NAV" / "Global & Others BM NAV"
     )
 
+    # Phase 2.2 Patch (no_of_stocks) — analytics underlyings live sibling to
+    # the workbook at <cycle>/Data/Underlyings Data - Analytics/. Three
+    # .xlsx files (Equity / Hybrid / Debt) all share schema: col A = Scheme
+    # Name, col J = Asset ({Equity, Debt, Others}). We count Equity-only
+    # rows per Scheme Name → no_of_stocks. Workbook col N over-counts
+    # (includes Others/REITs/InvITs); analytics gives the pure-equity count.
+    # Falls back to workbook col N if the dir is missing (e.g. CI run).
+    analytics_dir = (
+        xlsx_path.resolve().parent.parent
+        / "Data" / "Underlyings Data - Analytics"
+    )
+    analytics_equity_counts, analytics_count_diag = _load_analytics_equity_counts(analytics_dir)
+    print(
+        f"[converter] analytics equity-row counts: "
+        f"{analytics_count_diag['schemes_with_equity_rows']} schemes from "
+        f"{len(analytics_count_diag['files_loaded'])} file(s) in {analytics_dir.name}",
+        file=sys.stderr,
+    )
+
     # 4. Funds — also returns the in-memory NAV maps so we can emit the
     # separate nav-series-YYYY-MM-DD.json file without re-reading the
     # workbook (Fund Detail Fix-List 1 §A.3). monitor_fund_data overlays
@@ -2897,6 +3013,7 @@ def convert(
         monitor_index_data=monitor_index_data,
         morningstar_history=morningstar_history,
         global_bm_dir=global_bm_dir,
+        analytics_equity_counts=analytics_equity_counts,
     )
 
     # Phase 2.2 §A1-REDO — surface manager-source coverage on cycle_meta and

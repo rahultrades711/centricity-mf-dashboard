@@ -175,14 +175,15 @@
   /* ---------- nested-path resolver (used by sort + extra columns) ---------- */
   function pluck(obj, path) {
     if (obj == null) return null;
-    // Fix-List 10 §8 — Morningstar manager-history overlay (eqh family only).
-    if (_family === 'eqh' && _mgrByScheme && obj && obj.scheme_code != null) {
-      const overlay = _mgrByScheme[String(obj.scheme_code)];
-      if (overlay) {
-        if (path === 'manager_name')        return overlay.name;
-        if (path === 'manager_tenure_yrs')  return overlay.tenure_years;
-      }
-    }
+    // Phase 2.2 Patch (mgr attribution) — the prior Fix-List 10 §8
+    // `_mgrByScheme` overlay re-derived the "main manager" from the
+    // separate manager-history JSON via a fuzzy-match against the
+    // screener's manager_name. With the converter now writing the SINGLE
+    // lead into `manager_name` (catalogue §7.8), the overlay is both
+    // redundant and forbidden ("UI MUST NOT re-derive"). The screener
+    // reads `manager_name` + `manager_tenure_yrs` straight from the cycle
+    // JSON. `_mgrByScheme` / `_loadMgrHistoryOverlay` are left in place
+    // for now (no harm; could be deleted in a follow-up housekeeping pass).
     return String(path).split('.').reduce((o, k) => (o == null ? null : o[k]), obj);
   }
 

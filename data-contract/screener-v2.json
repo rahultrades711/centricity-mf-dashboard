@@ -320,12 +320,42 @@
       "benchmark": { "type": "string", "source": "📋 Data col J", "matches_column_in": "📈 Benchmark NAV row 1" },
       "inception_date": { "type": "string|null", "format": "YYYY-MM-DD", "source": "📋 Data col H" },
       "fund_tenure_yrs": { "type": "float|null", "source": "📊 CM col E" },
-      "manager_name": { "type": "string|null", "source": "📋 Data col F" },
-      "manager_tenure_yrs": { "type": "float|null", "source": "📋 Data col G" },
+      "manager_name": {
+        "type": "string|null",
+        "_amended": "2026-05-28 Phase 2.2 Patch (mgr attribution)",
+        "_overview": "SINGLE lead manager name = earliest-current active manager from `manager_history` (smallest `start` among entries with `end is null`); MF Monitor's FM1 (📋 Data col F) when Morningstar history is unavailable; null when neither source carries a name. Was a comma-joined list of every currently-active manager in the prior build (broke partner-facing one-pagers for every multi-manager fund — see catalogue §7.8 + AUDIT_ICICI_FINDINGS_2026-05-28.md). UI MUST read this field directly for the lead-manager display; MUST NOT re-derive from `manager_history`."
+      },
+      "manager_name_source": {
+        "type": "string|null",
+        "_values": ["Morningstar", "MF Monitor", null],
+        "_overview": "Which source the lead name was pulled from. Morningstar (full history primary, AMFI-keyed) preferred; MF Monitor (📋 Data col F) fallback when AMFI missing or Morningstar has no current manager."
+      },
+      "manager_tenure_yrs": {
+        "type": "float|null",
+        "_overview": "(cycle_date - manager_since) / 365.25, 2dp, from the Morningstar earliest-current start when available; else 📋 Data col G."
+      },
+      "manager_since": {
+        "type": "string|null",
+        "format": "YYYY-MM-DD",
+        "_overview": "ISO date of the LEAD's earliest-current start in `manager_history`. Drives the Manager Tenure card's 'Since DD MMM YYYY' subtitle."
+      },
+      "manager_co_managers": {
+        "type": "array<string>",
+        "_added": "2026-05-28 Phase 2.2 Patch (mgr attribution)",
+        "_overview": "ALL currently-active manager names ordered by `start` ascending — LEAD at index 0 (== `manager_name`). UI's co-strip reads index 1: as 'Co-managed with: name2 · name3 · …'. Single-manager funds = 1-element array; MF-Monitor-fallback funds = [single_name]; funds with no manager = []."
+      },
+      "manager_history": {
+        "type": "array<object>",
+        "_overview": "Full dated history of every manager who has run this fund — items `{name, start, end}`. `end is null` ⇔ currently active. Sourced from the Morningstar Manager Tenure xlsx export joined by AMFI. Empty list when the AMFI isn't in the Morningstar file. Used by the one-pager's Manager History timeline + Phase B's cycle-window move detection."
+      },
       "aum_cr": { "type": "float", "unit": "₹ Cr", "source": "📋 Data col E" },
       "ter_pct": { "type": "float|null", "unit": "%", "source": "📋 Data col M" },
       "turnover_pct": { "type": "float|null", "unit": "%", "source": "📋 Data col I" },
-      "no_of_stocks": { "type": "int|null", "source": "📋 Data col N" },
+      "no_of_stocks": {
+        "type": "int|null",
+        "_amended": "2026-05-28 Phase 2.2 Patch (no_of_stocks)",
+        "_overview": "Count of pure-equity holdings — analytics rows where `Asset == 'Equity'` per Scheme Name in <cycle>/Data/Underlyings Data - Analytics/*.xlsx (Equity / Hybrid / Debt files share schema: col A Scheme Name, col J Asset ∈ {Equity, Debt, Others}). Excludes Debt + Others (REITs/InvITs/cash equivalents). Falls back to 📋 Data col N (which over-counts because it includes Others) when the fund isn't in any analytics file. For ICICI Pru E&D the workbook value 148 (Equity + Others) corrects to ~131 (Equity only). See catalogue §7.8 + AUDIT_ICICI_FINDINGS_2026-05-28.md #1."
+      },
       "mcap_split": {
         "large_pct": { "type": "float|null", "source": "📋 Data col O" },
         "mid_pct": { "type": "float|null", "source": "📋 Data col P" },

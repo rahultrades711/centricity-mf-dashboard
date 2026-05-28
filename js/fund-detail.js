@@ -766,6 +766,31 @@
     document.getElementById('mgrStats').innerHTML = cells
       .map(([k, v]) => `<div class="cell"><span class="k">${escapeHtml(k)}</span><div class="v">${escapeHtml(String(v))}</div></div>`)
       .join('');
+
+    // Phase 2.2 Patch (mgr attribution) — Co-managers strip read DIRECTLY
+    // from JSON's `manager_co_managers` (lead at index 0, == manager_name).
+    // The secondary strip shows indices 1+ since the lead is already in
+    // #mgrName above. Previously this was re-derived from manager-history
+    // via a fuzzy-match resolver that picked the wrong "main" for every
+    // multi-manager fund (catalogue §7.8 + AUDIT_ICICI_FINDINGS_2026-05-28.md).
+    const coEl = document.getElementById('mgrCoManagers');
+    if (coEl) {
+      const co = Array.isArray(fund.manager_co_managers) ? fund.manager_co_managers : [];
+      const secondary = co.slice(1);
+      if (secondary.length > 0) {
+        coEl.hidden = false;
+        const list = secondary.map(n => {
+          const href = `manager-profiles.html?manager=${encodeURIComponent(n)}`;
+          return `<a class="manager-link" href="${href}">${escapeHtml(n)}</a>`;
+        }).join(' &middot; ');
+        coEl.innerHTML =
+          `<span class="co-label">Co-managed with</span>` +
+          `<span class="co-body">${list}</span>`;
+      } else {
+        coEl.hidden = true;
+        coEl.innerHTML = '';
+      }
+    }
   }
 
   function renderManagerBio(profile, name) {
@@ -908,84 +933,16 @@
       return;
     }
     const managers = entry.managers;
-    const main = resolveMainManager(managers, fund.manager_name);
-
-    // ---- Card overrides (name + title + avatar) ----
-    if (main) {
-      const nameEl  = document.getElementById('mgrName');
-      const titleEl = document.getElementById('mgrTitle');
-      const avatar  = document.getElementById('mgrAvatar');
-      // Fix-List 9 Feature B — name is an anchor to the manager-profiles
-      // page so partners can drill into a manager's full universe.
-      if (nameEl) {
-        const href = `manager-profiles.html?manager=${encodeURIComponent(main.name)}`;
-        nameEl.innerHTML = `<a class="manager-link" href="${href}">${escapeHtml(main.name)}</a>`;
-      }
-      if (avatar)  avatar.textContent = managerInitials(main.name);
-      if (titleEl) {
-        const tenureStr = _formatTenureYM(main.tenure_years);
-        const startStr  = _formatLongDate(main.start);
-        // Fix-List 9 §3 — only ONE tenure number visible in the manager
-        // section: the resolved main manager's. The "Tenure" word that
-        // used to appear here is dropped; we just say the value.
-        titleEl.textContent =
-          `${fund.amc || '—'} · Lead Manager · ${tenureStr} · Since ${startStr}`;
-      }
-    }
-
-    // ---- Fix-List 9 §3 — score-card "Manager Tenure" cell override ----
-    // Source of truth: resolved main manager's tenure_years from
-    // Morningstar. Falls back to screener's manager_tenure_yrs when
-    // manager-history is unavailable (the cell already shows that on
-    // first render).
-    const scoreCell = document.getElementById('statManagerTenure');
-    if (scoreCell && main) {
-      // Match the score-card formatting convention: "X.X yrs" for >= 5
-      // years (we trust the year count); "X yr Y mo" for shorter runs
-      // where months matter.
-      const display = main.tenure_years >= 5
-        ? `${DataLoader.fmtNum(main.tenure_years, 1)} yrs`
-        : _formatTenureYM(main.tenure_years);
-      scoreCell.textContent = display;
-    }
-
-    // ---- Fix-List 9 §3 — manager-stats Tenure cell override ----
-    // Replace the single "Tenure" cell with the resolved main manager's
-    // value (formatted same way as the score card).
-    if (main) {
-      const cells = document.querySelectorAll('#mgrStats .cell');
-      cells.forEach(c => {
-        const k = c.querySelector('.k');
-        if (k && k.textContent === 'Tenure') {
-          const v = c.querySelector('.v');
-          if (v) {
-            v.textContent = main.tenure_years >= 5
-              ? `${DataLoader.fmtNum(main.tenure_years, 1)} yrs`
-              : _formatTenureYM(main.tenure_years);
-          }
-        }
-      });
-    }
-
-    // ---- Fix-List 9 §2 — Co-managers strip (prominent, with tenure) ----
-    const coManagers = managers.filter(m => m.is_current && (!main || m.name !== main.name));
-    const coEl = document.getElementById('mgrCoManagers');
-    if (coEl) {
-      if (coManagers.length > 0) {
-        coEl.hidden = false;
-        const list = coManagers.map(m => {
-          const href = `manager-profiles.html?manager=${encodeURIComponent(m.name)}`;
-          const tenureStr = _formatTenureYM(m.tenure_years);
-          return `<a class="manager-link" href="${href}">${escapeHtml(m.name)}</a> · ${escapeHtml(tenureStr)}`;
-        }).join('<br>');
-        coEl.innerHTML =
-          `<span class="co-label">Co-managed with</span>` +
-          `<span class="co-body">${list}</span>`;
-      } else {
-        coEl.hidden = true;
-        coEl.innerHTML = '';
-      }
-    }
+    // Phase 2.2 Patch (mgr attribution) — `main` is anchored on the
+    // screener JSON's `manager_name` (the SINGLE lead = Morningstar's
+    // earliest-current active manager). We DO NOT call resolveMainManager()
+    // any more and DO NOT override mgrName / mgrTitle / mgrAvatar /
+    // statManagerTenure / the mgrStats Tenure cell — renderManager()
+    // already filled them correctly from JSON. The co-managers strip is
+    // also rendered by renderManager() from `manager_co_managers`. This
+    // function now only owns: the Also-Managing row + the all-managers
+    // history table below. See catalogue §7.8 + AUDIT_ICICI_FINDINGS_2026-05-28.md.
+    const main = managers.find(m => m.is_current && m.name === fund.manager_name) || null;
 
     // ---- Fix-List 9 §5 — "Also Managing" row ----
     _renderAlsoManaging(fund, main);
