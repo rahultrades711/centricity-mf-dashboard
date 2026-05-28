@@ -2198,6 +2198,11 @@ def extract_monitor_data(monitor_path: Path) -> dict:
         c_10y  = H.get("10 Years")
         c_ter  = H.get("Ratio")
         c_exit = H.get("[Exit Load]") or H.get("Remark")
+        # Phase 2.2 Patch (FM rule 2026-05-28) — Monitor's "Fund Manager"
+        # column is the canonical source for `manager_name` (catalogue §7.2 /
+        # §7.8). Col index varies per sheet (e.g. col 26 on Aggressive Hybrid;
+        # different on others), so resolve by exact header label.
+        c_fm   = H.get("Fund Manager")
 
         in_benchmark_section = False
         for r in range(13, ws.max_row + 1):
@@ -2210,6 +2215,13 @@ def extract_monitor_data(monitor_path: Path) -> dict:
             # The "BenchMark" header row separates fund rows from index rows
             if scheme.lower() == "benchmark":
                 in_benchmark_section = True
+                continue
+            # Phase 2.2 Patch (FM rule 2026-05-28) — Regular Growth only;
+            # skip Direct / IDCW / Dividend variants so monitor_fm always
+            # resolves against the canonical scheme.
+            if not in_benchmark_section and any(
+                tag in scheme for tag in ("Direct", "IDCW", "Dividend")
+            ):
                 continue
 
             def f(c):
@@ -2241,6 +2253,10 @@ def extract_monitor_data(monitor_path: Path) -> dict:
                 "return_10y_pct": _round(f(c_10y),  4),
                 "monitor_ter_pct": _round(f(c_ter), 4),
                 "exit_load": _safe_str(ws.cell(row=r, column=c_exit).value) if c_exit else None,
+                # Phase 2.2 Patch (FM rule 2026-05-28) — Monitor's
+                # canonical lead-manager name. Used by build_funds to set
+                # `manager_name` (Monitor primary; Morningstar fallback).
+                "fund_manager": _safe_str(ws.cell(row=r, column=c_fm).value) if c_fm else None,
             }
             fund_out[scheme] = row_data
     wb.close()
@@ -2571,7 +2587,24 @@ def build_funds(
             mh_records or [], cycle_date
         )
         mfm_name = d["manager_name"]
-        if mh_name:
+        # Phase 2.2 Patch (FM rule 2026-05-28) — supersedes the earlier
+        # "earliest-current Morningstar" lead rule. `manager_name` is now
+        # whatever appears in the MF Monitor file's "Fund Manager" column
+        # (catalogue §7.2 + §7.8, corrected 2026-05-28). Morningstar's
+        # earliest-current is kept only as a safety net for funds Monitor
+        # doesn't carry (typically passives / debt corner cases).
+        monitor_row = (monitor_data or {}).get(d["fund_name"]) if d["fund_name"] else None
+        monitor_fm_raw = monitor_row.get("fund_manager") if monitor_row else None
+        if isinstance(monitor_fm_raw, str):
+            monitor_fm = monitor_fm_raw.strip() or None
+        else:
+            monitor_fm = None
+
+        if monitor_fm:
+            record["manager_name"] = monitor_fm
+            record["manager_name_source"] = "MF Monitor"
+            mgr_coverage["mf_monitor"] += 1
+        elif mh_name:
             record["manager_name"] = mh_name
             record["manager_name_source"] = "Morningstar"
             mgr_coverage["morningstar"] += 1
@@ -2583,20 +2616,29 @@ def build_funds(
             record["manager_name"] = None
             record["manager_name_source"] = None
             mgr_coverage["none"] += 1
-        # manager_tenure_yrs: Morningstar-derived (cycle_date - earliest
-        # current start) when we have history; else workbook MF Monitor.
+        # `manager_tenure_yrs` / `manager_since` — UNCHANGED per the FM
+        # patch: still anchored on Morningstar's LONGEST-CURRENT active
+        # (= earliest start), NOT the named Monitor lead's own tenure.
+        # This preserves cross-cycle continuity: ICICI E&D Apr 12.58 → May
+        # 12.65 yr = natural +0.07 yr increment on Banthia's 2013-09-19
+        # start, even though `manager_name` now reads Sankaran Naren.
+        # (If Rahul later wants the named lead's tenure, that's a separate
+        # decision.)
         if mh_tenure is not None:
             record["manager_tenure_yrs"] = mh_tenure
         else:
             record["manager_tenure_yrs"] = _round(d["manager_tenure_yrs"], 4)
-        record["manager_since"] = mh_since  # ISO date of earliest current start, or None
-        # Phase 2.2 Patch (mgr attribution) — manager_co_managers carries
-        # ALL currently-active managers in start-ascending order. Lead is
-        # at index 0 (== manager_name). UI's co-strip reads index 1: for
-        # the secondary panel. Single-manager funds get a 1-element array;
-        # MF-Monitor-fallback funds get the single Monitor name (we don't
-        # have the dated history for them). Funds with no manager get [].
-        if mh_co_managers:
+        record["manager_since"] = mh_since
+        # `manager_co_managers` reordered so the LEAD (manager_name) sits
+        # at index 0. The remaining entries are the Morningstar currently-
+        # active list ordered by `start` ascending. If the Monitor FM isn't
+        # in the Morningstar active list (sparse Morningstar coverage),
+        # prepend it anyway so the lead always surfaces first. UI's co-strip
+        # reads index 1: (lead is rendered separately in the Manager card).
+        if monitor_fm:
+            rest = [m for m in (mh_co_managers or []) if m != monitor_fm]
+            record["manager_co_managers"] = [monitor_fm] + rest
+        elif mh_co_managers:
             record["manager_co_managers"] = mh_co_managers
         elif mfm_name:
             record["manager_co_managers"] = [mfm_name]
@@ -3016,12 +3058,14 @@ def convert(
         analytics_equity_counts=analytics_equity_counts,
     )
 
-    # Phase 2.2 §A1-REDO — surface manager-source coverage on cycle_meta and
-    # report the hard gate (>= 60% of non-passive funds covered by
-    # Morningstar). Passive funds are expected to lack a manager entry and
-    # don't count against the rate.
+    # Phase 2.2 Patch (FM rule 2026-05-28) — supersedes the §A1-REDO
+    # Morningstar-primary gate. Monitor's "Fund Manager" column is now
+    # primary; Morningstar is a fallback. The coverage gate is reframed:
+    # ≥ 60% of non-passive funds must have ANY lead set (Monitor FM,
+    # Morningstar earliest-current, or 📋 Data col F). The per-source
+    # counts are still tracked so we can spot future degradations.
     mgr_coverage = cycle_meta.pop("_phase22_mgr_coverage", {"morningstar": 0, "mf_monitor": 0, "none": 0})
-    cycle_meta["manager_name_source"] = "Morningstar primary (full history), MF Monitor fallback"
+    cycle_meta["manager_name_source"] = "MF Monitor 'Fund Manager' col primary; Morningstar earliest-current fallback"
     cycle_meta["manager_name_coverage"] = mgr_coverage
     cycle_meta["morningstar_diagnostics"] = {
         "file": morningstar_diag.get("file"),
@@ -3032,41 +3076,56 @@ def convert(
         "sheets_skipped_no_header": morningstar_diag.get("sheets_skipped_no_header", []),
     }
     non_passive = sum(1 for f in funds if f["centricity_score_status"] != PASSIVE_STATUS)
+    non_passive_set = sum(
+        1 for f in funds
+        if f["centricity_score_status"] != PASSIVE_STATUS and f.get("manager_name")
+    )
+    non_passive_monitor = sum(
+        1 for f in funds
+        if f["centricity_score_status"] != PASSIVE_STATUS
+        and f.get("manager_name_source") == "MF Monitor"
+    )
     non_passive_morn = sum(
         1 for f in funds
         if f["centricity_score_status"] != PASSIVE_STATUS
         and f.get("manager_name_source") == "Morningstar"
     )
+    set_share = (non_passive_set / non_passive * 100) if non_passive else 0
+    monitor_share = (non_passive_monitor / non_passive * 100) if non_passive else 0
     morn_share = (non_passive_morn / non_passive * 100) if non_passive else 0
     cycle_meta["manager_name_coverage_non_passive"] = {
         "non_passive_total": non_passive,
-        "morningstar": non_passive_morn,
-        "morningstar_share_pct": round(morn_share, 1),
+        "lead_set": non_passive_set,
+        "lead_set_share_pct": round(set_share, 1),
+        "monitor_primary": non_passive_monitor,
+        "monitor_primary_share_pct": round(monitor_share, 1),
+        "morningstar_fallback": non_passive_morn,
+        "morningstar_fallback_share_pct": round(morn_share, 1),
     }
     print(
-        f"[converter] manager-name source: Morningstar {mgr_coverage['morningstar']} / "
-        f"MF Monitor {mgr_coverage['mf_monitor']} / none {mgr_coverage['none']} "
+        f"[converter] manager-name source: MF Monitor {mgr_coverage['mf_monitor']} / "
+        f"Morningstar {mgr_coverage['morningstar']} / none {mgr_coverage['none']} "
         f"(total {sum(mgr_coverage.values())})",
         file=sys.stderr,
     )
     print(
-        f"[converter]   Non-passive Morningstar share: "
-        f"{non_passive_morn}/{non_passive} = {morn_share:.1f}% "
-        f"(hard gate: >= 60%)",
+        f"[converter]   Non-passive lead coverage: "
+        f"{non_passive_set}/{non_passive} = {set_share:.1f}% "
+        f"(Monitor primary {non_passive_monitor} | Morningstar fallback {non_passive_morn}; "
+        f"hard gate: ≥ 60%)",
         file=sys.stderr,
     )
-    if morn_share < 60.0:
+    if set_share < 60.0:
         warnings.append(
-            f"[A1-REDO hard-gate failed] Morningstar coverage {morn_share:.1f}% "
-            f"of {non_passive} non-passive funds — expected >= 60%. "
-            f"Investigate AMFI-join. Sample of unmatched AMFI codes follows."
+            f"[FM-rule hard-gate failed] Non-passive lead coverage {set_share:.1f}% "
+            f"of {non_passive} funds — expected ≥ 60%. Investigate Monitor + "
+            f"Morningstar joins. Sample of unset AMFI codes follows."
         )
-        # Append up to 20 unmatched AMFI samples for the report.
         unmatched = [
             (f["scheme_code"], f["fund_name"])
             for f in funds
             if f["centricity_score_status"] != PASSIVE_STATUS
-            and f.get("manager_name_source") != "Morningstar"
+            and not f.get("manager_name")
         ]
         cycle_meta["morningstar_diagnostics"]["unmatched_sample"] = [
             {"amfi": c, "fund_name": n} for c, n in unmatched[:20]
