@@ -46,13 +46,9 @@
   async function main() {
     let manifest, cycle;
     try {
-      manifest = await DataLoader.listCycles();
-      const lastVisited = AppState.getLastVisitedCycle();
-      const initialDate = (lastVisited && manifest.cycles.find(c => c.date === lastVisited))
-        ? lastVisited
-        : (manifest.latest || manifest.cycles[0].date);
+      manifest = await Cycle.getManifest();
+      const initialDate = await Cycle.getActiveCycle();
       cycle = await DataLoader.loadCycle(initialDate);
-      AppState.setLastVisitedCycle(initialDate);
     } catch (err) {
       renderLoadError(err);
       return;
@@ -74,7 +70,7 @@
       const newDate = e.target.value;
       try {
         const newCycle = await DataLoader.loadCycle(newDate);
-        AppState.setLastVisitedCycle(newDate);
+        await Cycle.setActiveCycle(newDate);
         _currentCycle = newCycle;
         renderHero(newCycle);
         renderQuickTiles(newCycle);

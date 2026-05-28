@@ -34,8 +34,8 @@
       throw new Error('DataLoader not available — js/data-loader.js missing on this page');
     }
     _loadPromise = (async () => {
-      const manifest = await window.DataLoader.listCycles();
-      const cycle = await window.DataLoader.loadCycle(manifest.latest);
+      const activeDate = await window.Cycle.getActiveCycle();
+      const cycle = await window.DataLoader.loadCycle(activeDate);
       _cycle = cycle;
       return cycle;
     })();

@@ -47,17 +47,15 @@
   async function main() {
     let manifest, cycle;
     try {
-      manifest = await DataLoader.listCycles();
-      const last = AppState.getLastVisitedCycle();
-      const initialDate = (last && manifest.cycles.find(c => c.date === last))
-        ? last : (manifest.latest || manifest.cycles[0].date);
+      manifest = await Cycle.getManifest();
+      const initialDate = await Cycle.getActiveCycle();
       cycle = await DataLoader.loadCycle(initialDate);
-      AppState.setLastVisitedCycle(initialDate);
     } catch (err) {
       renderLoadError(err);
       return;
     }
     _cycle = cycle;
+    initCyclePicker(cycle);
 
     // Resolve scheme from URL (canonical, backward-compat, legacy)
     const params = new URLSearchParams(window.location.search);
@@ -2509,14 +2507,62 @@
   }
 
   function renderNotFound(scheme) {
-    // Hide hero / report; show the not-found shell
-    document.getElementById('heroSection').style.display = 'none';
+    // Keep heroSection visible so the cycle dropdown stays accessible; hide
+    // only the fund-specific bits inside it. Stage A — partners landing on a
+    // fund that didn't exist in the active cycle (e.g. switched back to Apr
+    // for a fund first added in May) must be able to switch cycles to recover.
+    const scoreCard = document.getElementById('scoreCard');
+    if (scoreCard) scoreCard.style.display = 'none';
+    const actions = document.querySelector('.hero-actions');
+    if (actions) actions.style.display = 'none';
+    const meta = document.getElementById('heroMeta');
+    if (meta) meta.innerHTML = '';
+    const title = document.getElementById('fundTitle');
+    if (title) title.textContent = 'Fund not available in this cycle';
+    const eyebrow = document.getElementById('heroEyebrow');
+    if (eyebrow) eyebrow.textContent =
+      `Fund Report Card · As on ${DataLoader.fmtCycleLabelDate(_cycle.cycle_meta)}`;
     document.querySelector('.report').style.display = 'none';
     const nf = document.getElementById('notFound');
     nf.hidden = false;
-    document.getElementById('notFoundHeading').textContent = 'Fund not found';
+    document.getElementById('notFoundHeading').textContent = 'Fund not available in this cycle';
     document.getElementById('notFoundBody').textContent =
-      `Scheme code ${scheme} isn't in the ${DataLoader.fmtCycleLabelDate(_cycle.cycle_meta)} cycle. It may have been wound up or re-categorised.`;
+      `This fund (scheme code ${scheme}) did not exist in the ${DataLoader.fmtCycleLabelDate(_cycle.cycle_meta)} cycle. Switch to a later cycle using the dropdown above to view its report.`;
+  }
+
+  /* ============================================================
+   * CYCLE PICKER (Stage A — in-page cycle switcher)
+   * ============================================================ */
+  function initCyclePicker(cycle) {
+    const sel = document.getElementById('fdCycleSel');
+    if (!sel) return;
+    const cur = (cycle && cycle.cycle_meta) ? cycle.cycle_meta.cycle_date : null;
+    Cycle.getCycles().then(cycles => {
+      sel.innerHTML = '';
+      cycles.slice().sort((a, b) => (a.date < b.date ? 1 : -1)).forEach(c => {
+        const o = document.createElement('option');
+        o.value = c.date;
+        o.textContent = DataLoader.fmtCycleLabelDate(c.date);
+        if (c.date === cur) o.selected = true;
+        sel.appendChild(o);
+      });
+    });
+    sel.addEventListener('change', onCycleChange);
+  }
+
+  async function onCycleChange(e) {
+    const newDate = e.target.value;
+    try {
+      await Cycle.setActiveCycle(newDate);
+    } catch (err) {
+      console.warn('[fund-detail] cycle change failed', err);
+      return;
+    }
+    // Drop ?cycle= so localStorage drives the reloaded page; preserve every
+    // other param (?scheme= in particular must survive the switch).
+    const url = new URL(window.location);
+    url.searchParams.delete('cycle');
+    window.location.replace(url.toString());
   }
 
   function renderPicker(cycle) {
