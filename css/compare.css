@@ -6,6 +6,11 @@
   padding: 28px 56px 22px;
 }
 .cmp-band-inner { max-width: 1740px; margin: 0 auto; }
+.cmp-band-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap;
+}
+.cmp-band-head .hero-cycle { margin-top: 0; }
 .cmp-band h1 {
   margin: 0; font-size: 32px; font-weight: 700; letter-spacing: -.01em; line-height: 1.1;
 }

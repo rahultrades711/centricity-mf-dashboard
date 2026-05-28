@@ -24,15 +24,47 @@
 
   document.addEventListener('DOMContentLoaded', main);
 
+  /* ============================================================
+   * CYCLE PICKER (Stage A — in-page cycle switcher)
+   * ============================================================ */
+  function initCyclePicker(cycle) {
+    const sel = document.getElementById('cmpCycleSel');
+    if (!sel) return;
+    const cur = (cycle && cycle.cycle_meta) ? cycle.cycle_meta.cycle_date : null;
+    Cycle.getCycles().then(cycles => {
+      sel.innerHTML = '';
+      cycles.slice().sort((a, b) => (a.date < b.date ? 1 : -1)).forEach(c => {
+        const o = document.createElement('option');
+        o.value = c.date;
+        o.textContent = DataLoader.fmtCycleLabelDate(c.date);
+        if (c.date === cur) o.selected = true;
+        sel.appendChild(o);
+      });
+    });
+    sel.addEventListener('change', onCycleChange);
+  }
+
+  async function onCycleChange(e) {
+    const newDate = e.target.value;
+    try {
+      await Cycle.setActiveCycle(newDate);
+    } catch (err) {
+      console.warn('[compare] cycle change failed', err);
+      return;
+    }
+    // Drop ?cycle= so localStorage drives the reloaded page; preserve every
+    // other param (?schemes= / ?funds= in particular must survive the switch).
+    const url = new URL(window.location);
+    url.searchParams.delete('cycle');
+    window.location.replace(url.toString());
+  }
+
   async function main() {
     let manifest, cycle;
     try {
-      manifest = await DataLoader.listCycles();
-      const last = AppState.getLastVisitedCycle();
-      const initialDate = (last && manifest.cycles.find(c => c.date === last))
-        ? last : (manifest.latest || manifest.cycles[0].date);
+      manifest = await Cycle.getManifest();
+      const initialDate = await Cycle.getActiveCycle();
       cycle = await DataLoader.loadCycle(initialDate);
-      AppState.setLastVisitedCycle(initialDate);
     } catch (err) {
       renderLoadError(err);
       return;
@@ -41,6 +73,7 @@
     document.getElementById('cmpCycle').textContent = DataLoader.fmtCycleLabelDate(cycle.cycle_meta);
     document.getElementById('footUpdated').textContent = 'Last updated · ' + cycle.cycle_meta.as_on_display;
 
+    initCyclePicker(cycle);
     initFundPicker();
     initTabs();
 

@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="css/transitions.css">
 <link rel="stylesheet" href="css/fund-detail.css">
 <script defer src="js/data-loader.js"></script>
+<script defer src="js/cycle.js"></script>
 <script defer src="js/search.js"></script>
 <script defer src="js/transitions.js"></script>
 <script defer src="js/state.js"></script>
@@ -60,7 +61,13 @@
 <section class="hero" aria-label="Fund header" id="heroSection">
   <div class="hero-inner">
     <div>
-      <span class="eyebrow" id="heroEyebrow">Fund Report Card · Loading…</span>
+      <div class="hero-eyebrow-row">
+        <span class="eyebrow" id="heroEyebrow">Fund Report Card · Loading…</span>
+        <div class="hero-cycle">
+          <label for="fdCycleSel">Cycle</label>
+          <select id="fdCycleSel" aria-label="Select cycle"></select>
+        </div>
+      </div>
       <h1 id="fundTitle">Loading…</h1>
       <div class="meta" id="heroMeta"></div>
       <div class="hero-actions">

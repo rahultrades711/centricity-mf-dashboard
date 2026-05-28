@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="css/transitions.css">
 <link rel="stylesheet" href="css/compare.css">
 <script defer src="js/data-loader.js"></script>
+<script defer src="js/cycle.js"></script>
 <script defer src="js/search.js"></script>
 <script defer src="js/transitions.js"></script>
 <script defer src="js/state.js"></script>
@@ -49,7 +50,13 @@
 
 <section class="cmp-band">
   <div class="cmp-band-inner">
-    <h1>Compare <em>funds</em> · <span id="cmpCycle">—</span></h1>
+    <div class="cmp-band-head">
+      <h1>Compare <em>funds</em> · <span id="cmpCycle">—</span></h1>
+      <div class="hero-cycle">
+        <label for="cmpCycleSel">Cycle</label>
+        <select id="cmpCycleSel" aria-label="Select cycle"></select>
+      </div>
+    </div>
     <p class="sub">Up to 5 funds, side-by-side. Tabs cover returns, risk, holdings, sectors, m-cap, manager,
        expense, and rank. Cycle axis collapses to one column in v1 (only one cycle in the archive); historical
        comparisons activate from the next cycle (30 April 2026) onwards.</p>

@@ -411,12 +411,8 @@
 
   async function ensureEqhCycle() {
     if (_eqhCycle) return _eqhCycle;
-    const manifest = await DataLoader.listCycles();
-    const last = AppState.getLastVisitedCycle();
-    const initialDate = (last && manifest.cycles.find(c => c.date === last))
-      ? last : (manifest.latest || manifest.cycles[0].date);
+    const initialDate = await Cycle.getActiveCycle();
     _eqhCycle = await DataLoader.loadCycle(initialDate);
-    AppState.setLastVisitedCycle(initialDate);
     return _eqhCycle;
   }
 

@@ -45,12 +45,11 @@
    *  Bootstrap
    * -------------------------------------------------------- */
   document.addEventListener('DOMContentLoaded', () => {
-    DataLoader.listCycles()
-      .then(manifest => {
-        const latest = manifest.latest;
-        if (!latest) throw new Error('no cycles in manifest');
+    Cycle.getActiveCycle()
+      .then(activeDate => {
+        if (!activeDate) throw new Error('no cycles in manifest');
         return Promise.all([
-          DataLoader.loadCycle(latest),
+          DataLoader.loadCycle(activeDate),
           _loadAnalytics(),
           _loadHoldingsFull(),     // Fix-List 9 Feature A — primary source
         ]);

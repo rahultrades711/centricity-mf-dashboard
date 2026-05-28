@@ -458,14 +458,9 @@
   document.addEventListener('DOMContentLoaded', main);
 
   async function main() {
-    let manifest;
     try {
-      manifest = await DataLoader.listCycles();
-      const last = AppState.getLastVisitedCycle();
-      const initialDate = (last && manifest.cycles.find(c => c.date === last))
-        ? last : (manifest.latest || manifest.cycles[0].date);
+      const initialDate = await Cycle.getActiveCycle();
       _cycle = await DataLoader.loadCycle(initialDate);
-      AppState.setLastVisitedCycle(initialDate);
     } catch (err) {
       renderLoadError(err); return;
     }
@@ -2441,7 +2436,8 @@
   async function drawNavChart() {
     if (!_navSeries) {
       try {
-        const r = await fetch('data/nav-series-2026-04-15.json');
+        const navDate = (_cycle && _cycle.cycle_meta && _cycle.cycle_meta.cycle_date) || (await Cycle.getActiveCycle());
+        const r = await fetch(`data/nav-series-${navDate}.json`);
         _navSeries = r.ok ? await r.json() : { series: {} };
       } catch (e) { _navSeries = { series: {} }; }
     }

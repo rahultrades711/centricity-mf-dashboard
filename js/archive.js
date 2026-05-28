@@ -10,19 +10,19 @@
   document.addEventListener('DOMContentLoaded', main);
 
   async function main() {
-    let manifest, latestCycle;
+    let manifest, latestCycle, activeDate;
     try {
-      manifest = await DataLoader.listCycles();
+      manifest = await Cycle.getManifest();
       const latestDate = manifest.latest || manifest.cycles[0].date;
       latestCycle = await DataLoader.loadCycle(latestDate);
+      activeDate = await Cycle.getActiveCycle();
     } catch (err) {
       renderLoadError(err);
       return;
     }
-    const lastVisited = AppState.getLastVisitedCycle() || latestCycle.cycle_meta.cycle_date;
     document.getElementById('footUpdated').textContent = 'Last updated · ' + latestCycle.cycle_meta.as_on_display;
 
-    renderGrid(manifest, lastVisited, latestCycle);
+    renderGrid(manifest, activeDate, latestCycle);
   }
 
   function renderLoadError(err) {
@@ -72,10 +72,10 @@
         const date = tile.getAttribute('data-date');
         try {
           await DataLoader.loadCycle(date);
-          AppState.setLastVisitedCycle(date);
+          await Cycle.setActiveCycle(date);
           showToast(`Loaded ${date}. Other screens will use this cycle.`);
           // Re-render to update "current" badge
-          renderGrid(await DataLoader.listCycles(), date, await DataLoader.loadCycle(date));
+          renderGrid(await Cycle.getManifest(), date, await DataLoader.loadCycle(date));
         } catch (e) {
           showToast('Could not load ' + date);
         }
