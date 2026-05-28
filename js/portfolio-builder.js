@@ -1789,7 +1789,7 @@
       benchmark: s.benchmark,
       inception_date: s.inception_date,
       centricity_score: s.centricity_score,
-      centricity_rank_overall: s.centricity_rank_overall,
+      centricity_rank_in_category: s.centricity_rank_in_category,
       centricity_score_status: s.centricity_score_status,
       manager_name: s.manager_name,
       manager_tenure_yrs: s.manager_tenure_yrs,
@@ -1994,9 +1994,9 @@
     if (f._tier === 'FOCUSED') {
       lines.push('<strong>Centricity Focused</strong> — on the top-tier conviction list.');
     } else if (f._tier === 'RANKED') {
-      const rk = f.centricity_rank_overall;
+      const rk = f.centricity_rank_in_category;
       lines.push(rk
-        ? '<strong>Ranked #' + rk + '</strong> in the current cycle (' + escapeHtml(f.category) + ').'
+        ? '<strong>Ranked #' + rk + '</strong> in ' + escapeHtml(f.category) + ' (current cycle).'
         : '<strong>Ranked</strong> in the current cycle.');
     } else if (f._tier === 'NEW_FUND') {
       const incept = f.inception_date

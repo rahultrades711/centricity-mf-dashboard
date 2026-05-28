@@ -224,6 +224,7 @@ def _load_name_to_scheme(cycle_json: Path) -> tuple[dict[str, int], str]:
 def convert(
     equity_path: Path,
     hybrid_path: Path,
+    debt_path: Path | None = None,
     *,
     analytics_date: str | None = None,
     cycle_json_path: Path | None = None,
@@ -254,7 +255,13 @@ def convert(
     # Stream + group by scheme name
     rows_by_scheme: dict[str, list[dict]] = defaultdict(list)
     sources: list[str] = []
-    for path in (equity_path, hybrid_path):
+    # Stage B A2 (2026-05-28) — debt analytics now included alongside Equity +
+    # Hybrid (kickoff scope). The Debt file shares the same Sheet1 column
+    # layout (col 0 Scheme Name, col 1 Company, col 3 Holding%, col 8 Sector,
+    # col 9 Asset, col 18 MCAP Type) so _stream_analytics handles it uniformly.
+    # Per-fund holdings for debt funds are written to the same analytics JSON;
+    # the dashboard renders them in the same shape as equity/hybrid funds.
+    for path in (equity_path, hybrid_path, debt_path):
         if path is None or not path.exists():
             continue
         sources.append(path.name)
@@ -356,14 +363,16 @@ def main(argv: list[str] | None = None) -> int:
         positional.append(a); i += 1
     if len(positional) < 2:
         print(
-            "usage: excel_to_json_analytics.py <equity.xlsx> <hybrid.xlsx> "
+            "usage: excel_to_json_analytics.py <equity.xlsx> <hybrid.xlsx> [<debt.xlsx>] "
             "[--analytics-date YYYY-MM-DD] [--cycle-json data/screener-YYYY-MM-DD.json]",
             file=sys.stderr,
         )
         return 2
+    debt = Path(positional[2]) if len(positional) > 2 and positional[2] else None
     convert(
         Path(positional[0]),
         Path(positional[1]),
+        debt,
         analytics_date=analytics_date,
         cycle_json_path=Path(cycle_json) if cycle_json else None,
     )

@@ -3,7 +3,7 @@
  *
  * ⚠️  EXCEL-LOCKED WEIGHTS — DO NOT CALL DataLoader.recomputeScore() HERE.
  *
- * Home reads `fund.centricity_score` and `fund.centricity_rank_overall`
+ * Home reads `fund.centricity_score` and `fund.centricity_rank_in_category`
  * directly from the cycle JSON. Those values were computed by the Excel
  * using Master Table 2 weights at cycle build time, locked by the Products
  * Team. Home is the canonical "what the team recommends right now" view —
@@ -39,7 +39,7 @@
   let _currentManifest = null;
   let _assetClassMS = null;
   let _categoryMS = null;
-  let _topSortState = { key: 'centricity_rank_overall', dir: 'asc' };
+  let _topSortState = { key: 'centricity_rank_in_category', dir: 'asc' };
 
   document.addEventListener('DOMContentLoaded', main);
 
@@ -62,6 +62,7 @@
     renderQuickTiles(cycle);
     initFilters(cycle);             // creates the two MultiSelects
     renderActiveFlags(cycle);
+    renderExplore(cycle);
     renderChanges(cycle);
     renderFooter(cycle);
     initToasts();
@@ -79,6 +80,7 @@
         rebuildCategoryItems();
         renderTopTable();
         renderActiveFlags(newCycle);
+        renderExplore(newCycle);
         renderChanges(newCycle);
         renderFooter(newCycle);
       } catch (err) {
@@ -276,11 +278,14 @@
     const subClassMap = { equity: 'Equity', hybrid: 'Hybrid', debt: 'Debt' };
     const selectedSubClasses = selectedAssetClasses.map(s => subClassMap[s]);
 
+    // Stage B B3 — pooled Top-10 across the selected category set, sorted by
+    // centricity_score desc. category-rank sort would tie every category #1
+    // (one per category) which is meaningless across categories per §7.3.
     const top = cycle.funds
       .filter(f => f.centricity_score_status === 'Ranked')
       .filter(f => selectedSubClasses.includes(f.sub_category_class))
       .filter(f => selectedCategories.includes(f.category))
-      .sort((a, b) => (a.centricity_rank_overall || 9999) - (b.centricity_rank_overall || 9999))
+      .sort((a, b) => (b.centricity_score || 0) - (a.centricity_score || 0))
       .slice(0, 10);
 
     if (top.length === 0) {
@@ -297,7 +302,7 @@
         <table class="fund-tbl" id="topTbl">
           <thead>
             <tr>
-              <th data-key="centricity_rank_overall" class="sorted">Rank<span class="arr">▴</span></th>
+              <th data-key="centricity_rank_in_category" class="sorted">Rank<span class="arr">▴</span></th>
               <th data-key="fund_name">Fund / AMC<span class="arr">▾</span></th>
               <th data-key="category">Category<span class="arr">▾</span></th>
               <th data-key="aum_cr">AUM ₹ Cr<span class="arr">▾</span></th>
@@ -320,7 +325,7 @@
       const r5 = f.trailing_returns?.return_5y_pct;
       const sharpe = f.risk_metrics?.sharpe_3y;
       const score = f.centricity_score;  // ← from JSON, NOT recomputed
-      const rankBadge = f.centricity_rank_overall;
+      const rankBadge = f.centricity_rank_in_category;
       const subline = `${escapeHtml(f.amc)} · #${f.scheme_code}`;
       return `
         <tr tabindex="0" data-scheme="${f.scheme_code}">
@@ -375,7 +380,7 @@
     const key = state.key;
     const access = (f) => {
       switch (key) {
-        case 'centricity_rank_overall': return f.centricity_rank_overall;
+        case 'centricity_rank_in_category': return f.centricity_rank_in_category;
         case 'fund_name': return (f.fund_name || '').toLowerCase();
         case 'category':  return (f.category || '').toLowerCase();
         case 'aum_cr':    return f.aum_cr;
@@ -398,46 +403,213 @@
     });
   }
 
-  /* --------- Active Flags (v1: empty state when flag_summary null/0) --------- */
+  /* --------- Active Flags (Stage B B3 — cycle_flags driven) --------- */
+  const ACTIVE_FLAG_AUM_CR = 50000;   // AUM threshold per spec
+
   function renderActiveFlags(cycle) {
     const row = document.getElementById('alertsRow');
-    const summary = cycle.cycle_meta.flag_summary;
-    const total = summary ? Number(summary.total_flags || 0) : null;
-    if (summary == null || total === 0) {
+    const cycles = _currentManifest && _currentManifest.cycles;
+    if (!cycles || cycles.length < 2) {
       row.innerHTML = `
         <div class="empty-state" style="grid-column: 1 / -1;">
           <div class="ring-motif" aria-hidden="true"></div>
-          <h3>No flags this cycle</h3>
-          <p>First auto-flags will populate from the next cycle (30 April 2026) onwards.
-             Cycle-to-cycle deltas require a prior cycle to diff against.</p>
+          <h3>No prior cycle to compare against</h3>
+          <p>First auto-flags will populate from the next cycle onwards.
+             Cycle-over-cycle deltas require a prior cycle to diff against.</p>
         </div>`;
       return;
     }
-    row.innerHTML = `
-      <div class="empty-state" style="grid-column: 1 / -1;">
-        <div class="ring-motif" aria-hidden="true"></div>
-        <h3>${total} flag${total === 1 ? '' : 's'} this cycle</h3>
-        <p>Flag rendering ships with v1.x compute_cycle_flags.py post-processor —
-           summary present in this JSON but per-flag UI not yet wired here. View full panel:
-           <a href="alerts.html">Alerts</a>.</p>
-      </div>`;
+
+    // Severity order (kickoff): manager_change > big AUM swing > rank change
+    //                          > return swing > status change.
+    const severityScore = (cf) => {
+      if (!cf) return 0;
+      let s = 0;
+      if (cf.manager_change)              s += 10;
+      if (cf.aum_swing_pct != null)       s += 8;
+      if (cf.rank_change_in_category != null) s += 6;
+      if (cf.return_1y_swing_pct != null) s += 4;
+      if (cf.status_change)               s += 5;
+      return s;
+    };
+
+    const flagged = (cycle.funds || [])
+      .filter(f => (f.aum_cr || 0) >= ACTIVE_FLAG_AUM_CR)
+      .map(f => ({ fund: f, score: severityScore(f.cycle_flags) }))
+      .filter(x => x.score > 0)
+      .sort((a, b) => b.score - a.score || (b.fund.aum_cr || 0) - (a.fund.aum_cr || 0))
+      .slice(0, 3);
+
+    if (flagged.length === 0) {
+      row.innerHTML = `
+        <div class="empty-state" style="grid-column: 1 / -1;">
+          <div class="ring-motif" aria-hidden="true"></div>
+          <h3>No active flags this cycle</h3>
+          <p>No funds with AUM ≥ ₹${DataLoader.fmtINR(ACTIVE_FLAG_AUM_CR)} Cr crossed the cycle-over-cycle thresholds.</p>
+        </div>`;
+      return;
+    }
+
+    row.innerHTML = flagged.map(({ fund, score }) => {
+      const cf = fund.cycle_flags || {};
+      const tags = [];
+      if (cf.manager_change) {
+        tags.push(`<span class="flag-tag flag-mgr">Manager change · <b>${escapeHtml(cf.manager_change.prior)}</b> → <b>${escapeHtml(cf.manager_change.current)}</b></span>`);
+      }
+      if (cf.aum_swing_pct != null) {
+        const dir = cf.aum_swing_pct >= 0 ? '+' : '−';
+        const cls = cf.aum_swing_pct >= 0 ? '' : ' neg';
+        tags.push(`<span class="flag-tag${cls}">AUM swing · <b>${dir}${Math.abs(cf.aum_swing_pct).toFixed(1)}%</b></span>`);
+      }
+      if (cf.rank_change_in_category != null) {
+        const delta = cf.rank_change_in_category;
+        const cls = delta < 0 ? '' : ' neg';
+        tags.push(`<span class="flag-tag${cls}">Category-rank shift · <b>${delta > 0 ? '+' : ''}${delta}</b></span>`);
+      }
+      if (cf.return_1y_swing_pct != null) {
+        const v = cf.return_1y_swing_pct;
+        const cls = v < 0 ? ' neg' : '';
+        const sign = v >= 0 ? '+' : '−';
+        tags.push(`<span class="flag-tag${cls}">1Y return swing · <b>${sign}${Math.abs(v).toFixed(2)}pp</b></span>`);
+      }
+      if (cf.status_change) {
+        tags.push(`<span class="flag-tag">Status change · <b>${escapeHtml(cf.status_change.prior)}</b> → <b>${escapeHtml(cf.status_change.current)}</b></span>`);
+      }
+      return `
+        <a class="alert-card" href="fund-detail.html?scheme=${fund.scheme_code}">
+          <div class="alert-hd">
+            <h3>${escapeHtml(fund.fund_name)}</h3>
+            <span class="alert-aum num">₹ ${DataLoader.fmtINR(fund.aum_cr)} Cr</span>
+          </div>
+          <div class="alert-cat">${escapeHtml(fund.amc || '')} · ${escapeHtml(fund.category || '')}</div>
+          <div class="alert-tags">${tags.join('')}</div>
+        </a>`;
+    }).join('');
   }
 
-  /* --------- "what changed" --------- */
+  /* --------- "what changed" (Stage B B3 — cycle_flags + universe diff) --------- */
   function renderChanges(cycle) {
     const grid = document.getElementById('changesGrid');
-    const labels = ['New entrants', 'Funds dropped', 'Top 5 ranking gainers', 'Top 5 ranking losers', 'Manager exits'];
-    grid.innerHTML = labels.map(label => `
-      <div class="change-card empty" aria-disabled="true">
-        <div class="hd"><span class="lbl">${label}</span><span class="count num">—</span></div>
-        <div class="body">No previous cycle to compare against — this card will populate from the next cycle onwards.</div>
-        <div class="foot"><span>Awaiting next cycle</span></div>
-      </div>`).join('');
     const sub = document.getElementById('changesSub');
-    if (sub) {
-      sub.textContent = `Cycle-over-cycle deltas. With only one cycle (${DataLoader.fmtCycleLabelDate(cycle.cycle_meta)}) ` +
-        `currently in the archive, comparison cards are empty until the next refresh.`;
+    const cycles = _currentManifest && _currentManifest.cycles;
+    if (!cycles || cycles.length < 2) {
+      const labels = ['New entrants', 'Funds dropped', 'Top 5 ranking gainers', 'Top 5 ranking losers', 'Manager exits'];
+      grid.innerHTML = labels.map(label => `
+        <div class="change-card empty" aria-disabled="true">
+          <div class="hd"><span class="lbl">${label}</span><span class="count num">—</span></div>
+          <div class="body">No prior cycle to compare against — this card will populate from the next cycle onwards.</div>
+          <div class="foot"><span>Awaiting next cycle</span></div>
+        </div>`).join('');
+      if (sub) {
+        sub.textContent = `Cycle-over-cycle deltas. With only one cycle (${DataLoader.fmtCycleLabelDate(cycle.cycle_meta)}) ` +
+          `currently in the archive, comparison cards are empty until the next refresh.`;
+      }
+      return;
     }
+    // Identify the prior cycle (next-most-recent before active) for the "dropped" diff.
+    const sorted = cycles.slice().sort((a, b) => (a.date < b.date ? 1 : -1));
+    const activeIdx = sorted.findIndex(c => c.date === cycle.cycle_meta.cycle_date);
+    const priorEntry = activeIdx >= 0 && activeIdx < sorted.length - 1 ? sorted[activeIdx + 1] : sorted[1] || null;
+    if (sub) {
+      sub.textContent = priorEntry
+        ? `Cycle-over-cycle deltas vs ${DataLoader.fmtCycleLabelDate(priorEntry.date)}.`
+        : `Cycle-over-cycle deltas.`;
+    }
+
+    // Source funds with cycle_flags
+    const funds = cycle.funds || [];
+    const newEntrants = funds.filter(f => (f.cycle_flags || {}).is_new_in_cycle);
+    const managerExits = funds.filter(f => (f.cycle_flags || {}).manager_change != null);
+    const rankChanged = funds
+      .map(f => ({ fund: f, delta: (f.cycle_flags || {}).rank_change_in_category }))
+      .filter(x => typeof x.delta === 'number');
+    const gainers = rankChanged.slice().filter(x => x.delta < 0).sort((a, b) => a.delta - b.delta).slice(0, 5);
+    const losers  = rankChanged.slice().filter(x => x.delta > 0).sort((a, b) => b.delta - a.delta).slice(0, 5);
+
+    // Render the 5 cards. "Funds dropped" requires loading the prior cycle.
+    const renderTopList = (xs, fmt) => xs.slice(0, 5).map(fmt).join('') || '<em>—</em>';
+
+    grid.innerHTML = `
+      <div class="change-card">
+        <div class="hd"><span class="lbl">New entrants</span><span class="count num">${newEntrants.length}</span></div>
+        <div class="body">${renderTopList(newEntrants.slice(0, 5), f => `<div><a href="fund-detail.html?scheme=${f.scheme_code}">${escapeHtml(f.fund_name)}</a></div>`)}</div>
+        <div class="foot"><span>Top 5 by appearance</span></div>
+      </div>
+      <div class="change-card" id="changeDropped">
+        <div class="hd"><span class="lbl">Funds dropped</span><span class="count num">—</span></div>
+        <div class="body"><em>Loading…</em></div>
+        <div class="foot"><span>vs ${priorEntry ? escapeHtml(DataLoader.fmtCycleLabelDate(priorEntry.date)) : '—'}</span></div>
+      </div>
+      <div class="change-card">
+        <div class="hd"><span class="lbl">Top 5 ranking gainers</span><span class="count num">${gainers.length}</span></div>
+        <div class="body">${renderTopList(gainers, x => `<div><a href="fund-detail.html?scheme=${x.fund.scheme_code}">${escapeHtml(x.fund.fund_name)}</a> <b>(${x.delta})</b></div>`)}</div>
+        <div class="foot"><span>Δ rank in category (negative = up)</span></div>
+      </div>
+      <div class="change-card">
+        <div class="hd"><span class="lbl">Top 5 ranking losers</span><span class="count num">${losers.length}</span></div>
+        <div class="body">${renderTopList(losers, x => `<div><a href="fund-detail.html?scheme=${x.fund.scheme_code}">${escapeHtml(x.fund.fund_name)}</a> <b>(+${x.delta})</b></div>`)}</div>
+        <div class="foot"><span>Δ rank in category (positive = down)</span></div>
+      </div>
+      <div class="change-card">
+        <div class="hd"><span class="lbl">Manager exits</span><span class="count num">${managerExits.length}</span></div>
+        <div class="body">${renderTopList(managerExits.slice(0, 5), f => `<div><a href="fund-detail.html?scheme=${f.scheme_code}">${escapeHtml(f.fund_name)}</a> · ${escapeHtml(f.cycle_flags.manager_change.prior)} → ${escapeHtml(f.cycle_flags.manager_change.current)}</div>`)}</div>
+        <div class="foot"><span>Lead manager change</span></div>
+      </div>`;
+
+    // Lazy-load prior cycle to compute dropped funds (funds present in prior, absent in active).
+    if (priorEntry) {
+      DataLoader.loadCycle(priorEntry.date).then(priorCycle => {
+        const activeAmfis = new Set((funds).map(f => f.scheme_code));
+        const droppedFunds = (priorCycle.funds || []).filter(f => !activeAmfis.has(f.scheme_code));
+        const card = document.getElementById('changeDropped');
+        if (!card) return;
+        card.querySelector('.count').textContent = droppedFunds.length;
+        const body = card.querySelector('.body');
+        if (droppedFunds.length === 0) {
+          body.innerHTML = '<em>None this cycle.</em>';
+        } else {
+          body.innerHTML = droppedFunds.slice(0, 5).map(f =>
+            `<div>${escapeHtml(f.fund_name)}</div>`
+          ).join('');
+        }
+      }).catch(() => {
+        const card = document.getElementById('changeDropped');
+        if (card) card.querySelector('.body').textContent = 'Could not load prior cycle.';
+      });
+    }
+  }
+
+  /* --------- Explore section (Stage B B3 — asset-class + Active/Passive split) --------- */
+  function renderExplore(cycle) {
+    const wrap = document.getElementById('exploreWrap');
+    if (!wrap) return;
+    const funds = cycle.funds || [];
+    const byClass = { Equity: 0, Hybrid: 0, Debt: 0, Other: 0 };
+    let activeCount = 0, passiveCount = 0;
+    for (const f of funds) {
+      const c = f.sub_category_class || 'Other';
+      byClass[c] = (byClass[c] || 0) + 1;
+      if (f.centricity_score_status === 'Index — Not Scored') passiveCount++;
+      else activeCount++;
+    }
+    const total = funds.length;
+    const pct = (n) => total > 0 ? ((n / total) * 100).toFixed(1) : '0.0';
+    wrap.innerHTML = `
+      <div class="explore-grid">
+        <div class="explore-card">
+          <h3>By asset class</h3>
+          <div class="explore-row"><span>Equity</span><b class="num">${byClass.Equity}</b><span class="pct">${pct(byClass.Equity)}%</span></div>
+          <div class="explore-row"><span>Hybrid</span><b class="num">${byClass.Hybrid}</b><span class="pct">${pct(byClass.Hybrid)}%</span></div>
+          <div class="explore-row"><span>Debt</span><b class="num">${byClass.Debt}</b><span class="pct">${pct(byClass.Debt)}%</span></div>
+          <p class="explore-foot">Total ${total} funds. Click → Screener.</p>
+        </div>
+        <div class="explore-card">
+          <h3>Active vs Passive</h3>
+          <div class="explore-row"><span>Active (Ranked / Warning / New)</span><b class="num">${activeCount}</b><span class="pct">${pct(activeCount)}%</span></div>
+          <div class="explore-row"><span>Passive (Index — Not Scored)</span><b class="num">${passiveCount}</b><span class="pct">${pct(passiveCount)}%</span></div>
+          <p class="explore-foot">Pie visualization — v1.x.</p>
+        </div>
+      </div>`;
   }
 
   function renderFooter(cycle) {

@@ -196,7 +196,7 @@
    * @param {string|string[]} [opts.status]      'Ranked' | '1-3yr Warning' | 'New Fund Monitoring'
    * @param {string} [opts.amc]
    * @param {string} [opts.searchText]           substring match against fund_name, amc, scheme_code
-   * @param {string} [opts.sortBy]               dotted path, e.g. 'centricity_rank_overall' or 'risk_metrics.sharpe_3y'
+   * @param {string} [opts.sortBy]               dotted path, e.g. 'centricity_rank_in_category' or 'risk_metrics.sharpe_3y'
    * @param {string} [opts.sortDir]              'asc' (default) | 'desc'
    * @param {number} [opts.limit]
    * @returns {object[]}
@@ -264,7 +264,7 @@
     n = n || 10;
     return getFunds(cycle, {
       status: 'Ranked',
-      sortBy: 'centricity_rank_overall',
+      sortBy: 'centricity_rank_in_category',
       sortDir: 'asc',
       limit: n,
     });
@@ -273,7 +273,7 @@
   /**
    * Top-N by recomputed score using a custom weight set
    * (the weight drawer's primary call). Falls back to stored
-   * centricity_rank_overall when weights are equal to defaults.
+   * centricity_rank_in_category when weights are equal to defaults.
    */
   function topByCustomWeights(cycle, weights, n) {
     n = n || 10;

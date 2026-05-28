@@ -106,8 +106,23 @@
     wireRawJsonLink();
 
     // Lazy-load extras in parallel
-    loadNavSeries(fund.scheme_code).then(entry => {
+    loadNavSeries(fund.scheme_code).then(async entry => {
       _navSeries = entry;
+      // Stage B B1 — nav-series.bench is empty for many funds because the
+      // workbook 📈 Benchmark NAV row uses bare titles while fund.benchmark
+      // carries TRI/case variants. The separate benchmark-nav file (A3) has
+      // a full alias map that resolves every variant. Pull the daily series
+      // from there and resample to monthly to match the chart's shape.
+      if (!_navSeries.bench || _navSeries.bench.length === 0) {
+        try {
+          const daily = await loadBenchmarkDailySeries(fund.benchmark);
+          if (daily && daily.length > 0) {
+            _navSeries.bench = _dailyToMonthlyShape(daily);
+          }
+        } catch (e) {
+          console.warn('[fund-detail] benchmark-nav unavailable', e);
+        }
+      }
       renderNavChart();
       renderDrawdownChart();
       // Now that bench monthly series is in memory, fill in YTD / 1M / 10Y
@@ -738,7 +753,16 @@
    * ============================================================ */
   function renderManager(fund) {
     const name = fund.manager_name || '—';
-    document.getElementById('mgrName').textContent = name;
+    // Stage B B1 — lead manager name links to the Manager Profiles page
+    // (same href shape the co-strip already uses below). Falls back to a
+    // plain em-dash if manager_name is missing.
+    const mgrNameEl = document.getElementById('mgrName');
+    if (name && name !== '—') {
+      const href = `manager-profiles.html?manager=${encodeURIComponent(name)}`;
+      mgrNameEl.innerHTML = `<a class="manager-link" href="${href}">${escapeHtml(name)}</a>`;
+    } else {
+      mgrNameEl.textContent = name;
+    }
     document.getElementById('mgrTitle').textContent =
       `${fund.amc || '—'} · Lead Manager · Tenure ${fund.manager_tenure_yrs != null ? DataLoader.fmtNum(fund.manager_tenure_yrs, 1) + ' yrs' : '—'}`;
     document.getElementById('mgrAvatar').textContent = managerInitials(name);
@@ -1299,8 +1323,8 @@
     if (fund.centricity_score != null && fund.centricity_score >= 0.80) {
       const ofN = (cycle.cycle_meta.total_funds || '—').toLocaleString('en-IN');
       const inCat = fund.centricity_rank_in_category != null ? `#${fund.centricity_rank_in_category} in ${escape(fund.category)}` : null;
-      const overall = fund.centricity_rank_overall != null ? `#${fund.centricity_rank_overall} overall (of ${ofN})` : null;
-      const rankPart = [inCat, overall].filter(Boolean).join(' / ');
+      // Stage B A6 — cross-category overall rank removed (§7.3); render category rank only.
+      const rankPart = inCat || '';
       strengths.push(nrm(`Centricity Score <b>${(fund.centricity_score * 10).toFixed(2)}/10</b>${rankPart ? ' · ' + rankPart : ''}.`));
     }
     const rs = fund.rolling_3y_stats;
@@ -1400,6 +1424,9 @@
    * peer lookups for the Category Avg line all read from the same cache.
    * ============================================================ */
   let _navSeriesCache = null;          // full document {cycle_date, series}
+  // Stage B B1 — separate benchmark-nav file keyed by canonical benchmark
+  // label (with TRI/PRI/case alias variants). Lazy-fetched on first use.
+  let _benchmarkNavCache = null;
 
   /**
    * Resolve the full nav-series document (fetched once per page load),
@@ -1416,6 +1443,44 @@
     const entry = _navSeriesCache.series && _navSeriesCache.series[String(schemeCode)];
     if (!entry) throw new Error('scheme not in nav-series');
     return entry;
+  }
+
+  /**
+   * Stage B B1 — fetch the active cycle's `benchmark-nav-<date>.json` (once
+   * per page) and return the daily series for `benchmarkName`, or null when
+   * the benchmark isn't in the file (proxy / absent / unmatched label).
+   * The chart degrades to a fund-only line when this returns null.
+   */
+  async function loadBenchmarkDailySeries(benchmarkName) {
+    if (!benchmarkName) return null;
+    if (!_benchmarkNavCache) {
+      const cycleDate = _cycle.cycle_meta.cycle_date;
+      const url = `data/benchmark-nav-${cycleDate}.json`;
+      const res = await fetch(url, { cache: 'default' });
+      if (!res.ok) throw new Error('benchmark-nav HTTP ' + res.status);
+      _benchmarkNavCache = await res.json();
+    }
+    const series = _benchmarkNavCache.series || {};
+    return series[benchmarkName] || null;
+  }
+
+  /**
+   * Stage B B1 — daily-to-monthly resample (last NAV per calendar month),
+   * matching the shape `_navSeries.bench` expects: `[{d: "YYYY-MM", v: nav}]`.
+   */
+  function _dailyToMonthlyShape(daily) {
+    if (!Array.isArray(daily)) return [];
+    const byMonth = {};
+    for (const item of daily) {
+      if (!item || item.length < 2) continue;
+      const d = String(item[0] || "");
+      const v = item[1];
+      if (!d || v == null) continue;
+      const ym = d.slice(0, 7);
+      const prev = byMonth[ym];
+      if (!prev || prev.dateStr < d) byMonth[ym] = { dateStr: d, val: Number(v) };
+    }
+    return Object.keys(byMonth).sort().map(ym => ({ d: ym, v: byMonth[ym].val }));
   }
 
   function ensureChartJs() {
@@ -2487,9 +2552,13 @@
     link.href = `data/screener-${_cycle.cycle_meta.cycle_date}.json`;
   }
   function renderFooter(cycle) {
-    document.getElementById('footUpdated').textContent =
-      `Last updated · ${cycle.cycle_meta.as_on_display}`;
-    document.getElementById('verdictSubtitle').textContent =
+    // Stage B B4 — null-DOM guard: both elements only exist on the fund-view
+    // path. Picker view + notFound shell don't render them, so the previous
+    // unguarded access threw a TypeError. Guarding keeps the page clean.
+    const footEl = document.getElementById('footUpdated');
+    if (footEl) footEl.textContent = `Last updated · ${cycle.cycle_meta.as_on_display}`;
+    const verdictEl = document.getElementById('verdictSubtitle');
+    if (verdictEl) verdictEl.textContent =
       `Updated ${cycle.cycle_meta.as_on_display} · Authored by the Centricity Investment Committee`;
   }
 
@@ -2588,11 +2657,11 @@
             <tbody>
               ${(cycle.funds || [])
                 .filter(f => f.centricity_score_status === 'Ranked')
-                .sort((a, b) => (a.centricity_rank_overall || 9999) - (b.centricity_rank_overall || 9999))
+                .sort((a, b) => (b.centricity_score || 0) - (a.centricity_score || 0))
                 .slice(0, 25)
-                .map(f => `
+                .map((f, i) => `
                   <tr style="cursor:pointer" onclick="window.location.href='fund-detail.html?scheme=${f.scheme_code}'">
-                    <td>${f.centricity_rank_overall ?? '—'}</td>
+                    <td>${i + 1}</td>
                     <td class="row-fund-cell"><b>${escapeHtml(f.fund_name)}</b><div style="font-size:11px;color:var(--text-mid);">${escapeHtml(f.amc || '')} · #${f.scheme_code}</div></td>
                     <td>${escapeHtml(f.category)}</td>
                     <td class="${pctCls(f.trailing_returns?.return_1y_pct)}">${DataLoader.fmtPct(f.trailing_returns?.return_1y_pct)}</td>

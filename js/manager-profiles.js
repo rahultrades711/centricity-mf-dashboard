@@ -54,6 +54,7 @@
         _profiles = profiles || {};
         _composeManagers();
         _renderEyebrow();
+        initCyclePicker(cycle);   // Stage B B2 — Stage A cycle dropdown wiring
         _renderAmcFilter();
         _wirePicker();
         _renderManagerList();
@@ -124,6 +125,18 @@
       // Skip funds we don't have screener metadata for (typically
       // analytics-only funds — out of universe for v1)
       if (!screenerFund) continue;
+      // Stage B B2 — "Currently Managing" requires BOTH signals:
+      //   (a) Morningstar's `is_current` flag (end == null), AND
+      //   (b) name in the screener fund's `manager_co_managers` (A1
+      //       normalised; this is the partner-team-curated truth).
+      // Funds where Morningstar says is_current but the screener doesn't
+      // list the manager are stale-Morningstar artifacts (e.g. D'Silva
+      // showing on a fund she left). Skip those entirely.
+      const coManagerKeys = new Set(
+        (Array.isArray(screenerFund.manager_co_managers)
+          ? screenerFund.manager_co_managers : []
+        ).map(n => String(n || "").trim().toLowerCase())
+      );
       for (const m of entry.managers) {
         if (!m.name) continue;
         let row = byName.get(m.name);
@@ -137,12 +150,15 @@
           byName.set(m.name, row);
         }
         const item = { code, fund: screenerFund, m };
-        if (m.is_current) {
+        const inCoManagers = coManagerKeys.has(String(m.name).trim().toLowerCase());
+        if (m.is_current && inCoManagers) {
           row.currentFunds.push(item);
           if (screenerFund.amc) row.amcs.add(screenerFund.amc);
-        } else {
+        } else if (!m.is_current) {
           row.prevFunds.push(item);
         }
+        // else: is_current per Morningstar but NOT in screener.manager_co_managers
+        // → ambiguous / stale; omit per Stage B B2 rule (both signals required)
       }
     }
 
@@ -461,5 +477,40 @@
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
+  }
+
+  /* ============================================================
+   * Stage B B2 — Cycle picker (mirror of fund-detail/compare)
+   * ============================================================ */
+  function initCyclePicker(cycle) {
+    const sel = document.getElementById('mpCycleSel');
+    if (!sel) return;
+    const cur = (cycle && cycle.cycle_meta) ? cycle.cycle_meta.cycle_date : null;
+    Cycle.getCycles().then(cycles => {
+      sel.innerHTML = '';
+      cycles.slice().sort((a, b) => (a.date < b.date ? 1 : -1)).forEach(c => {
+        const o = document.createElement('option');
+        o.value = c.date;
+        o.textContent = DataLoader.fmtCycleLabelDate(c.date);
+        if (c.date === cur) o.selected = true;
+        sel.appendChild(o);
+      });
+    });
+    sel.addEventListener('change', onCycleChange);
+  }
+
+  async function onCycleChange(e) {
+    const newDate = e.target.value;
+    try {
+      await Cycle.setActiveCycle(newDate);
+    } catch (err) {
+      console.warn('[manager-profiles] cycle change failed', err);
+      return;
+    }
+    // Drop ?cycle= so localStorage drives the reloaded page; preserve every
+    // other param (?manager= in particular must survive).
+    const url = new URL(window.location);
+    url.searchParams.delete('cycle');
+    window.location.replace(url.toString());
   }
 })();

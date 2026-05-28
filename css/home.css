@@ -305,6 +305,62 @@ table.fund-tbl .score-cell {
   padding: 20px 8px;
 }
 
+/* ============ Stage B B3 — Active Flags + Explore section ============ */
+.alert-card {
+  display: block; padding: 16px 18px; background: #fff;
+  border: 1px solid var(--rule); border-radius: 4px;
+  box-shadow: var(--shadow-sm); color: inherit; text-decoration: none;
+  transition: box-shadow .2s, border-color .2s;
+}
+.alert-card:hover { box-shadow: var(--shadow-md); border-color: var(--gold); }
+.alert-card .alert-hd {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 16px; margin-bottom: 4px;
+}
+.alert-card .alert-hd h3 {
+  margin: 0; font-size: 14px; font-weight: 700; line-height: 1.3;
+}
+.alert-card .alert-aum { font-size: 13px; color: var(--gold-deep); }
+.alert-card .alert-cat {
+  font-size: 11.5px; color: var(--text-mid); margin-bottom: 10px;
+}
+.alert-card .alert-tags {
+  display: flex; flex-wrap: wrap; gap: 6px;
+}
+.flag-tag {
+  display: inline-block; font-size: 11px; padding: 3px 8px; border-radius: 999px;
+  background: var(--tan-soft); color: var(--black);
+  letter-spacing: 0; text-transform: none;
+}
+.flag-tag.neg { background: rgba(147, 22, 33, .10); color: var(--red); }
+.flag-tag.flag-mgr { background: rgba(189, 149, 104, .18); color: var(--gold-deep); }
+
+.explore-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;
+}
+.explore-card {
+  background: #fff; border: 1px solid var(--rule); border-radius: 4px;
+  padding: 18px 20px; box-shadow: var(--shadow-sm);
+}
+.explore-card h3 {
+  margin: 0 0 12px; font-size: 13px; font-weight: 700;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--gold-deep);
+}
+.explore-row {
+  display: grid; grid-template-columns: 1fr auto auto; gap: 16px;
+  align-items: baseline; padding: 6px 0;
+  border-bottom: 1px solid rgba(217, 217, 217, .35);
+  font-size: 13.5px;
+}
+.explore-row:last-child { border-bottom: 0; }
+.explore-row b { font-size: 16px; font-weight: 700; }
+.explore-row .pct {
+  font-size: 12px; color: var(--text-mid); font-variant-numeric: tabular-nums;
+}
+.explore-foot {
+  margin: 10px 0 0; font-size: 11px; color: var(--text-mid); font-style: italic;
+}
+
 /* ============ RESPONSIVE NUDGES (Home-specific) ============ */
 @media (max-width: 1380px) {
   .quick { grid-template-columns: repeat(3, 1fr); }
