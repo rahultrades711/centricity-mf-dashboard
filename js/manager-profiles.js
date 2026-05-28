@@ -113,68 +113,149 @@
   function _composeManagers() {
     // Per-manager rollups: which funds they ran, AMC fingerprint, total AUM
     // managed today, longest tenure.
+    //
+    // Cowork patch 2026-05-28 — profiles are keyed by the SCREENER's Monitor
+    // spelling (A1 canonical) whenever a Morningstar entry can be matched to
+    // a Monitor co-manager on the same fund (exact-name first, then surname).
+    // This matches the rebuilt data/manager-profiles.json keying so the
+    // URL `?manager=` param works for both the Monitor lead spelling and any
+    // Morningstar long-form. Falls back to Morningstar's own spelling only
+    // when no Monitor canon can be inferred (rare — fully historical names).
     const screenerByCode = new Map(
       (_cycle.funds || []).map(f => [String(f.scheme_code), f])
     );
+    const norm = (s) => (s == null ? "" : String(s).trim().toLowerCase().replace(/\s+/g, " "));
+    const surname = (s) => {
+      if (s == null) return "";
+      const parts = String(s).trim().split(/\s+/);
+      return parts.length ? parts[parts.length - 1].toLowerCase() : "";
+    };
+
+    // Universe-wide Monitor name pools for past-manager fold-in
+    const monitorByNorm = new Map();      // norm -> canonical Monitor spelling
+    const monitorBySurname = new Map();   // surname -> canonical Monitor spelling
+    for (const f of (_cycle.funds || [])) {
+      for (const nm of (f.manager_co_managers || [])) {
+        if (!nm) continue;
+        const k = norm(nm);
+        if (!monitorByNorm.has(k)) monitorByNorm.set(k, nm);
+        const sk = surname(nm);
+        if (sk && !monitorBySurname.has(sk)) monitorBySurname.set(sk, nm);
+      }
+    }
+
     const byName = new Map();
+    const akaSeen = new Map();   // alt-spelling -> canonical
+    const _ensure = (canonical) => {
+      let row = byName.get(canonical);
+      if (!row) {
+        row = {
+          name: canonical,
+          currentFunds: [],
+          prevFunds: [],
+          amcs: new Set(),
+          aka: new Set(),
+        };
+        byName.set(canonical, row);
+      }
+      return row;
+    };
 
     for (const code in _history.funds) {
       const entry = _history.funds[code];
       if (!entry || !entry.managers) continue;
       const screenerFund = screenerByCode.get(String(code));
-      // Skip funds we don't have screener metadata for (typically
-      // analytics-only funds — out of universe for v1)
       if (!screenerFund) continue;
-      // Stage B B2 — "Currently Managing" requires BOTH signals:
-      //   (a) Morningstar's `is_current` flag (end == null), AND
-      //   (b) name in the screener fund's `manager_co_managers` (A1
-      //       normalised; this is the partner-team-curated truth).
-      // Funds where Morningstar says is_current but the screener doesn't
-      // list the manager are stale-Morningstar artifacts (e.g. D'Silva
-      // showing on a fund she left). Skip those entirely.
-      const coManagerKeys = new Set(
-        (Array.isArray(screenerFund.manager_co_managers)
-          ? screenerFund.manager_co_managers : []
-        ).map(n => String(n || "").trim().toLowerCase())
-      );
+      const cos = Array.isArray(screenerFund.manager_co_managers)
+        ? screenerFund.manager_co_managers : [];
+      const coByNorm = new Map(cos.filter(Boolean).map(n => [norm(n), n]));
+      const coBySurname = new Map();
+      for (const n of cos) {
+        const sk = surname(n);
+        if (sk && !coBySurname.has(sk)) coBySurname.set(sk, n);
+      }
+
       for (const m of entry.managers) {
         if (!m.name) continue;
-        let row = byName.get(m.name);
-        if (!row) {
-          row = {
-            name: m.name,
-            currentFunds: [],   // [{code, fund, manager_entry}]
-            prevFunds: [],      // same shape
-            amcs: new Set(),
-          };
-          byName.set(m.name, row);
+        const msNorm = norm(m.name);
+        const msSurname = surname(m.name);
+        const isCurrent = m.is_current === true || m.end == null;
+
+        // Resolve canonical (Monitor) spelling. Same priority as the data-
+        // layer builder: exact → surname → universe fold-in → Morningstar.
+        let canonical = m.name;
+        let inCoManagers = false;
+        if (coByNorm.has(msNorm)) {
+          canonical = coByNorm.get(msNorm);
+          inCoManagers = true;
+        } else if (isCurrent && msSurname && coBySurname.has(msSurname)) {
+          canonical = coBySurname.get(msSurname);
+          inCoManagers = true;
+        } else if (monitorByNorm.has(msNorm)) {
+          canonical = monitorByNorm.get(msNorm);
+        } else if (!isCurrent && msSurname && monitorBySurname.has(msSurname)) {
+          canonical = monitorBySurname.get(msSurname);
         }
+
+        if (m.name !== canonical) {
+          akaSeen.set(m.name, canonical);
+        }
+
+        const row = _ensure(canonical);
+        if (m.name !== canonical) row.aka.add(m.name);
         const item = { code, fund: screenerFund, m };
-        const inCoManagers = coManagerKeys.has(String(m.name).trim().toLowerCase());
-        if (m.is_current && inCoManagers) {
+
+        if (isCurrent && inCoManagers) {
           row.currentFunds.push(item);
           if (screenerFund.amc) row.amcs.add(screenerFund.amc);
-        } else if (!m.is_current) {
+        } else if (!isCurrent) {
           row.prevFunds.push(item);
         }
-        // else: is_current per Morningstar but NOT in screener.manager_co_managers
-        // → ambiguous / stale; omit per Stage B B2 rule (both signals required)
+        // else: Morningstar-current but no Monitor co-manager match on this
+        // fund → ambiguous / stale, skipped per kickoff rule.
+      }
+
+      // Cowork patch — Monitor leads on this fund that have NO matching
+      // Morningstar entry get an entry with empty tenure data so the click
+      // through still resolves. Typical case: brand-new launches where the
+      // Monitor sheet has the manager but Morningstar's bi-monthly export
+      // hasn't yet caught up.
+      const msNormsOnFund = new Set(
+        entry.managers.filter(m => m.name).map(m => norm(m.name))
+      );
+      const msSurnamesOnFund = new Set(
+        entry.managers.filter(m => m.name).map(m => surname(m.name)).filter(Boolean)
+      );
+      for (const mn of cos) {
+        if (!mn) continue;
+        const mnNorm = norm(mn);
+        const mnSurname = surname(mn);
+        if (msNormsOnFund.has(mnNorm)) continue;
+        if (mnSurname && msSurnamesOnFund.has(mnSurname)) continue;
+        const row = _ensure(mn);
+        row.currentFunds.push({
+          code,
+          fund: screenerFund,
+          m: { name: mn, start: null, end: null, is_current: true, tenure_years: null },
+        });
+        if (screenerFund.amc) row.amcs.add(screenerFund.amc);
       }
     }
 
-    // Drop managers with NO current funds (purely historical names from
-    // funds whose lineup has churned). Keep them on prevFunds for the
-    // selected-manager view, but don't surface them in the list.
     _allManagers = [];
     for (const [name, row] of byName.entries()) {
-      if (row.currentFunds.length === 0) {
-        // Still index them so URL ?manager=Name from a co-manager link
-        // can find them — but they won't be in the visible list.
-        _byName.set(name, _enrichRow(row));
-        continue;
-      }
       _byName.set(name, _enrichRow(row));
-      _allManagers.push(_byName.get(name));
+      if (row.currentFunds.length > 0) {
+        _allManagers.push(_byName.get(name));
+      }
+    }
+    // Add alias entries so `?manager=<Morningstar long-form>` ALSO resolves to
+    // the Monitor-canonical row. This is the flat lookup table Cowork asked
+    // for; it keeps `_byName.has(fromUrl)` a one-liner in `_selectManager`.
+    for (const [alt, canon] of akaSeen.entries()) {
+      if (!_byName.has(alt) && _byName.has(canon)) {
+        _byName.set(alt, _byName.get(canon));
+      }
     }
 
     _amcs = Array.from(

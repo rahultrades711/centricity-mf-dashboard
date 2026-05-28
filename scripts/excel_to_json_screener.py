@@ -128,8 +128,13 @@ def normalize_manager_name(s: Any) -> str | None:
             continue
         chars: list[str] = []
         capitalize_next = True
+        # Cowork patch 2026-05-28 — add `()/&` to the cap_next-true set; the
+        # original spec only covered `'-.` which left `(Tata)` → `(tata)` on 3
+        # Tata-AMC funds (149068, 146007, 148050). Brackets, slashes, and
+        # ampersands open a fresh title-case word the same way an apostrophe
+        # or hyphen does (`A & B Cap`, `R/S Sharma`).
         for ch in tok:
-            if ch in "'-.":
+            if ch in "'-.()/&":
                 chars.append(ch)
                 capitalize_next = True
             elif ch.isalpha():
@@ -2758,8 +2763,31 @@ def build_funds(
         # in the Morningstar active list (sparse Morningstar coverage),
         # prepend it anyway so the lead always surfaces first. UI's co-strip
         # reads index 1: (lead is rendered separately in the Manager card).
+        # Cowork patch 2026-05-28 — co-manager de-dup by first+last name fold,
+        # not by exact-string equality. Monitor and Morningstar disagree on
+        # middle initials / spellings ("Amit Ganatra" vs "Amit B. Ganatra";
+        # "V. Srivatsa" vs "V Srivatsa") so the original `m != monitor_fm`
+        # check kept both spellings of the same person in the list, which
+        # then leaked into `data/manager-profiles.json` as a key mismatch:
+        # 77 non-passive funds had `manager_name` (Monitor canon) that
+        # didn't resolve in the profile file because the profile was keyed
+        # under the Morningstar long-form alias also present in this list.
+        def _fl(name: str) -> str:
+            # First+last name fold — strip dots/commas (so "V." == "V") so
+            # "V. Srivatsa" matches "V Srivatsa". Middle initials between
+            # first and last are ignored ("Amit Ganatra" matches "Amit B. Ganatra").
+            parts = (name or "").strip().split()
+            if not parts:
+                return ""
+            def _strip(p):
+                return p.lower().replace(".", "").replace(",", "").strip()
+            if len(parts) == 1:
+                return _strip(parts[0])
+            return f"{_strip(parts[0])} {_strip(parts[-1])}"
+
         if monitor_fm:
-            rest = [m for m in (mh_co_managers or []) if m != monitor_fm]
+            mon_fl = _fl(monitor_fm)
+            rest = [m for m in (mh_co_managers or []) if _fl(m) != mon_fl]
             record["manager_co_managers"] = [monitor_fm] + rest
         elif mh_co_managers:
             record["manager_co_managers"] = mh_co_managers
