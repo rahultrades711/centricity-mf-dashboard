@@ -110,6 +110,8 @@
     { id: 'rngR3',      key: 'return_3y_pct',       label: '3Y',                 accessor: f => f.trailing_returns ? f.trailing_returns.return_3y_pct : null, kind: 'pct', step: 0.5 },
     { id: 'rngR5',      key: 'return_5y_pct',       label: '5Y',                 accessor: f => f.trailing_returns ? f.trailing_returns.return_5y_pct : null, kind: 'pct', step: 0.5 },
     { id: 'rngSharpe',  key: 'sharpe_3y',           label: 'Sharpe',             accessor: f => f.risk_metrics ? f.risk_metrics.sharpe_3y : null, kind: 'num', step: 0.05 },
+    { id: 'rngSortino', key: 'sortino_3y',          label: 'Sortino',            accessor: f => f.risk_metrics ? f.risk_metrics.sortino_3y : null, kind: 'num', step: 0.05 },
+    { id: 'rngStdDev',  key: 'std_dev_3y_pct',      label: 'Std Dev',            accessor: f => f.risk_metrics ? f.risk_metrics.std_dev_3y_pct : null, kind: 'pct-pos', step: 0.5 },
     { id: 'rngDownCap', key: 'down_capture_3y_pct', label: 'Down Capture',       accessor: f => f.risk_metrics ? f.risk_metrics.down_capture_3y_pct : null, kind: 'pct-pos', step: 1 },
     { id: 'rngUpCap',   key: 'up_capture_3y_pct',   label: 'Up Capture',         accessor: f => f.risk_metrics ? f.risk_metrics.up_capture_3y_pct : null, kind: 'pct-pos', step: 1 },
     { id: 'rngTurn',    key: 'turnover_pct',        label: 'Portfolio Turnover', accessor: f => f.turnover_pct,                    kind: 'pct-pos',   step: 1 },
@@ -126,7 +128,7 @@
     },
     {
       key: 'risk', title: 'Risk Ratios',
-      slider_keys: ['sharpe_3y', 'down_capture_3y_pct', 'up_capture_3y_pct', 'turnover_pct'],
+      slider_keys: ['sharpe_3y', 'sortino_3y', 'std_dev_3y_pct', 'down_capture_3y_pct', 'up_capture_3y_pct', 'turnover_pct'],
     },
     {
       key: 'others', title: 'Others',
@@ -173,14 +175,15 @@
   /* ---------- nested-path resolver (used by sort + extra columns) ---------- */
   function pluck(obj, path) {
     if (obj == null) return null;
-    // Fix-List 10 §8 — Morningstar manager-history overlay (eqh family only).
-    if (_family === 'eqh' && _mgrByScheme && obj && obj.scheme_code != null) {
-      const overlay = _mgrByScheme[String(obj.scheme_code)];
-      if (overlay) {
-        if (path === 'manager_name')        return overlay.name;
-        if (path === 'manager_tenure_yrs')  return overlay.tenure_years;
-      }
-    }
+    // Phase 2.2 Patch (mgr attribution) — the prior Fix-List 10 §8
+    // `_mgrByScheme` overlay re-derived the "main manager" from the
+    // separate manager-history JSON via a fuzzy-match against the
+    // screener's manager_name. With the converter now writing the SINGLE
+    // lead into `manager_name` (catalogue §7.8), the overlay is both
+    // redundant and forbidden ("UI MUST NOT re-derive"). The screener
+    // reads `manager_name` + `manager_tenure_yrs` straight from the cycle
+    // JSON. `_mgrByScheme` / `_loadMgrHistoryOverlay` are left in place
+    // for now (no harm; could be deleted in a follow-up housekeeping pass).
     return String(path).split('.').reduce((o, k) => (o == null ? null : o[k]), obj);
   }
 
@@ -190,11 +193,11 @@
       sortable: false,
       sortValue: () => null,
       text: f => `<input type="checkbox" class="row-check" data-scheme="${f.scheme_code}"${_selected.has(f.scheme_code) ? ' checked' : ''} aria-label="Select for compare">` },
-    { key: 'rank',     label: 'Rank',           align: 'center', cls: 'col-rank',
+    { key: 'rank',     label: 'Cat Rank',       align: 'center', cls: 'col-rank',
       sortable: true,
       sortValue: f => f._displayRank,
       text: f => `<span class="num">${f._displayRank != null ? f._displayRank : '—'}</span>`,
-      titleHelp: 'Rank under current weights. Reset weights to see Excel-locked Centricity rank.' },
+      titleHelp: 'Rank within SEBI category under current weights. Cross-category ranks are not comparable (the Centricity score is a per-category percentile).' },
     { key: 'name',     label: 'Fund Name',      align: 'left',   cls: 'col-name',
       sortable: true,
       sortValue: f => (f.fund_name || '').toLowerCase(),
@@ -287,10 +290,15 @@
     { value: 'mcap_split.small_pct',   label: 'Small Cap %',   group: 'Holdings',         kind: 'pct-pos' },
     { value: 'mcap_split.others_pct',  label: 'Others %',      group: 'Holdings',         kind: 'pct-pos' },
     { value: 'no_of_stocks',           label: 'No. of Stocks', group: 'Holdings',         kind: 'int' },
-    // Hybrid extension
-    { value: 'hybrid_extension.equity_pct',       label: 'Equity %',          group: 'Hybrid extension', kind: 'pct-pos' },
-    { value: 'hybrid_extension.debt_pct',         label: 'Debt %',            group: 'Hybrid extension', kind: 'pct-pos' },
-    { value: 'hybrid_extension.others_pct_hybrid',label: 'Others % (Hybrid)', group: 'Hybrid extension', kind: 'pct-pos' },
+    // v2 — Avg Mkt Cap, Fund PE, Active Share (added 2026-05-24, Phase 2)
+    { value: 'avg_mcap_cr',            label: 'Avg Market Cap (₹ Cr)', group: 'Holdings',  kind: 'inr' },
+    { value: 'fund_pe',                label: 'Fund PE',       group: 'Holdings',         kind: 'num' },
+    { value: 'active_share_pct',       label: 'Active Share %', group: 'Holdings',        kind: 'pct-pos' },
+    // v2 — universal asset split (was hybrid-only in v1)
+    { value: 'asset_split.equity_pct', label: 'Equity %',       group: 'Asset split',     kind: 'pct-pos' },
+    { value: 'asset_split.debt_pct',   label: 'Debt %',         group: 'Asset split',     kind: 'pct-pos' },
+    { value: 'asset_split.others_pct', label: 'Others %',       group: 'Asset split',     kind: 'pct-pos' },
+    // Hybrid extension — debt-side fields kept for hybrid funds (YTM, durations)
     { value: 'hybrid_extension.ytm',              label: 'YTM',               group: 'Hybrid extension', kind: 'pct-pos' },
     { value: 'hybrid_extension.mod_duration_yrs', label: 'Mod Duration',      group: 'Hybrid extension', kind: 'num', suffix: ' yrs' },
     { value: 'hybrid_extension.avg_maturity_yrs', label: 'Avg Maturity',      group: 'Hybrid extension', kind: 'num', suffix: ' yrs' },
@@ -654,7 +662,15 @@
 
   function niceMin(v, cfg) {
     if (cfg.kind === 'int') return Math.max(0, Math.floor(v));
-    if (cfg.kind === 'pct-pos') return 0;
+    if (cfg.kind === 'pct-pos') {
+      // v2 — some "pct-pos" metrics (Up/Down Capture) can swing negative
+      // for international/hybrid funds (e.g. ICICI Pru US Bluechip Down
+      // Capture = -4.68%). When the observed minimum is below zero, drop
+      // the floor to round down (in 5pt buckets) so those funds aren't
+      // silently filtered out by the slider's default lower bound.
+      if (v < 0) return Math.floor(v / 5) * 5;
+      return 0;
+    }
     if (cfg.kind === 'num') return Math.floor(v * 10) / 10;
     if (cfg.kind === 'pct') return Math.floor(v / 5) * 5;
     return v;
@@ -1029,10 +1045,18 @@
     const wrap = document.getElementById('weightInputs');
     wrap.innerHTML = _scoringWeights.map(w => {
       const v = (_draftWeights && _draftWeights[w.parameter] != null) ? _draftWeights[w.parameter] : w.weight_pct;
-      const dirArrow = w.direction === 'Higher' ? '↑' : '↓';
+      // v2 introduces a third direction, 'Tent' — closer to category centre = best
+      // (Avg Market Cap, Fund PE). Render with a ⊙ marker (centre-target glyph)
+      // and a tooltip explaining the scoring intent.
+      const dirArrow = w.direction === 'Higher' ? '↑'
+                     : w.direction === 'Tent'   ? '⊙'
+                     : '↓';
+      const dirTitle = w.direction === 'Tent'
+        ? ' title="Tent — closer to category centre = best"'
+        : '';
       return `
         <div class="weight-row" data-param="${escapeHtml(w.parameter)}">
-          <span class="name">${escapeHtml(w.parameter)} <span class="dir">${dirArrow}</span></span>
+          <span class="name">${escapeHtml(w.parameter)} <span class="dir"${dirTitle}>${dirArrow}</span></span>
           <span style="display:inline-flex;align-items:center;">
             <input type="number" min="0" max="100" step="0.01" value="${Number(v).toFixed(2)}">
             <span class="pct-suffix">%</span>
@@ -1110,9 +1134,26 @@
           : null;
         return cloned;
       });
-      const rankedFunds = funds.filter(f => f.centricity_score_status === 'Ranked' && f._displayScore != null);
-      rankedFunds.sort((a, b) => (b._displayScore || 0) - (a._displayScore || 0));
-      rankedFunds.forEach((f, idx) => { f._displayRank = idx + 1; });
+      // Phase 2.2 §1B — rank is IN-CATEGORY only. We previously sorted
+      // every Ranked fund globally and assigned a universal rank 1..N,
+      // which made cross-category comparison meaningless (a Large Cap
+      // 12th-place fund and an Aggressive Hybrid 3rd-place fund look
+      // adjacent at universal ranks 50 / 51). Group by category, sort
+      // by _displayScore desc within each, and assign rank 1..N inside
+      // the category. The Rank column on the screener now answers
+      // "how does this fund rank among its peers" — the only meaningful
+      // read for a percentile score.
+      const ranksByCat = new Map();
+      funds.forEach(f => {
+        if (f.centricity_score_status === 'Ranked' && f._displayScore != null) {
+          if (!ranksByCat.has(f.category)) ranksByCat.set(f.category, []);
+          ranksByCat.get(f.category).push(f);
+        }
+      });
+      ranksByCat.forEach(catFunds => {
+        catFunds.sort((a, b) => (b._displayScore || 0) - (a._displayScore || 0));
+        catFunds.forEach((f, idx) => { f._displayRank = idx + 1; });
+      });
       funds.forEach(f => {
         if (f.centricity_score_status !== 'Ranked' || f._displayScore == null) f._displayRank = null;
       });
@@ -1371,6 +1412,13 @@
     if (status === '1-3yr Warning') {
       const w = f.centricity_score_warning_pct;
       return `<span class="badge warning-13">Warning${w != null ? ' ' + w.toFixed(2) + '%' : ''}</span>`;
+    }
+    // Phase 2.1 — passive funds carry no score; render a subtle "Not scored"
+    // chip rather than the New-Fund-Monitoring badge or a misleading "0.00".
+    // These funds still sort by AUM / returns / TER / mcap-split etc.; only
+    // the Score cell is suppressed.
+    if (status === 'Index — Not Scored') {
+      return `<span class="badge not-scored">Not scored</span>`;
     }
     return `<span class="badge new-fund">New Fund — Monitoring</span>`;
   }

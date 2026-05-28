@@ -198,32 +198,38 @@
   }
 
   function renderScoreCard(fund) {
-    // Fix-List 5 §C5 — Recommended pill + Conviction label removed; the
-    // score card now shows only the big score + delta line + 4-cell mini
-    // grid. Verdict copy lives in section 07's strengths/concerns insights.
-    const scoreOutOf10 = (fund.centricity_score != null)
-      ? (fund.centricity_score * 10) : null;
+    // Phase 2.2 §1A — the score is the **canonical category percentile**
+    // shared with the screener: same field (fund.centricity_score, now
+    // recomputed in the converter via Σ(parameter_scores × weight) / 100),
+    // same format (XX.XX%). Previously this card rendered the score on a
+    // 0-10 scale ("8.47 / 10"), which made the one-pager and screener look
+    // like different metrics. They aren't — they're the same per-category
+    // percentile, and they read the same field now.
+    const isPassiveUnscored = fund.centricity_score_status === 'Index — Not Scored';
 
-    document.getElementById('scoreBig').innerHTML = scoreOutOf10 != null
-      ? `${scoreOutOf10.toFixed(2)}<em>/ 10</em>`
-      : `—<em>/ 10</em>`;
+    if (isPassiveUnscored) {
+      document.getElementById('scoreBig').innerHTML =
+        `<span style="font-size:24px;font-weight:700;letter-spacing:-.01em;line-height:1.2;display:inline-block;">` +
+        `Not Scored<br><span style="font-size:13px;font-weight:400;opacity:.75;letter-spacing:.04em;">Index / Passive</span>` +
+        `</span>`;
+    } else {
+      document.getElementById('scoreBig').innerHTML = (fund.centricity_score != null)
+        ? `${DataLoader.fmtScorePct(fund.centricity_score)}`
+        : `—`;
+    }
 
-    /* v4.1 Item M — header rank is category-only, not universe rank.
-       Compute the current fund's rank within funds sharing the same SEBI
-       sub-category (cycle.funds is the universe; filter by category, sort
-       by centricity_score desc, find this fund's position). */
+    /* Phase 2.2 §1B — rank is IN-CATEGORY only. Use the converter-computed
+       centricity_rank_in_category directly (canonical, matches screener);
+       N = count of Ranked funds in the category so "rank #1 of 20" doesn't
+       mislead readers into thinking the Warning + New-Fund funds count
+       toward the denominator. */
     const peerSubCat = (_cycle.funds || []).filter(f => f.category === fund.category);
+    const peerRanked = peerSubCat.filter(f => f.centricity_rank_in_category != null);
     let rankLine = '';
-    if (fund.centricity_score != null && peerSubCat.length) {
-      const sorted = peerSubCat.slice().sort((a, b) =>
-        (b.centricity_score || 0) - (a.centricity_score || 0)
-      );
-      const idx = sorted.findIndex(f => f.scheme_code === fund.scheme_code);
-      if (idx >= 0) {
-        const x = idx + 1;
-        const n = peerSubCat.length;
-        rankLine = `Ranked <b>#${x}</b> of ${n} in ${escapeHtml(fund.category)} category`;
-      }
+    if (fund.centricity_rank_in_category != null && peerRanked.length) {
+      const x = fund.centricity_rank_in_category;
+      const n = peerRanked.length;
+      rankLine = `Ranked <b>#${x}</b> of ${n} in ${escapeHtml(fund.category)} category`;
     }
     document.getElementById('scoreDelta').innerHTML =
       `Cycle change · — (no prior cycle in archive). ${rankLine}`;
@@ -650,6 +656,8 @@
     }
     const rm = fund.risk_metrics || {};
     const sharpe   = rm.sharpe_3y;
+    const sortino  = rm.sortino_3y;
+    const stdDev   = rm.std_dev_3y_pct;
     const downCap  = rm.down_capture_3y_pct;
     const upCap    = rm.up_capture_3y_pct;
     const captureRatio = (upCap != null && downCap != null && downCap !== 0)
@@ -658,6 +666,8 @@
     const beta     = rm.beta_3y;
 
     const catSharpe   = catAvg(f => f.risk_metrics ? f.risk_metrics.sharpe_3y : null);
+    const catSortino  = catAvg(f => f.risk_metrics ? f.risk_metrics.sortino_3y : null);
+    const catStdDev   = catAvg(f => f.risk_metrics ? f.risk_metrics.std_dev_3y_pct : null);
     const catDownCap  = catAvg(f => f.risk_metrics ? f.risk_metrics.down_capture_3y_pct : null);
     const catUpCap    = catAvg(f => f.risk_metrics ? f.risk_metrics.up_capture_3y_pct : null);
     const catBeta     = catAvg(f => f.risk_metrics ? f.risk_metrics.beta_3y : null);
@@ -673,6 +683,17 @@
       {
         lbl: 'Sharpe', v: sharpe, fmt: v => DataLoader.fmtNum(v, 2),
         cmp: `3Y trailing · Rf ${RF_RATE_DISPLAY}<br>Cat avg · <b>${nullOrNum(catSharpe, 2)}</b>`,
+      },
+      {
+        // Phase 2.2 §1C — Sortino isolates downside volatility, so it is
+        // always ≥ Sharpe for the same fund/window.
+        lbl: 'Sortino', v: sortino, fmt: v => DataLoader.fmtNum(v, 2),
+        cmp: `3Y trailing · downside dev<br>Cat avg · <b>${nullOrNum(catSortino, 2)}</b>`,
+      },
+      {
+        // Phase 2.2 §1C — Std Dev = annualised vol of 3Y daily returns.
+        lbl: 'Std Dev', v: stdDev, fmt: v => `${DataLoader.fmtNum(v, 2)}%`,
+        cmp: `Annualised · 3Y daily<br>Cat avg · <b>${nullOrPct(catStdDev, 2)}</b>`,
       },
       {
         // Fix-List 6 §2B — capture ratios in 2dp
@@ -745,6 +766,31 @@
     document.getElementById('mgrStats').innerHTML = cells
       .map(([k, v]) => `<div class="cell"><span class="k">${escapeHtml(k)}</span><div class="v">${escapeHtml(String(v))}</div></div>`)
       .join('');
+
+    // Phase 2.2 Patch (mgr attribution) — Co-managers strip read DIRECTLY
+    // from JSON's `manager_co_managers` (lead at index 0, == manager_name).
+    // The secondary strip shows indices 1+ since the lead is already in
+    // #mgrName above. Previously this was re-derived from manager-history
+    // via a fuzzy-match resolver that picked the wrong "main" for every
+    // multi-manager fund (catalogue §7.8 + AUDIT_ICICI_FINDINGS_2026-05-28.md).
+    const coEl = document.getElementById('mgrCoManagers');
+    if (coEl) {
+      const co = Array.isArray(fund.manager_co_managers) ? fund.manager_co_managers : [];
+      const secondary = co.slice(1);
+      if (secondary.length > 0) {
+        coEl.hidden = false;
+        const list = secondary.map(n => {
+          const href = `manager-profiles.html?manager=${encodeURIComponent(n)}`;
+          return `<a class="manager-link" href="${href}">${escapeHtml(n)}</a>`;
+        }).join(' &middot; ');
+        coEl.innerHTML =
+          `<span class="co-label">Co-managed with</span>` +
+          `<span class="co-body">${list}</span>`;
+      } else {
+        coEl.hidden = true;
+        coEl.innerHTML = '';
+      }
+    }
   }
 
   function renderManagerBio(profile, name) {
@@ -887,84 +933,16 @@
       return;
     }
     const managers = entry.managers;
-    const main = resolveMainManager(managers, fund.manager_name);
-
-    // ---- Card overrides (name + title + avatar) ----
-    if (main) {
-      const nameEl  = document.getElementById('mgrName');
-      const titleEl = document.getElementById('mgrTitle');
-      const avatar  = document.getElementById('mgrAvatar');
-      // Fix-List 9 Feature B — name is an anchor to the manager-profiles
-      // page so partners can drill into a manager's full universe.
-      if (nameEl) {
-        const href = `manager-profiles.html?manager=${encodeURIComponent(main.name)}`;
-        nameEl.innerHTML = `<a class="manager-link" href="${href}">${escapeHtml(main.name)}</a>`;
-      }
-      if (avatar)  avatar.textContent = managerInitials(main.name);
-      if (titleEl) {
-        const tenureStr = _formatTenureYM(main.tenure_years);
-        const startStr  = _formatLongDate(main.start);
-        // Fix-List 9 §3 — only ONE tenure number visible in the manager
-        // section: the resolved main manager's. The "Tenure" word that
-        // used to appear here is dropped; we just say the value.
-        titleEl.textContent =
-          `${fund.amc || '—'} · Lead Manager · ${tenureStr} · Since ${startStr}`;
-      }
-    }
-
-    // ---- Fix-List 9 §3 — score-card "Manager Tenure" cell override ----
-    // Source of truth: resolved main manager's tenure_years from
-    // Morningstar. Falls back to screener's manager_tenure_yrs when
-    // manager-history is unavailable (the cell already shows that on
-    // first render).
-    const scoreCell = document.getElementById('statManagerTenure');
-    if (scoreCell && main) {
-      // Match the score-card formatting convention: "X.X yrs" for >= 5
-      // years (we trust the year count); "X yr Y mo" for shorter runs
-      // where months matter.
-      const display = main.tenure_years >= 5
-        ? `${DataLoader.fmtNum(main.tenure_years, 1)} yrs`
-        : _formatTenureYM(main.tenure_years);
-      scoreCell.textContent = display;
-    }
-
-    // ---- Fix-List 9 §3 — manager-stats Tenure cell override ----
-    // Replace the single "Tenure" cell with the resolved main manager's
-    // value (formatted same way as the score card).
-    if (main) {
-      const cells = document.querySelectorAll('#mgrStats .cell');
-      cells.forEach(c => {
-        const k = c.querySelector('.k');
-        if (k && k.textContent === 'Tenure') {
-          const v = c.querySelector('.v');
-          if (v) {
-            v.textContent = main.tenure_years >= 5
-              ? `${DataLoader.fmtNum(main.tenure_years, 1)} yrs`
-              : _formatTenureYM(main.tenure_years);
-          }
-        }
-      });
-    }
-
-    // ---- Fix-List 9 §2 — Co-managers strip (prominent, with tenure) ----
-    const coManagers = managers.filter(m => m.is_current && (!main || m.name !== main.name));
-    const coEl = document.getElementById('mgrCoManagers');
-    if (coEl) {
-      if (coManagers.length > 0) {
-        coEl.hidden = false;
-        const list = coManagers.map(m => {
-          const href = `manager-profiles.html?manager=${encodeURIComponent(m.name)}`;
-          const tenureStr = _formatTenureYM(m.tenure_years);
-          return `<a class="manager-link" href="${href}">${escapeHtml(m.name)}</a> · ${escapeHtml(tenureStr)}`;
-        }).join('<br>');
-        coEl.innerHTML =
-          `<span class="co-label">Co-managed with</span>` +
-          `<span class="co-body">${list}</span>`;
-      } else {
-        coEl.hidden = true;
-        coEl.innerHTML = '';
-      }
-    }
+    // Phase 2.2 Patch (mgr attribution) — `main` is anchored on the
+    // screener JSON's `manager_name` (the SINGLE lead = Morningstar's
+    // earliest-current active manager). We DO NOT call resolveMainManager()
+    // any more and DO NOT override mgrName / mgrTitle / mgrAvatar /
+    // statManagerTenure / the mgrStats Tenure cell — renderManager()
+    // already filled them correctly from JSON. The co-managers strip is
+    // also rendered by renderManager() from `manager_co_managers`. This
+    // function now only owns: the Also-Managing row + the all-managers
+    // history table below. See catalogue §7.8 + AUDIT_ICICI_FINDINGS_2026-05-28.md.
+    const main = managers.find(m => m.is_current && m.name === fund.manager_name) || null;
 
     // ---- Fix-List 9 §5 — "Also Managing" row ----
     _renderAlsoManaging(fund, main);
