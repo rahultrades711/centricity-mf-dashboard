@@ -938,19 +938,26 @@ section.verdict-block .h-sub { color: #444; }
 .verdict-grid .v-col ul {
   margin: 0; padding: 0; list-style: none;
 }
+/* D10 — continuous-prose verdict. The old `display:flex; gap:12px` turned each
+ * text run + inline <b> into a separate flex item, so values "floated between
+ * stems" (finding #13). Render every bullet as a normal flowing list-item with
+ * an absolute-positioned dot. Brand (§7.7): gold for strong values, dark-red
+ * for negatives. */
 .verdict-grid .v-col li {
-  font-size: 13.5px; padding: 10px 0; line-height: 1.55;
+  font-size: 13.5px; padding: 10px 0 10px 18px; line-height: 1.6;
   border-bottom: 1px solid var(--rule);
   color: #000;
-  display: flex; gap: 12px;
+  display: list-item; list-style: none; position: relative; text-align: left;
 }
 .verdict-grid .v-col li:last-child { border-bottom: 0; }
 .verdict-grid .v-col li::before {
-  content: ''; flex: 0 0 6px; width: 6px; height: 6px; border-radius: 99px;
-  background: var(--gold); margin-top: 8px;
+  content: ''; position: absolute; left: 0; top: 18px;
+  width: 6px; height: 6px; border-radius: 99px;
+  background: var(--gold);
 }
 .verdict-grid .v-col.cons li::before { background: var(--red); }
-.verdict-grid .v-col li b { color: #000; font-weight: 700; }
+.verdict-grid .v-col li b { color: var(--gold-deep, #8a6d43); font-weight: 700; }
+.verdict-grid .v-col li b.neg { color: var(--red, #931621); }
 
 /* Fix-List 8 §4 — Areas to Watch word-gap fix.
  * The default `.v-col li { display: flex; gap: 12px }` rule treats the
@@ -985,7 +992,8 @@ section.verdict-block .h-sub { color: #444; }
 .concerns-list li b,
 .concerns-list li strong {
   display: inline;
-  font-weight: 600;
+  font-weight: 700;
+  color: var(--red, #931621);   /* D10 — dark-red for areas-to-watch values */
 }
 .verdict-grid .v-col .v-empty {
   font-style: italic; color: var(--text-mid);

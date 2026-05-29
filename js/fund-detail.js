@@ -1328,18 +1328,17 @@
 
     // ---- Strengths ----
     if (fund.centricity_score != null && fund.centricity_score >= 0.80) {
-      const ofN = (cycle.cycle_meta.total_funds || '—').toLocaleString('en-IN');
-      const inCat = fund.centricity_rank_in_category != null ? `#${fund.centricity_rank_in_category} in ${escape(fund.category)}` : null;
-      // Stage B A6 — cross-category overall rank removed (§7.3); render category rank only.
-      const rankPart = inCat || '';
-      strengths.push(nrm(`Centricity Score <b>${(fund.centricity_score * 10).toFixed(2)}/10</b>${rankPart ? ' · ' + rankPart : ''}.`));
+      // Stage B A6 — cross-category overall rank removed (§7.3); category rank only.
+      const rankPart = fund.centricity_rank_in_category != null
+        ? `, ranked <b>#${fund.centricity_rank_in_category}</b> in ${escape(fund.category)}` : '';
+      strengths.push(nrm(`Strong Centricity score of <b>${(fund.centricity_score * 10).toFixed(2)}/10</b>${rankPart}.`));
     }
     const rs = fund.rolling_3y_stats;
     if (rs && rs.pct_beat_benchmark != null && rs.pct_beat_benchmark >= 90) {
-      strengths.push(nrm(`Beats benchmark <b>${pct1(rs.pct_beat_benchmark)}</b> of all 3-year rolling windows vs <b>${benchmark}</b>.`));
+      strengths.push(nrm(`Beats its benchmark (<b>${benchmark}</b>) in <b>${pct1(rs.pct_beat_benchmark)}</b> of 3-year rolling windows.`));
     }
     if (rs && rs.pct_above_12 != null && rs.pct_above_12 >= 80) {
-      strengths.push(nrm(`<b>${pct1(rs.pct_above_12)}</b> of rolling 3Y windows delivered &gt; 12% CAGR.`));
+      strengths.push(nrm(`<b>${pct1(rs.pct_above_12)}</b> of those rolling 3Y windows delivered more than 12% CAGR.`));
     }
     const maxDd = fund.risk_metrics ? fund.risk_metrics.max_drawdown_3y_pct : null;
     if (maxDd != null && maxDd > -15) {
@@ -1349,9 +1348,9 @@
       const catDdAvg = catDdVals.length >= 3
         ? catDdVals.reduce((s, v) => s + v, 0) / catDdVals.length : null;
       if (catDdAvg != null && maxDd > catDdAvg) {
-        strengths.push(nrm(`Max 3Y drawdown limited to <b>${pct1(maxDd)}</b> — shallower than category average <b>${pct1(catDdAvg)}</b>.`));
+        strengths.push(nrm(`Max 3Y drawdown limited to <b class="neg">${pct1(maxDd)}</b>, shallower than the category average of <b class="neg">${pct1(catDdAvg)}</b>.`));
       } else {
-        strengths.push(nrm(`Max 3Y drawdown limited to <b>${pct1(maxDd)}</b>.`));
+        strengths.push(nrm(`Max 3Y drawdown limited to <b class="neg">${pct1(maxDd)}</b>.`));
       }
     }
     const a3 = fund.alpha ? fund.alpha.alpha_3y_pct : null;
