@@ -138,7 +138,14 @@
     });
     // Analytics JSON for the Portfolio section (Fix-List 5 §C9 + Fix-List 6 §3)
     loadAnalyticsForFund(fund.scheme_code).then(entry => {
-      renderAnalyticsHoldings(entry);
+      if (entry) {
+        renderAnalyticsHoldings(entry);
+      } else {
+        // File loaded but this fund isn't in it (matched-universe gap):
+        // stamp still shows the cycle's analytics date + an "unavailable"
+        // footnote, rather than the generic "pipeline pending" placeholder.
+        renderAnalyticsUnavailable();
+      }
       // Fix-List 8 Feature 3 — once we know our top-20 holdings, compute
       // top-5 most-similar funds across the analytics file and render the
       // "Similar Funds by Holdings" widget at the bottom of Portfolio.
@@ -1979,22 +1986,27 @@
   let _holdingsFullSource = 'top20';   // 'full' once the full file lands
 
   async function loadAnalyticsForFund(schemeCode) {
-    // Discover the latest analytics file in data/. Right now there's
-    // exactly one (analytics-2026-03-31.json); when v1.x ships monthly,
-    // pick the latest by filename sort.
+    // Route the analytics + holdings-full file paths through the cycle's
+    // declared analytics source-date (cycle_meta.source_dates.analytics) so
+    // the date the dashboard reads is data-driven, never hardcoded. The
+    // loaded file's own `analytics_date` field then drives the "as on …"
+    // stamp. Archived cycles that omit source_dates fall back to the legacy
+    // 2026-03-31 file.
     // Fix-List 9 Feature A — load both the analytics top-20 file (sector
     // donut + concentration metrics) and the full-equity-holdings file
     // (Similar Funds widget). Both fetches run in parallel; the full
     // file is best-effort — if it 404s, _holdingsFullCache stays null
     // and the widget falls back to top-20.
+    const aDate = (_cycle && _cycle.cycle_meta && _cycle.cycle_meta.source_dates
+                   && _cycle.cycle_meta.source_dates.analytics) || '2026-03-31';
     if (!_analyticsCache || _holdingsFullCache === null) {
       const aPromise = _analyticsCache
         ? Promise.resolve(_analyticsCache)
-        : fetch('data/analytics-2026-03-31.json', { cache: 'default' })
+        : fetch(`data/analytics-${aDate}.json`, { cache: 'default' })
             .then(r => (r.ok ? r.json() : Promise.reject(new Error('analytics HTTP ' + r.status))));
       const fPromise = (_holdingsFullCache && typeof _holdingsFullCache === 'object')
         ? Promise.resolve(_holdingsFullCache)
-        : fetch('data/holdings-full-2026-03-31.json', { cache: 'default' })
+        : fetch(`data/holdings-full-${aDate}.json`, { cache: 'default' })
             .then(r => (r.ok ? r.json() : Promise.reject(new Error('holdings-full HTTP ' + r.status))))
             .catch(e => {
               console.warn('[fund-detail] holdings-full unavailable; falling back to top-20', e);
@@ -2002,13 +2014,16 @@
             });
       const [aDoc, fDoc] = await Promise.all([aPromise, fPromise]);
       _analyticsCache = aDoc;
-      _analyticsDate = aDoc.analytics_date || null;
+      _analyticsDate = aDoc.analytics_date || aDate || null;
       _holdingsFullCache = fDoc;
       _holdingsFullSource = fDoc ? 'full' : 'top20';
     }
+    // File loaded but this fund has no analytics row (the ~30 matched-universe
+    // gap funds): resolve to null so the caller can still stamp the cycle's
+    // analytics date and show the "unavailable" footnote. A genuine
+    // file-level fetch failure rejects above and lands in .catch().
     const entry = _analyticsCache.funds && _analyticsCache.funds[String(schemeCode)];
-    if (!entry) throw new Error('scheme not in analytics');
-    return entry;
+    return entry || null;
   }
 
   /** Pull the per-fund holdings list, preferring the full file when it has
@@ -2141,6 +2156,25 @@
     if (empty) empty.hidden = false;
     const list = document.getElementById('sectorList');
     if (list) list.innerHTML = '';
+  }
+
+  /** File loaded but this fund has no analytics row (the ~30 matched-universe
+   *  gap funds, mostly active SBI/UTI/Kotak schemes the analytics name-match
+   *  missed). The "as on …" stamp still reflects the cycle's analytics date;
+   *  the sector + holdings panels render an em-dash with an explanatory
+   *  footnote rather than the generic "pipeline v1.1 pending" placeholder. */
+  function renderAnalyticsUnavailable() {
+    const dateStr = _analyticsDate ? DataLoader.fmtDate(_analyticsDate) : '—';
+    const sectorTitle = document.getElementById('sectorDonutTitle');
+    if (sectorTitle) sectorTitle.textContent = `Sector Allocation · as on ${dateStr}`;
+    const holdingsTitle = document.getElementById('holdingsTitle');
+    if (holdingsTitle) holdingsTitle.textContent = `Top Holdings · as on ${dateStr}`;
+    const empty = document.getElementById('sectorDonutEmpty');
+    if (empty) { empty.hidden = false; empty.textContent = 'Holdings data unavailable for this fund.'; }
+    const list = document.getElementById('sectorList');
+    if (list) list.innerHTML = '';
+    const mount = document.getElementById('holdingsTableMount');
+    if (mount) mount.innerHTML = '<p class="holdings-pending">Holdings data unavailable for this fund.</p>';
   }
 
   /* ============================================================

@@ -2,8 +2,9 @@
  *  overlap.js — Portfolio Overlap page (Fix-List 8 Feature 2)
  *
  *  Architecture:
- *    • Reads ONLY data/analytics-2026-03-31.json (already shipped by the
- *      Fix-List 5 §B converter). No new converter, no new contract.
+ *    • Reads the analytics holdings file for the active cycle, routed through
+ *      cycle_meta.source_dates.analytics (data-driven date, never hardcoded).
+ *      No new converter, no new contract.
  *    • Reads the screener cycle JSON for fund_name + category metadata
  *      (Designed-for-Change §1: dashboard merges by AMFI at load time).
  *    • Overlap is computed in the browser as
@@ -48,14 +49,22 @@
     Cycle.getActiveCycle()
       .then(activeDate => {
         if (!activeDate) throw new Error('no cycles in manifest');
+        return DataLoader.loadCycle(activeDate);
+      })
+      .then(cycle => {
+        _cycle = cycle;
+        // Route the analytics + holdings-full file dates through the cycle's
+        // declared source-date so the stamp is data-driven, never hardcoded
+        // (matches fund-detail.js). Archived cycles without source_dates fall
+        // back to the legacy 2026-03-31 file.
+        const aDate = (cycle.cycle_meta && cycle.cycle_meta.source_dates
+                       && cycle.cycle_meta.source_dates.analytics) || '2026-03-31';
         return Promise.all([
-          DataLoader.loadCycle(activeDate),
-          _loadAnalytics(),
-          _loadHoldingsFull(),     // Fix-List 9 Feature A — primary source
+          _loadAnalytics(aDate),
+          _loadHoldingsFull(aDate),   // Fix-List 9 Feature A — primary source
         ]);
       })
-      .then(([cycle, analytics, holdingsFull]) => {
-        _cycle = cycle;
+      .then(([analytics, holdingsFull]) => {
         _analytics = analytics;
         _holdingsFull = holdingsFull;        // null if 404 / parse error
         _holdingsSource = holdingsFull ? 'full' : 'top20';
@@ -81,10 +90,11 @@
   /* -------------------------------------------------------- *
    *  Data load + compose
    * -------------------------------------------------------- */
-  async function _loadAnalytics() {
-    // Same file the fund-detail page reads. v1 ships a single file; when
-    // the analytics pipeline goes monthly, latest-by-name wins.
-    const url = 'data/analytics-2026-03-31.json';
+  async function _loadAnalytics(aDate) {
+    // Same file the fund-detail page reads, routed through the cycle's
+    // analytics source-date (passed in from the bootstrap) so the holdings
+    // stamp tracks the live cycle, never a hardcoded month.
+    const url = `data/analytics-${aDate}.json`;
     const res = await fetch(url, { cache: 'default' });
     if (!res.ok) throw new Error('analytics HTTP ' + res.status);
     return res.json();
@@ -93,8 +103,8 @@
   /** Fix-List 9 Feature A — full equity holdings per fund (up to 200).
    *  Same date + source folder as the analytics file. Resolves to null
    *  on 404 / parse error so the page can fall back to top-20. */
-  async function _loadHoldingsFull() {
-    const url = 'data/holdings-full-2026-03-31.json';
+  async function _loadHoldingsFull(aDate) {
+    const url = `data/holdings-full-${aDate}.json`;
     try {
       const res = await fetch(url, { cache: 'default' });
       if (!res.ok) throw new Error('holdings-full HTTP ' + res.status);
