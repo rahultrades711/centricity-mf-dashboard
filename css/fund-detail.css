@@ -940,7 +940,7 @@ table.holdings-tbl tbody tr:hover td { background: var(--tan-soft); }
 .cm-h-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cm-h-val { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
 @media (max-width: 1100px) {
-  .cm-cards, .cm-h-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  .cm-h-grid { grid-template-columns: repeat(2, 1fr) !important; }
 }
 
 /* ============ VERDICT — Fix-List 7 §5 white / black + gold theme ============

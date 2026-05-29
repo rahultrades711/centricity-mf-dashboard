@@ -2676,6 +2676,15 @@
 
     /* ---- metric deltas ---- */
     const cards = [];
+    // E7 — Centricity Score movement (current vs prior; higher is better).
+    const curScore = fund.centricity_score;
+    const priScore = priorFund ? priorFund.centricity_score : null;
+    const scoreDelta = (typeof curScore === 'number' && typeof priScore === 'number')
+      ? +((curScore - priScore) * 100).toFixed(1) : null;
+    cards.push(_movementCard('Centricity Score',
+      curScore != null ? DataLoader.fmtScorePct(curScore) : '—',
+      priScore != null ? DataLoader.fmtScorePct(priScore) : '—',
+      scoreDelta, 'pp', /*higherIsGood*/ true));
     // AUM (from cycle_flags, E2)
     cards.push(_movementCard('AUM (₹ Cr)',
       cf.aum_cr_current != null ? '₹ ' + DataLoader.fmtINR(cf.aum_cr_current) : (fund.aum_cr != null ? '₹ ' + DataLoader.fmtINR(fund.aum_cr) : '—'),
@@ -2710,7 +2719,7 @@
     const perfNote = `<div class="cm-note"><b>Best / worst holding by return:</b> not shown — stock-level period returns aren't in this cycle's holdings data.</div>`;
 
     grid.innerHTML = `
-      <div class="cm-cards" style="grid-column:1/-1;display:grid;grid-template-columns:repeat(4,1fr);gap:14px;">
+      <div class="cm-cards" style="grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;">
         ${cards.join('')}
       </div>
       ${holdingsHtml}
