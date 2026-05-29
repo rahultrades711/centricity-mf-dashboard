@@ -424,6 +424,96 @@ def build(
         prof["co_count"] = len(prof["co_managed"])
         prof["previously_count"] = len(prof["previously_managed"])
 
+    # ---- D12: close Morningstar-INTERNAL same-person spelling fragments ----
+    # The D11 lead-fold guard ("lead never Morningstar-current anywhere") can't
+    # catch a typo that lives IN Morningstar's own export — e.g. manager_history
+    # carries BOTH "Nandik Malik" and "Nandik Mallik" with end=None, so neither
+    # is excludable on that axis, and "Nandik Malik" ends up co-managing 11 funds
+    # with himself. Second, orthogonal rule: when two same-first-name names
+    # co-occur in a fund's manager_co_managers and exactly ONE is ever the
+    # Monitor lead (main_count >= 1), the non-lead (main_count == 0) is a GHOST
+    # spelling of the lead -> fold ghost into lead. GUARD: if BOTH lead their own
+    # funds they are distinct people ("Dhaval Shah" main 3 vs "Dhaval Gala"
+    # main 5) -> never fold.
+    def _profkey(name):
+        return aliases.get(name, name)   # resolve a raw co name to its profile key
+
+    co_same_first: set[frozenset] = set()
+    for fund in screener.get("funds", []):
+        ks = []
+        for n in (fund.get("manager_co_managers") or []):
+            if n and _profkey(n) in managers:
+                ks.append(_profkey(n))
+        for i in range(len(ks)):
+            for j in range(i + 1, len(ks)):
+                if ks[i] != ks[j] and _first(ks[i]) == _first(ks[j]):
+                    co_same_first.add(frozenset((ks[i], ks[j])))
+
+    d12_folds: list[tuple[str, str]] = []   # (ghost, real)
+    for pair in co_same_first:
+        a, b = tuple(pair)
+        if a not in managers or b not in managers:
+            continue
+        a0 = managers[a]["main_count"] == 0
+        b0 = managers[b]["main_count"] == 0
+        if a0 == b0:
+            continue   # both lead (distinct people) OR neither leads -> not this rule
+        ghost, real = (a, b) if a0 else (b, a)
+        d12_folds.append((ghost, real))
+
+    def _refinalize(canonical, prof):
+        """Re-derive one profile's main/co/AUM/counts after a D12 merge — the
+        ghost's co entries on funds where `canonical` is the lead collapse into
+        main (self-co dropped)."""
+        canon_fl = _fl(canonical)
+        seen: dict[str, dict] = {}
+        for c in prof["currently_managing"]:
+            amfi = c.get("amfi")
+            fund = fund_index.get(int(amfi)) if amfi else None
+            c["aum_cr"] = fund.get("aum_cr") if fund else None
+            prev = seen.get(amfi)
+            if prev is None or (c.get("tenure_yrs") is not None and prev.get("tenure_yrs") is None):
+                seen[amfi] = c
+        prof["currently_managing"] = list(seen.values())
+        pseen: dict[str, dict] = {}
+        for p in prof["previously_managed"]:
+            if p.get("amfi") not in pseen:
+                pseen[p.get("amfi")] = p
+        prof["previously_managed"] = list(pseen.values())
+        main_managed, co_managed = [], []
+        for c in prof["currently_managing"]:
+            amfi = c.get("amfi")
+            fund = fund_index.get(int(amfi)) if amfi else None
+            is_lead = bool(fund) and _fl(_canon(fund.get("manager_name"))) == canon_fl
+            (main_managed if is_lead else co_managed).append(c)
+        main_managed.sort(key=_aum, reverse=True)
+        co_managed.sort(key=_aum, reverse=True)
+        prof["main_managed"] = main_managed
+        prof["co_managed"] = co_managed
+        prof["currently_managing"].sort(key=_aum, reverse=True)
+        prof["previously_managed"].sort(key=lambda x: x.get("ended") or "", reverse=True)
+        prof["aka"].sort()
+        prof["total_aum_cr"] = round(sum(_aum(c) for c in main_managed) + sum(_aum(c) for c in co_managed))
+        prof["main_aum_cr"] = round(sum(_aum(c) for c in main_managed))
+        prof["main_count"] = len(main_managed)
+        prof["co_count"] = len(co_managed)
+        prof["previously_count"] = len(prof["previously_managed"])
+
+    for ghost, real in d12_folds:
+        if ghost == real or ghost not in managers or real not in managers:
+            continue
+        gp = managers.pop(ghost)
+        rp = managers[real]
+        rp["currently_managing"].extend(gp.get("currently_managing", []))
+        rp["previously_managed"].extend(gp.get("previously_managed", []))
+        for v in ({ghost} | _name_variants(ghost) | set(gp.get("aka", []))):
+            _add_aka(real, v)
+        _refinalize(real, rp)
+
+    if d12_folds:
+        print("[manager-profiles] D12 same-person folds: "
+              + "; ".join(f"{g!r}->{r!r}" for g, r in d12_folds), file=sys.stderr)
+
     # Defensive — drop profiles with no current + no previous funds
     managers = {nm: prof for nm, prof in managers.items()
                 if prof["currently_managing"] or prof["previously_managed"]}
