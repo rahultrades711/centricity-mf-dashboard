@@ -41,6 +41,7 @@
   let _categoryMS = null;
   let _topSortState = { key: 'centricity_rank_in_category', dir: 'asc' };
   let _debtMeta = { count: 0, categoryCount: 0 };   // D7 — debt universe (separate debt-*.json)
+  let _otherMeta = { count: 0, byAsset: {} };       // E1 — Other universe (Commodity/FoF/Solution)
 
   // D7 Active Flags rule — single named block. Canonical source is
   // js/active-flags.js (window.ActiveFlags.RULE), shared with flags.html so the
@@ -67,6 +68,7 @@
     _currentManifest = manifest;
     _currentCycle = cycle;
     await loadDebtMeta(cycle.cycle_meta.cycle_date);   // D7 — debt count for hero + Explore
+    await loadOtherMeta(cycle.cycle_meta.cycle_date);  // E1 — Other count for hero + Explore
 
     populateCyclePicker(manifest, cycle.cycle_meta.cycle_date);
     renderHero(cycle);
@@ -85,6 +87,7 @@
         await Cycle.setActiveCycle(newDate);
         _currentCycle = newCycle;
         await loadDebtMeta(newDate);
+        await loadOtherMeta(newDate);
         renderHero(newCycle);
         renderQuickTiles(newCycle);
         // Refresh the category MS items in case the new cycle has a different
@@ -131,21 +134,39 @@
     }
   }
 
+  /* --------- Other universe (E1) — Commodity/FoF/Solution, Not Scored --------- */
+  async function loadOtherMeta(cycleDate) {
+    try {
+      const res = await fetch(`data/other-${cycleDate}.json`, { cache: 'default' });
+      if (!res.ok) { _otherMeta = { count: 0, byAsset: {} }; return; }
+      const doc = await res.json();
+      const cm = doc.cycle_meta || {};
+      _otherMeta = {
+        count: Array.isArray(doc.funds) ? doc.funds.length : (cm.total_funds || 0),
+        byAsset: cm.by_asset_class || {},
+      };
+    } catch (e) {
+      _otherMeta = { count: 0, byAsset: {} };
+    }
+  }
+
   /* --------- hero --------- */
   function renderHero(cycle) {
     const m = cycle.cycle_meta;
     const debtN = _debtMeta.count || 0;
-    const totalUniverse = (m.total_funds || 0) + debtN;     // D7 — incl. debt
+    const otherN = _otherMeta.count || 0;                   // E1 — incl. Other
+    const totalUniverse = (m.total_funds || 0) + debtN + otherN;
     const totalCats = (m.category_count || 0) + (_debtMeta.categoryCount || 0);
     document.getElementById('heroEyebrow').innerHTML =
       `<span class="bar"></span><b>Update as on ${m.as_on_display}</b>`;
     document.getElementById('heroTitle').innerHTML =
       `Centricity Mutual Fund Screener<span class="sep">·</span><span class="cycle-tag">${escapeHtml(DataLoader.fmtCycleLabelDate(m))}</span>`;
     document.getElementById('heroLede').textContent =
-      `${totalUniverse.toLocaleString('en-IN')} funds across ${totalCats} categories ` +
-      `(${m.total_funds.toLocaleString('en-IN')} equity & hybrid scored` +
-      `${debtN > 0 ? ` + ${debtN.toLocaleString('en-IN')} debt` : ''}), ` +
-      `ranked on the Products Team framework. As on ${m.as_on_display}.`;
+      `${totalUniverse.toLocaleString('en-IN')} funds — ` +
+      `${m.total_funds.toLocaleString('en-IN')} equity & hybrid scored` +
+      `${debtN > 0 ? ` + ${debtN.toLocaleString('en-IN')} debt` : ''}` +
+      `${otherN > 0 ? ` + ${otherN.toLocaleString('en-IN')} commodity / FoF / solution (not scored)` : ''}. ` +
+      `Scored on the Products Team framework. As on ${m.as_on_display}.`;
     document.getElementById('heroFunds').textContent = totalUniverse.toLocaleString('en-IN');
     document.getElementById('heroCats').textContent = totalCats;
     document.getElementById('heroDate').textContent = m.as_on_display;
@@ -627,24 +648,33 @@
       if (f.centricity_score_status === 'Index — Not Scored') passiveCount++;
       else activeCount++;
     }
-    const debtN = _debtMeta.count || 0;                        // D7 — debt universe (separate file)
-    const acTotal = byClass.Equity + byClass.Hybrid + debtN;   // full universe incl. debt
+    // E1 — fold the Other-Funds universe (Commodity/FoF/Solution) into each
+    // asset class; Commodity is a new asset class.
+    const other = _otherMeta.byAsset || {};
+    const equityN = byClass.Equity + (other.Equity || 0);
+    const hybridN = byClass.Hybrid + (other.Hybrid || 0);
+    const debtN = (_debtMeta.count || 0) + (other.Debt || 0);  // debt screener + Other debt FoFs
+    const commodityN = other.Commodity || 0;                   // new asset class
+    const acTotal = equityN + hybridN + debtN + commodityN;    // full universe
     const scoredTotal = funds.length;                          // equity + hybrid (Active/Passive base)
     const pct = (n, t) => t > 0 ? ((n / t) * 100).toFixed(1) : '0.0';
+    const acRow = (label, n, ac) =>
+      `<a class="explore-row explore-link" href="screener.html?ac=${ac}"><span>${label}</span><b class="num">${n.toLocaleString('en-IN')}</b><span class="pct">${pct(n, acTotal)}%</span></a>`;
     wrap.innerHTML = `
       <div class="explore-grid">
         <div class="explore-card">
           <h3>By asset class</h3>
-          <a class="explore-row explore-link" href="screener.html?ac=equity"><span>Equity</span><b class="num">${byClass.Equity.toLocaleString('en-IN')}</b><span class="pct">${pct(byClass.Equity, acTotal)}%</span></a>
-          <a class="explore-row explore-link" href="screener.html?ac=hybrid"><span>Hybrid</span><b class="num">${byClass.Hybrid.toLocaleString('en-IN')}</b><span class="pct">${pct(byClass.Hybrid, acTotal)}%</span></a>
-          <a class="explore-row explore-link" href="screener.html?ac=debt"><span>Debt</span><b class="num">${debtN.toLocaleString('en-IN')}</b><span class="pct">${pct(debtN, acTotal)}%</span></a>
-          <p class="explore-foot">Total ${acTotal.toLocaleString('en-IN')} funds incl. ${debtN.toLocaleString('en-IN')} debt. Click a class → Screener.</p>
+          ${acRow('Equity', equityN, 'equity')}
+          ${acRow('Hybrid', hybridN, 'hybrid')}
+          ${acRow('Debt', debtN, 'debt')}
+          ${commodityN > 0 ? acRow('Commodity', commodityN, 'commodity') : ''}
+          <p class="explore-foot">Total ${acTotal.toLocaleString('en-IN')} funds${_otherMeta.count ? ` incl. ${_otherMeta.count.toLocaleString('en-IN')} commodity / FoF / solution (not scored)` : ''}. Click a class → Screener.</p>
         </div>
         <div class="explore-card">
           <h3>Active vs Passive</h3>
           <div class="explore-row"><span>Active (Ranked / Warning / New)</span><b class="num">${activeCount.toLocaleString('en-IN')}</b><span class="pct">${pct(activeCount, scoredTotal)}%</span></div>
           <div class="explore-row"><span>Passive (Index — Not Scored)</span><b class="num">${passiveCount.toLocaleString('en-IN')}</b><span class="pct">${pct(passiveCount, scoredTotal)}%</span></div>
-          <p class="explore-foot">Of ${scoredTotal.toLocaleString('en-IN')} scored equity &amp; hybrid funds. Debt is not scored.</p>
+          <p class="explore-foot">Of ${scoredTotal.toLocaleString('en-IN')} scored equity &amp; hybrid funds. Debt, commodity &amp; Other funds are not scored.</p>
         </div>
       </div>`;
   }
