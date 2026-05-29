@@ -117,6 +117,8 @@
     wireActionButtons(fund);
     wireToc();
     wireRawJsonLink();
+    // E6 — cycle-over-cycle "vs last cycle" block (async; best-effort).
+    renderCycleMovement(fund, cycle);
 
     // Lazy-load extras in parallel
     loadNavSeries(fund.scheme_code).then(async entry => {
@@ -2618,6 +2620,171 @@
         <h3>Could not load cycle data</h3>
         <p>Serve via <code>python -m http.server</code> rather than opening the file directly.<br><span style="color:var(--red)">${escapeHtml((err && err.message) || String(err))}</span></p>
         <p><a class="btn primary" href="screener.html">Back to Screener</a></p>
+      </div>`;
+  }
+
+  /* ============================================================
+   * E6 — Cycle-over-cycle "vs last cycle" block (#changed)
+   * ============================================================
+   * Populates the #changedGrid for the Equity/Hybrid one-pager: AUM / rank /
+   * #holdings / risk deltas vs the prior cycle, plus the top-20 holdings
+   * weight-% movers (increases, decreases, entered, exited). Holdings deltas
+   * are WEIGHT-% changes (share counts aren't in the data). Best/worst stock
+   * performer is omitted + flagged (no stock-level returns this cycle).
+   * Best-effort: every sub-block degrades to "—" / omits if data is missing.
+   */
+  async function renderCycleMovement(fund, cycle) {
+    const grid = document.getElementById('changedGrid');
+    const sub  = document.querySelector('#changed .h-sub');
+    if (!grid) return;
+
+    let manifest;
+    try { manifest = await Cycle.getManifest(); } catch (e) { return; }
+    const cycles = (manifest.cycles || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1));
+    const idx = cycles.findIndex(c => c.date === cycle.cycle_meta.cycle_date);
+    const priorEntry = idx >= 0 && idx < cycles.length - 1 ? cycles[idx + 1] : null;
+    if (!priorEntry) return;   // keep the static "no prior cycle" placeholder
+
+    const cf = fund.cycle_flags || {};
+    if (sub) sub.textContent = `Versus the ${DataLoader.fmtCycleLabelDate(priorEntry.date)} cycle.`;
+
+    if (cf.is_new_in_cycle) {
+      grid.innerHTML = `
+        <div class="empty-state" style="grid-column:1/-1">
+          <div class="ring-motif" aria-hidden="true"></div>
+          <h3>New this cycle</h3>
+          <p>This fund first appears in the ${escapeHtml(DataLoader.fmtCycleLabelDate(cycle.cycle_meta))} cycle — there is no prior-cycle record to compare against.</p>
+        </div>`;
+      return;
+    }
+
+    // Prior cycle (fund record for rank/risk + its analytics source-date).
+    let priorFund = null, priorMeta = null;
+    try {
+      const pc = await DataLoader.loadCycle(priorEntry.date);
+      priorMeta = pc.cycle_meta;
+      priorFund = (pc.funds || []).find(f => f.scheme_code === fund.scheme_code) || null;
+    } catch (e) { /* degrade */ }
+
+    // Analytics holdings — current + prior (weight-% diff + holdings count).
+    const curADate = (cycle.cycle_meta.source_dates && cycle.cycle_meta.source_dates.analytics) || _analyticsDate;
+    const priADate = priorMeta && priorMeta.source_dates ? priorMeta.source_dates.analytics : null;
+    const [curA, priA] = await Promise.all([
+      _fetchAnalyticsFund(curADate, fund.scheme_code),
+      _fetchAnalyticsFund(priADate, fund.scheme_code),
+    ]);
+
+    /* ---- metric deltas ---- */
+    const cards = [];
+    // AUM (from cycle_flags, E2)
+    cards.push(_movementCard('AUM (₹ Cr)',
+      cf.aum_cr_current != null ? '₹ ' + DataLoader.fmtINR(cf.aum_cr_current) : (fund.aum_cr != null ? '₹ ' + DataLoader.fmtINR(fund.aum_cr) : '—'),
+      cf.aum_cr_prior != null ? '₹ ' + DataLoader.fmtINR(cf.aum_cr_prior) : '—',
+      cf.aum_change_pct != null ? cf.aum_change_pct : null, 'pct', /*higherIsGood*/ true));
+    // Rank in category (lower is better)
+    const curRank = fund.centricity_rank_in_category;
+    const priRank = priorFund ? priorFund.centricity_rank_in_category : null;
+    const rankDelta = (typeof curRank === 'number' && typeof priRank === 'number') ? (curRank - priRank) : null;
+    cards.push(_movementCard('Rank in category',
+      curRank != null ? '#' + curRank : '—',
+      priRank != null ? '#' + priRank : '—',
+      rankDelta, 'rank', /*higherIsGood*/ false));
+    // # Holdings (from analytics total_holdings_count)
+    const curN = curA ? curA.total_holdings_count : (fund.no_of_stocks != null ? fund.no_of_stocks : null);
+    const priN = priA ? priA.total_holdings_count : (priorFund ? priorFund.no_of_stocks : null);
+    const nDelta = (typeof curN === 'number' && typeof priN === 'number') ? (curN - priN) : null;
+    cards.push(_movementCard('No. of holdings',
+      curN != null ? String(curN) : '—', priN != null ? String(priN) : '—', nDelta, 'int', null));
+    // Std Dev 3Y (lower is better)
+    const curSd = fund.risk_metrics ? fund.risk_metrics.std_dev_3y_pct : null;
+    const priSd = priorFund && priorFund.risk_metrics ? priorFund.risk_metrics.std_dev_3y_pct : null;
+    const sdDelta = (typeof curSd === 'number' && typeof priSd === 'number') ? +(curSd - priSd).toFixed(2) : null;
+    cards.push(_movementCard('Std Dev 3Y',
+      curSd != null ? DataLoader.fmtNum(curSd, 2) + '%' : '—',
+      priSd != null ? DataLoader.fmtNum(priSd, 2) + '%' : '—', sdDelta, 'pp', false));
+
+    /* ---- top-20 holdings weight-% diff ---- */
+    const holdingsHtml = _holdingsDiffHtml(curA, priA);
+
+    /* ---- best/worst performer — omitted + flagged (no stock returns) ---- */
+    const perfNote = `<div class="cm-note"><b>Best / worst holding by return:</b> not shown — stock-level period returns aren't in this cycle's holdings data.</div>`;
+
+    grid.innerHTML = `
+      <div class="cm-cards" style="grid-column:1/-1;display:grid;grid-template-columns:repeat(4,1fr);gap:14px;">
+        ${cards.join('')}
+      </div>
+      ${holdingsHtml}
+      ${perfNote}`;
+  }
+
+  async function _fetchAnalyticsFund(aDate, schemeCode) {
+    if (!aDate) return null;
+    try {
+      const res = await fetch(`data/analytics-${aDate}.json`, { cache: 'default' });
+      if (!res.ok) return null;
+      const doc = await res.json();
+      return (doc.funds && doc.funds[String(schemeCode)]) || null;
+    } catch (e) { return null; }
+  }
+
+  /** One metric card: current value (big), prior (small), signed delta chip
+   *  coloured by whether the move was good/bad (higherIsGood toggles sign). */
+  function _movementCard(label, curStr, priStr, delta, kind, higherIsGood) {
+    let chip = '<span class="cm-delta cm-flat">—</span>';
+    if (delta != null && !isNaN(delta) && delta !== 0) {
+      const up = delta > 0;
+      // good = (up && higherIsGood) || (down && !higherIsGood); rank/risk: lower better.
+      const good = higherIsGood == null ? null : (up === !!higherIsGood);
+      const cls = good == null ? 'cm-flat' : (good ? 'cm-good' : 'cm-bad');
+      let txt;
+      if (kind === 'pct')      txt = (up ? '+' : '−') + Math.abs(delta).toFixed(1) + '%';
+      else if (kind === 'pp')  txt = (up ? '+' : '−') + Math.abs(delta).toFixed(2) + ' pp';
+      else if (kind === 'rank') txt = (delta < 0 ? '▲' : '▼') + Math.abs(delta); // rank improved = up-arrow
+      else                      txt = (up ? '+' : '−') + Math.abs(delta);
+      chip = `<span class="cm-delta ${cls}">${txt}</span>`;
+    }
+    return `
+      <div class="cm-card" style="border:1px solid var(--rule);border-radius:8px;padding:12px 14px;background:#fff;">
+        <div class="cm-card-lbl" style="font-size:11px;color:var(--text-mid);text-transform:uppercase;letter-spacing:.04em;">${escapeHtml(label)}</div>
+        <div class="cm-card-val" style="font-size:20px;font-weight:700;margin:4px 0 2px;">${curStr}</div>
+        <div style="font-size:11.5px;color:var(--text-mid);">was ${priStr} ${chip}</div>
+      </div>`;
+  }
+
+  /** Top-20 holdings weight-% movement: top-3 up, top-3 down, entered, exited. */
+  function _holdingsDiffHtml(curA, priA) {
+    const curH = (curA && curA.top_20_holdings) || [];
+    const priH = (priA && priA.top_20_holdings) || [];
+    if (!curH.length || !priH.length) {
+      return `<div class="cm-note" style="grid-column:1/-1">Top-holdings weight comparison unavailable for one of the two cycles.</div>`;
+    }
+    const curMap = new Map(curH.map(h => [h.company, h.holding_pct]));
+    const priMap = new Map(priH.map(h => [h.company, h.holding_pct]));
+    const common = [];
+    curMap.forEach((cv, name) => {
+      if (priMap.has(name)) common.push({ name, delta: +(cv - priMap.get(name)).toFixed(2), cur: cv, prior: priMap.get(name) });
+    });
+    const ups = common.filter(x => x.delta > 0).sort((a, b) => b.delta - a.delta).slice(0, 3);
+    const downs = common.filter(x => x.delta < 0).sort((a, b) => a.delta - b.delta).slice(0, 3);
+    const entered = curH.filter(h => !priMap.has(h.company)).slice(0, 5);
+    const exited  = priH.filter(h => !curMap.has(h.company)).slice(0, 5);
+
+    const wRow = (name, val, cls, sign) =>
+      `<div class="cm-h-row"><span class="cm-h-name">${escapeHtml(name)}</span><span class="cm-h-val ${cls}">${sign}${Math.abs(val).toFixed(2)} pp</span></div>`;
+    const nameRow = (h) => `<div class="cm-h-row"><span class="cm-h-name">${escapeHtml(h.company)}</span><span class="cm-h-val">${DataLoader.fmtNum(h.holding_pct, 2)}%</span></div>`;
+
+    const col = (title, inner) =>
+      `<div class="cm-h-col"><div class="cm-h-title">${title}</div>${inner || '<div class="cm-h-row"><span class="cm-h-name">—</span></div>'}</div>`;
+
+    return `
+      <div class="cm-holdings" style="grid-column:1/-1;">
+        <div class="cm-h-head">Top-20 holdings · weight-% change <span class="cm-h-sub">(change in portfolio weight, not share count)</span></div>
+        <div class="cm-h-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:8px;">
+          ${col('Weight ▲', ups.map(x => wRow(x.name, x.delta, 'cm-good', '+')).join(''))}
+          ${col('Weight ▼', downs.map(x => wRow(x.name, x.delta, 'cm-bad', '−')).join(''))}
+          ${col('Entered top-20', entered.map(nameRow).join(''))}
+          ${col('Exited top-20', exited.map(nameRow).join(''))}
+        </div>
       </div>`;
   }
 
