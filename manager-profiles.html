@@ -133,29 +133,35 @@
         <div class="mp-bio" id="mpBio" hidden></div>
 
         <div class="mp-stats" id="mpStats">
-          <div class="mp-stat">
-            <span class="k">Currently managing</span>
-            <span class="v" id="mpStatCurrent">—</span>
+          <div class="mp-stat mp-stat-aum">
+            <span class="k">Total AUM (Main + Co)</span>
+            <span class="v" id="mpStatTotalAum">—</span>
           </div>
-          <div class="mp-stat">
-            <span class="k">Total AUM</span>
-            <span class="v" id="mpStatAum">—</span>
+          <div class="mp-stat mp-stat-aum">
+            <span class="k">Main AUM (as lead)</span>
+            <span class="v" id="mpStatMainAum">—</span>
           </div>
           <div class="mp-stat">
             <span class="k">Longest current tenure</span>
             <span class="v" id="mpStatTenure">—</span>
           </div>
-          <div class="mp-stat">
-            <span class="k">Previously managed</span>
-            <span class="v" id="mpStatPrev">—</span>
-          </div>
         </div>
 
-        <h3 class="mp-section-h">Currently Managing</h3>
-        <div class="mp-funds-table-wrap" id="mpCurrentMount"></div>
+        <h3 class="mp-section-h">Main Managed Funds <span class="mp-count-badge" id="mpMainCount">0</span></h3>
+        <div class="mp-funds-table-wrap" id="mpMainMount"></div>
 
-        <h3 class="mp-section-h">Previously Managed</h3>
-        <div class="mp-funds-table-wrap" id="mpPrevMount"></div>
+        <h3 class="mp-section-h">Co-Managed Funds <span class="mp-count-badge" id="mpCoCount">0</span></h3>
+        <div class="mp-funds-table-wrap" id="mpCoMount"></div>
+
+        <div class="mp-offuniverse" id="mpOffUniverseWrap" hidden>
+          <h3 class="mp-section-h">Also Manages — Overseas <span class="mp-off-note">(outside this universe)</span> <span class="mp-count-badge" id="mpOffCount">0</span></h3>
+          <div class="mp-funds-table-wrap" id="mpOffUniverseMount"></div>
+        </div>
+
+        <details class="mp-prev-details">
+          <summary class="mp-section-h mp-prev-summary">Previously Managed <span class="mp-count-badge" id="mpPrevCount">0</span></summary>
+          <div class="mp-funds-table-wrap" id="mpPrevMount"></div>
+        </details>
 
         <p class="mp-foot" id="mpFoot"></p>
       </div>

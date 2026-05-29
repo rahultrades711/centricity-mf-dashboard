@@ -23,7 +23,8 @@
 
   let _cycle = null;             // screener cycle JSON
   let _history = null;           // manager-history doc
-  let _profiles = {};            // { managerName: {bio, experience_years, ...} }
+  let _profiles = {};            // { managerName: {main_managed, co_managed, ...} }
+  let _aliases = {};             // { alt-spelling: canonical } from manager-profiles.json
 
   // Inverted index built from history: each unique manager name (any
   // is_current OR past) → array of {code, manager_entry, fund_name, etc}
@@ -51,7 +52,9 @@
       .then(([cycle, history, profiles]) => {
         _cycle = cycle;
         _history = history;
-        _profiles = profiles || {};
+        const pdoc = profiles || {};
+        _profiles = (pdoc.managers && typeof pdoc.managers === 'object') ? pdoc.managers : pdoc;
+        _aliases = (pdoc.aliases && typeof pdoc.aliases === 'object') ? pdoc.aliases : {};
         _composeManagers();
         _renderEyebrow();
         initCyclePicker(cycle);   // Stage B B2 — Stage A cycle dropdown wiring
@@ -96,12 +99,8 @@
       const res = await fetch('data/manager-profiles.json', { cache: 'default' });
       if (!res.ok) return {};
       const doc = await res.json();
-      // Two possible shapes: { managers: {…} } or just {…} keyed by name.
-      if (doc && typeof doc === 'object') {
-        if (doc.managers && typeof doc.managers === 'object') return doc.managers;
-        return doc;
-      }
-      return {};
+      // Return the WHOLE doc; the bootstrap splits managers + aliases.
+      return (doc && typeof doc === 'object') ? doc : {};
     } catch (e) {
       return {};
     }
@@ -257,6 +256,16 @@
         _byName.set(alt, _byName.get(canon));
       }
     }
+    // Also fold in the data-layer aliases map (manager-profiles.json) so
+    // override-only spellings resolve too — e.g. "Sharmila D'Mello" -> the
+    // "Sharmila D'Silva" profile (D3). No regression: the akaSeen pass above
+    // already covers the 6f448d1 Morningstar long-forms.
+    for (const alt in _aliases) {
+      const canon = _aliases[alt];
+      if (!_byName.has(alt) && _byName.has(canon)) {
+        _byName.set(alt, _byName.get(canon));
+      }
+    }
 
     _amcs = Array.from(
       new Set(_allManagers.flatMap(r => Array.from(r.amcs)))
@@ -264,7 +273,7 @@
   }
 
   function _enrichRow(row) {
-    const aum = row.currentFunds.reduce(
+    const recomputeAum = row.currentFunds.reduce(
       (s, x) => s + (Number(x.fund && x.fund.aum_cr) || 0), 0
     );
     const longestTenure = row.currentFunds.reduce(
@@ -273,13 +282,18 @@
     const primaryAmc = row.currentFunds.length > 0
       ? (row.currentFunds[0].fund.amc || '—')
       : '—';
+    // Prefer the rebuilt profile's counts/AUM so the picker matches the card
+    // (and respects any D3 override prune). Falls back to the recompute.
+    const prof = (_profiles && _profiles[row.name]) || null;
     return {
       ...row,
-      aum,
+      aum: prof ? (Number(prof.total_aum_cr) || recomputeAum) : recomputeAum,
       longestTenure,
       primaryAmc,
-      currentCount: row.currentFunds.length,
-      prevCount: row.prevFunds.length,
+      currentCount: prof
+        ? ((prof.main_count || 0) + (prof.co_count || 0))
+        : row.currentFunds.length,
+      prevCount: prof ? (prof.previously_count || 0) : row.prevFunds.length,
     };
   }
 
@@ -447,59 +461,88 @@
       bioEl.textContent = '';
     }
 
-    document.getElementById('mpStatCurrent').textContent = String(row.currentCount);
-    document.getElementById('mpStatAum').textContent =
-      row.aum > 0 ? `₹ ${DataLoader.fmtINR(row.aum)} Cr` : '—';
+    // ---- D5: two AUM pills (Total = Main + Co; Main = lead-only) ----
+    const totalAum = Number(profile.total_aum_cr) || 0;
+    const mainAum = Number(profile.main_aum_cr) || 0;
+    document.getElementById('mpStatTotalAum').textContent =
+      totalAum > 0 ? `₹ ${DataLoader.fmtINR(totalAum)} Cr` : '—';
+    document.getElementById('mpStatMainAum').textContent = `₹ ${DataLoader.fmtINR(mainAum)} Cr`;
     document.getElementById('mpStatTenure').textContent = _formatTenureYM(row.longestTenure);
-    document.getElementById('mpStatPrev').textContent = String(row.prevCount);
 
-    document.getElementById('mpCurrentMount').innerHTML = _renderFundsTable(row.currentFunds, true);
-    document.getElementById('mpPrevMount').innerHTML = _renderFundsTable(row.prevFunds, false);
+    // ---- D5: three sections (Main / Co / Previously), each sorted by AUM ----
+    const mainFunds = profile.main_managed || [];
+    const coFunds = profile.co_managed || [];
+    const prevFunds = profile.previously_managed || [];
+    document.getElementById('mpMainCount').textContent = String(mainFunds.length);
+    document.getElementById('mpCoCount').textContent = String(coFunds.length);
+    document.getElementById('mpPrevCount').textContent = String(prevFunds.length);
+    document.getElementById('mpMainMount').innerHTML = _renderProfileFunds(mainFunds, 'current');
+    document.getElementById('mpCoMount').innerHTML = _renderProfileFunds(coFunds, 'current');
+    document.getElementById('mpPrevMount').innerHTML = _renderProfileFunds(prevFunds, 'previous');
+
+    // ---- D5: off-universe overseas funds (name + AUM only) — e.g. D'Silva ----
+    const off = profile.off_universe_overseas || [];
+    const offWrap = document.getElementById('mpOffUniverseWrap');
+    if (offWrap) {
+      if (off.length > 0) {
+        offWrap.hidden = false;
+        document.getElementById('mpOffCount').textContent = String(off.length);
+        document.getElementById('mpOffUniverseMount').innerHTML = _renderOffUniverse(off);
+      } else {
+        offWrap.hidden = true;
+      }
+    }
 
     const dateStr = _history.as_of_date ? DataLoader.fmtDate(_history.as_of_date) : '—';
-    document.getElementById('mpFoot').textContent =
-      `Manager records sourced from Morningstar as of ${dateStr}. ` +
-      `Bio + source URL where available are scraped from public AMC / VRO pages by ` +
-      `scripts/scrape_manager_profiles.py.`;
+    let footMsg =
+      `Main = lead manager (MF Monitor "Fund Manager"); Co = co-manager. ` +
+      `Tenure + previous-fund history from Morningstar as of ${dateStr}.`;
+    if (profile._needs_partner_prune) {
+      footMsg += ` Co-managed list reflects the Morningstar attribution and awaits ` +
+        `partner confirmation of the current book.`;
+    }
+    document.getElementById('mpFoot').textContent = footMsg;
   }
 
-  function _renderFundsTable(items, isCurrent) {
-    if (items.length === 0) {
-      return `
-        <table class="mp-funds">
-          <tbody><tr class="mp-empty-row"><td>—</td></tr></tbody>
-        </table>`;
+  /** D5 — render a funds table from the rebuilt manager-profiles schema
+   *  (entries: {amfi, scheme_name, category, since|started, ended, tenure_yrs,
+   *  aum_cr}). `kind` ∈ {'current','previous'}. Rows link to the one-pager
+   *  carrying the active cycle so cross-cycle navigation stays in-cycle. */
+  function _renderProfileFunds(items, kind) {
+    if (!items || items.length === 0) {
+      return `<table class="mp-funds"><tbody><tr class="mp-empty-row"><td>—</td></tr></tbody></table>`;
     }
-    const sorted = items.slice().sort((a, b) =>
-      // Current: AUM desc; Previous: end-date desc
-      isCurrent
-        ? (Number(b.fund.aum_cr) || 0) - (Number(a.fund.aum_cr) || 0)
-        : (b.m.end || '').localeCompare(a.m.end || '')
-    );
+    const isCurrent = kind === 'current';
+    const cycleDate = (_cycle && _cycle.cycle_meta && _cycle.cycle_meta.cycle_date) || '';
     const headers = isCurrent
       ? `<tr><th>Fund</th><th>Category</th><th class="num">AUM ₹ Cr</th><th>Since</th><th class="num">Tenure</th></tr>`
       : `<tr><th>Fund</th><th>Category</th><th>Period</th><th class="num">Tenure</th></tr>`;
-    const rows = sorted.map(it => {
-      const f = it.fund || {};
-      const m = it.m;
-      const href = `fund-detail.html?scheme=${encodeURIComponent(it.code)}`;
-      const fundCell = `<a class="fund-link" href="${href}">${escapeHtml(f.fund_name || `Scheme ${it.code}`)}</a>`;
-      const catCell = escapeHtml(f.category || '—');
-      const tenureCell = _formatTenureYM(m.tenure_years);
+    const rows = items.map(it => {
+      const href = `fund-detail.html?scheme=${encodeURIComponent(it.amfi)}`
+        + (cycleDate ? `&cycle=${encodeURIComponent(cycleDate)}` : '');
+      const fundCell = `<a class="fund-link" href="${href}">${escapeHtml(it.scheme_name || `Scheme ${it.amfi}`)}</a>`;
+      const catCell = escapeHtml(it.category || '—');
+      const tenureCell = escapeHtml(_formatTenureYM(it.tenure_yrs));
       if (isCurrent) {
-        const aumCell = f.aum_cr != null ? `₹ ${DataLoader.fmtINR(f.aum_cr)}` : '—';
-        const sinceCell = _formatShortDate(m.start);
-        return `<tr><td>${fundCell}</td><td>${catCell}</td><td class="num">${aumCell}</td><td>${escapeHtml(sinceCell)}</td><td class="num">${escapeHtml(tenureCell)}</td></tr>`;
-      } else {
-        const periodCell = `${_formatShortDate(m.start)} – ${m.end ? _formatShortDate(m.end) : 'Present'}`;
-        return `<tr><td>${fundCell}</td><td>${catCell}</td><td>${escapeHtml(periodCell)}</td><td class="num">${escapeHtml(tenureCell)}</td></tr>`;
+        const aumCell = it.aum_cr != null ? `₹ ${DataLoader.fmtINR(it.aum_cr)}` : '—';
+        const sinceCell = escapeHtml(_formatShortDate(it.since));
+        return `<tr><td>${fundCell}</td><td>${catCell}</td><td class="num">${aumCell}</td><td>${sinceCell}</td><td class="num">${tenureCell}</td></tr>`;
       }
+      const periodCell = `${_formatShortDate(it.started)} – ${it.ended ? _formatShortDate(it.ended) : 'Present'}`;
+      return `<tr><td>${fundCell}</td><td>${catCell}</td><td>${escapeHtml(periodCell)}</td><td class="num">${tenureCell}</td></tr>`;
     }).join('');
-    return `
-      <table class="mp-funds">
-        <thead>${headers}</thead>
-        <tbody>${rows}</tbody>
-      </table>`;
+    return `<table class="mp-funds"><thead>${headers}</thead><tbody>${rows}</tbody></table>`;
+  }
+
+  /** D5 — off-universe overseas funds: name + AUM only (no link; they're not
+   *  in the screener universe). Used for ICICI's dedicated overseas FM. */
+  function _renderOffUniverse(items) {
+    const rows = items.map(it => {
+      const role = it.role === 'lead' ? '<span class="mp-off-role">lead</span>' : '';
+      const aumCell = it.aum_cr != null ? `₹ ${DataLoader.fmtINR(it.aum_cr)}` : '—';
+      return `<tr><td>${escapeHtml(it.scheme_name || '—')} ${role}</td><td class="num">${aumCell}</td></tr>`;
+    }).join('');
+    return `<table class="mp-funds"><thead><tr><th>Fund (overseas, outside this universe)</th><th class="num">AUM ₹ Cr</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
 
   /* -------------------------------------------------------- *

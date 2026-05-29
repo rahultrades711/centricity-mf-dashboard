@@ -260,3 +260,24 @@ table.mp-funds .mp-empty-row td {
   margin: 14px 0 0; font-size: 11px; color: var(--text-mid);
   font-style: italic; line-height: 1.4;
 }
+
+/* ---- Stage B Partner-Review D5 — Main/Co/Previously + AUM pills ---- */
+.mp-stat-aum .v { color: var(--gold, #BD9568); }
+.mp-count-badge {
+  display: inline-block; min-width: 1.4em; padding: 0 .5em; margin-left: .4em;
+  font-size: .72em; font-weight: 700; line-height: 1.7; text-align: center;
+  color: #6b4f2a; background: var(--tan, #DBC8B2); border-radius: 999px;
+  vertical-align: middle; font-variant-numeric: tabular-nums;
+}
+.mp-prev-details { margin-top: 18px; }
+.mp-prev-summary { cursor: pointer; list-style: none; }
+.mp-prev-summary::-webkit-details-marker { display: none; }
+.mp-prev-summary::before { content: "\25B8 "; color: var(--gold, #BD9568); }
+.mp-prev-details[open] .mp-prev-summary::before { content: "\25BE "; }
+.mp-offuniverse { margin-top: 18px; }
+.mp-off-note { font-size: .72em; color: var(--text-mid, #666); font-weight: 400; }
+.mp-off-role {
+  display: inline-block; font-size: .7em; font-weight: 700; color: #6b4f2a;
+  background: var(--tan, #DBC8B2); border-radius: 3px; padding: 0 .4em;
+  margin-left: .3em; text-transform: uppercase; letter-spacing: .03em;
+}
