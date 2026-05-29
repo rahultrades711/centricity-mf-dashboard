@@ -82,6 +82,19 @@
           renderDebtDetail(dFund, debtCycle);
           return;
         }
+      } catch (_) { /* fall through to Other, then not-found */ }
+      // Stage B E1 — Other universe (Commodity / FoF / Solution — Not Scored).
+      // These scheme codes are absent from both scored cycles; try the Other
+      // JSON before declaring the scheme unknown. Independent failure mode.
+      try {
+        const otherCycle = await DataLoader.loadOther();
+        const oFund = (otherCycle.funds || []).find(f => f.scheme_code === schemeCode);
+        if (oFund) {
+          _cycle = otherCycle;
+          _fund  = oFund;
+          renderOtherDetail(oFund, otherCycle);
+          return;
+        }
       } catch (_) { /* fall through to not-found */ }
       renderNotFound(schemeCode);
       return;
@@ -2630,6 +2643,94 @@
     document.getElementById('notFoundHeading').textContent = 'Fund not available in this cycle';
     document.getElementById('notFoundBody').textContent =
       `This fund (scheme code ${scheme}) did not exist in the ${DataLoader.fmtCycleLabelDate(_cycle.cycle_meta)} cycle. Switch to a later cycle using the dropdown above to view its report.`;
+  }
+
+  /* ============================================================
+   * OTHER-FUND DETAIL (Stage B E1 — Commodity / FoF / Solution, Not Scored)
+   * ============================================================
+   * Minimal report card: hero facts + trailing returns + a "Not Scored"
+   * notice. No score card, no holdings/risk/competition analytics, and no
+   * NAV chart (the Other JSON ships no NAV series — the chart is omitted
+   * rather than drawn empty).
+   */
+  function renderOtherDetail(fund, cycle) {
+    const m = cycle.cycle_meta || {};
+    const asOn = m.as_on_display || '15 May 2026';
+    const klass = fund.sub_category_class || 'Other';
+
+    const eyebrow = document.getElementById('heroEyebrow');
+    if (eyebrow) eyebrow.innerHTML =
+      `Fund Report · ${escapeHtml(klass)} · Not Scored · NAV as on ${escapeHtml(asOn)}`;
+
+    const name = fund.fund_name || 'Fund';
+    const parts = name.trim().split(/\s+/);
+    let titleHtml;
+    if (parts.length > 1) {
+      const last = parts.pop();
+      titleHtml = `${escapeHtml(parts.join(' '))} <em>${escapeHtml(last)}</em>`;
+    } else {
+      titleHtml = escapeHtml(name);
+    }
+    const titleEl = document.getElementById('fundTitle');
+    if (titleEl) titleEl.innerHTML = titleHtml;
+    const crumbEl = document.getElementById('crumbName');
+    if (crumbEl) crumbEl.textContent = name;
+
+    const aumStr = fund.aum_cr != null ? `₹ ${DataLoader.fmtINR(fund.aum_cr)} Cr` : '—';
+    const terStr = fund.ter_pct != null ? `${DataLoader.fmtNum(fund.ter_pct, 2)}%` : '—';
+    const navStr = fund.nav_latest_value != null ? `₹ ${DataLoader.fmtNum(fund.nav_latest_value, 4)}` : '—';
+    const cells = [
+      ['',            fund.amc || '—'],
+      ['Category',    fund.category || '—'],
+      ['Asset class', klass],
+      ['Scheme',      fund.scheme_code || '—'],
+      ['AUM',         aumStr],
+      ['TER',         terStr],
+      ['NAV',         navStr],
+      ['Inception',   fund.inception_date ? escapeHtml(String(fund.inception_date)) : '—'],
+      ['Manager',     fund.manager_name || '—'],
+    ];
+    const meta = document.getElementById('heroMeta');
+    if (meta) meta.innerHTML = cells
+      .map(([k, v]) => k
+        ? `<span>${escapeHtml(k)} · <b>${escapeHtml(String(v))}</b></span>`
+        : `<span><b>${escapeHtml(String(v))}</b></span>`)
+      .join('');
+
+    // No score / actions / TOC for a Not-Scored fund.
+    const scoreCard = document.getElementById('scoreCard');
+    if (scoreCard) scoreCard.style.display = 'none';
+    const actions = document.querySelector('.hero-actions');
+    if (actions) actions.style.display = 'none';
+    const toc = document.querySelector('aside.toc');
+    if (toc) toc.style.display = 'none';
+
+    const tr = fund.trailing_returns || {};
+    const rcell = v => `<td class="${pctCls(v)}">${DataLoader.fmtPct(v)}</td>`;
+    const isinBit = fund.isin ? `ISIN ${escapeHtml(fund.isin)} · ` : '';
+    const content = document.querySelector('.report-content');
+    if (content) content.innerHTML = `
+      <section class="block">
+        <div style="border:1px solid rgba(189,149,104,.35);background:rgba(219,200,178,.18);border-radius:12px;padding:16px 18px;margin-bottom:24px;">
+          <b>Not Scored this cycle.</b> ${escapeHtml(klass)} funds in the commodity / fund-of-funds / solution universe are carried for <em>screening only</em> — they receive no Centricity Score or category rank. Facts &amp; returns below are as on ${escapeHtml(asOn)}; missing values show “—”.
+        </div>
+        <h2>Trailing <em>Returns</em></h2>
+        <div class="perf-table-wrap">
+          <table class="perf">
+            <thead><tr><th>1Y</th><th>3Y</th><th>5Y</th><th>Since Inception</th></tr></thead>
+            <tbody><tr>
+              ${rcell(tr.return_1y_pct)}${rcell(tr.return_3y_pct)}${rcell(tr.return_5y_pct)}${rcell(tr.return_si_pct)}
+            </tr></tbody>
+          </table>
+        </div>
+        <p class="h-sub" style="margin-top:14px;">Annualised trailing returns (≥ 1Y) from the validated whitelisting workbook. ${isinBit}AMFI&nbsp;#${fund.scheme_code}.</p>
+      </section>`;
+
+    const link = document.getElementById('rawJsonLink');
+    if (link) link.href = `data/other-${m.cycle_date || '2026-05-15'}.json`;
+
+    wireBreadcrumb(fund);
+    renderFooter(cycle);
   }
 
   /* ============================================================
