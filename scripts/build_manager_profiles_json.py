@@ -66,6 +66,7 @@ from __future__ import annotations
 
 import datetime as _dt
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -105,42 +106,31 @@ def _fl(name: str) -> str:
     return _s(parts[0]) if len(parts) == 1 else f"{_s(parts[0])} {_s(parts[-1])}"
 
 
-# ---------------------------------------------------------------------------
-# Canonical-source override (Stage B Partner-Review D3, 2026-05-28/29).
-# See mf-issues-solutions SKILL.md §7.9.
-#
-# Some managers' CO-manager attribution cannot be resolved from the pipeline's
-# canonical sources:
-#   • MF Monitor carries only the LEAD (one Fund Manager column per sheet; no
-#     "Fund Manager 2/3" co-manager column exists — verified 2026-05-29).
-#   • Morningstar's LIVE "Manager Name" datapoint (OF015) is ALSO lead-only.
-#   • The full co-manager list comes ONLY from the Morningstar manager-history
-#     EXPORT, which is stale for ICICI's dedicated overseas FM Sharmila D'Silva
-#     ("D'Mello") — it carries `end=null` on funds ICICI has since reassigned,
-#     so it over-counts her at 33 in-universe (real book ≈ 16 schemes per
-#     ICICI factsheets / web, of which ~3 are off-universe FoFs).
-#
-# This override pins (a) the off-universe overseas FoFs she manages that are
-# NOT in the screener universe (name + AUM, ₹ Cr — live Morningstar Fund Size
-# OF009, 2026-05), and optionally (b) `current_in_universe_amfis` to gate her
-# in-universe co_managed to her confirmed current funds. When (b) is None the
-# builder keeps the Morningstar-export set and STAMPS a `_needs_partner_prune`
-# flag on the profile so the residual is visible (the exact in-universe prune
-# needs partner confirmation — no pipeline source can derive it).
-MANAGER_OVERRIDES: dict[str, dict] = {
-    "Sharmila D'Silva": {
-        # "D'Mello" is the same person (live Morningstar OF015 returns
-        # "Sharmila D'Silva"; aggregators/AMC notices use "D'Mello"). Register
-        # both so URL deep-links resolve either spelling (D5).
-        "aka_extra": ["Sharmila D'Mello", "Sharmila Dmello", "Sharmila D Mello"],
-        "off_universe_overseas": [
-            {"scheme_name": "ICICI Pru Global Advantage Fund (FOF)", "aum_cr": 390, "role": "lead"},
-            {"scheme_name": "ICICI Pru Passive Multi-Asset Fund of Fund", "aum_cr": 1538, "role": "co"},
-            {"scheme_name": "ICICI Pru Global Stable Equity Fund (FOF)", "aum_cr": 88, "role": "co"},
-        ],
-        "current_in_universe_amfis": None,  # PENDING partner confirmation
-    },
-}
+def _first(name: str) -> str:
+    """First whitespace-separated token, lowercased."""
+    parts = (name or "").strip().split()
+    return parts[0].lower() if parts else ""
+
+
+def _name_variants(name: str) -> set[str]:
+    """Apostrophe / space / case spelling variants of a name whose surname
+    begins with an apostrophe-style prefix (D'Silva ↔ Dsilva ↔ D Silva;
+    D'Mello ↔ Dmello ↔ D Mello; O'Brien …). Applied ONLY to data-derived
+    lead-alias keys (below) so every spelling of a cross-source name resolves
+    to one profile — never to ordinary names. Uniform; no per-manager code."""
+    out = {name}
+    parts = name.split()
+    if len(parts) < 2:
+        return out
+    pre, last = " ".join(parts[:-1]), parts[-1]
+    m = re.match(r"^([DO])['\s]?(.+)$", last)
+    if not m:
+        return out
+    p, rest = m.group(1), m.group(2)
+    for r in {rest, rest[:1].upper() + rest[1:]}:
+        for sep in ("'", " ", ""):
+            out.add(f"{pre} {p}{sep}{r}")
+    return out
 
 
 def build(
@@ -200,6 +190,59 @@ def build(
         aliases[alt] = canonical
 
     mh_funds = mh.get("funds", {})
+
+    # ---- D11: data-derived lead-spelling canonicalization (uniform; no
+    # per-manager hardcoding) ----------------------------------------------
+    # A Monitor LEAD spelling that NO Morningstar-current entry on its fund
+    # matches, but which shares a first name with another co-manager on the
+    # SAME fund that IS Morningstar-backed, is the same person under a
+    # cross-source spelling variant that `_fl` can't fold (e.g. fund 149218
+    # lead "Sharmila Dmello" vs Morningstar "Sharmila D'Silva" co — different
+    # surnames). Map the lead spelling to that co's canonical so the lead lands
+    # in the canonical person's profile (never a duplicate 1-fund profile).
+    # Every Morningstar-CURRENT manager name across the whole universe (by _fl).
+    # A lead spelling that appears here is a REAL Morningstar person (e.g.
+    # "Dhaval Shah", current on his own funds) and must NEVER be folded into a
+    # same-first-name colleague (e.g. "Dhaval Gala") just because they co-manage
+    # one fund together. Only a Monitor-ONLY lead spelling (never a Morningstar-
+    # current name anywhere) is a foldable cross-source variant.
+    ms_global_fl: set[str] = set()
+    for fmh in mh_funds.values():
+        for e in fmh.get("managers", []):
+            if e.get("name") and (e.get("is_current") is True or e.get("end") is None):
+                ms_global_fl.add(_fl(e["name"]))
+
+    lead_alias: dict[str, str] = {}
+    for fund in screener.get("funds", []):
+        cos = [n for n in (fund.get("manager_co_managers") or []) if n]
+        if not cos:
+            continue
+        lead = fund.get("manager_name") or cos[0]
+        if not lead:
+            continue
+        amfi = fund.get("scheme_code")
+        fmh = mh_funds.get(str(amfi), {}) if amfi is not None else {}
+        ms_cur = [e.get("name") for e in fmh.get("managers", [])
+                  if e.get("name") and (e.get("is_current") is True or e.get("end") is None)]
+        ms_cur_fl = {_fl(n) for n in ms_cur}
+        ms_cur_sn = {_surname(n) for n in ms_cur}
+        # Skip when the lead is Morningstar-backed — on THIS fund (normal
+        # multi-manager case) OR as a current name ANYWHERE (a real distinct
+        # person; the "Dhaval Shah" guard above).
+        if _fl(lead) in ms_cur_fl or (_surname(lead) and _surname(lead) in ms_cur_sn):
+            continue
+        if _fl(lead) in ms_global_fl:
+            continue
+        for c in cos:
+            if c == lead or _first(c) != _first(lead):
+                continue
+            if _fl(c) in ms_cur_fl or (_surname(c) and _surname(c) in ms_cur_sn):
+                lead_alias[lead] = c   # Monitor-only lead spelling ≡ this Morningstar co
+                break
+
+    def _canon(name: str) -> str:
+        return lead_alias.get(name, name)
+
     for amfi_str, fund_mh in mh_funds.items():
         try:
             amfi = int(amfi_str)
@@ -283,7 +326,8 @@ def build(
             mn_surname = _surname(mn)
             if mn_norm in ms_norms_on_fund or (mn_surname and mn_surname in ms_surnames_on_fund):
                 continue  # already covered
-            bucket = _get_bucket(mn)
+            canon_mn = _canon(mn)            # fold a cross-source lead spelling
+            bucket = _get_bucket(canon_mn)
             bucket["currently_managing"].append({
                 "amfi": str(amfi),
                 "scheme_name": fund_rec.get("fund_name"),
@@ -306,7 +350,7 @@ def build(
         for mn in (fund.get("manager_co_managers") or []):
             if not mn:
                 continue
-            bucket = _get_bucket(mn)
+            bucket = _get_bucket(_canon(mn))
             # Avoid duplicate insertion if this Monitor lead is on multiple
             # universe-missing-from-Morningstar funds
             if not any(c.get("amfi") == amfi_str for c in bucket["currently_managing"]):
@@ -344,41 +388,24 @@ def build(
         for c in prof["currently_managing"]:
             amfi = c.get("amfi")
             fund = fund_index.get(int(amfi)) if amfi else None
-            is_lead = bool(fund) and _fl(fund.get("manager_name")) == canon_fl
+            # Canonicalize the fund's LEAD spelling through the same fold so a
+            # cross-source lead (e.g. "Sharmila Dmello") lands in the canonical
+            # person's MAIN, not a duplicate (D11).
+            is_lead = bool(fund) and _fl(_canon(fund.get("manager_name"))) == canon_fl
             (main_managed if is_lead else co_managed).append(c)
         prof["main_managed"] = main_managed
         prof["co_managed"] = co_managed
 
-    # ---- D3: apply documented canonical overrides (D'Silva etc.) ----
-    for canonical, ov in MANAGER_OVERRIDES.items():
-        prof = managers.get(canonical)
-        if not prof:
+    # ---- D11: register the data-derived lead-spelling aliases (+ punctuation
+    # variants) as aka so every spelling of a cross-source name resolves to the
+    # one canonical profile (URL deep-link from any spelling). No per-manager
+    # overrides: the uniform rule (Morningstar = current-manager DB; Monitor =
+    # lead; everyone else = co) produces every profile, D'Silva included. ----
+    for lead, canon in lead_alias.items():
+        if canon not in managers:
             continue
-        keep = ov.get("current_in_universe_amfis")
-        if keep is not None:  # gate in-universe co to the confirmed current set
-            keepset = {str(a) for a in keep}
-            moved = [c for c in prof["currently_managing"] if c.get("amfi") not in keepset]
-            prof["currently_managing"] = [c for c in prof["currently_managing"] if c.get("amfi") in keepset]
-            prof["main_managed"] = [c for c in prof["main_managed"] if c.get("amfi") in keepset]
-            prof["co_managed"] = [c for c in prof["co_managed"] if c.get("amfi") in keepset]
-            for c in moved:  # demote pruned current funds to previously_managed
-                prof["previously_managed"].append({
-                    "amfi": c.get("amfi"), "scheme_name": c.get("scheme_name"),
-                    "category": c.get("category"), "started": c.get("since"),
-                    "ended": None, "tenure_yrs": c.get("tenure_yrs"),
-                    "aum_cr": c.get("aum_cr"), "_source": "override-prune",
-                })
-        else:
-            # No pipeline source can prune her co-attribution (Monitor + live
-            # Morningstar are lead-only). Flag the residual for partner review.
-            prof["_needs_partner_prune"] = True
-        if ov.get("off_universe_overseas"):
-            prof["off_universe_overseas"] = ov["off_universe_overseas"]
-        for alt in ov.get("aka_extra", []):  # register extra spellings as aliases
-            if alt != canonical:
-                if alt not in prof["aka"]:
-                    prof["aka"].append(alt)
-                aliases[alt] = canonical
+        for v in _name_variants(lead):
+            _add_aka(canon, v)
 
     # ---- Sort (AUM desc for D5 display) + AUM totals + counts (D4) ----
     def _aum(x):
@@ -397,10 +424,9 @@ def build(
         prof["co_count"] = len(prof["co_managed"])
         prof["previously_count"] = len(prof["previously_managed"])
 
-    # Defensive — drop profiles with no current + no previous + no off-universe
+    # Defensive — drop profiles with no current + no previous funds
     managers = {nm: prof for nm, prof in managers.items()
-                if prof["currently_managing"] or prof["previously_managed"]
-                or prof.get("off_universe_overseas")}
+                if prof["currently_managing"] or prof["previously_managed"]}
 
     # Prune aliases that point to dropped profiles
     aliases = {alt: canon for alt, canon in aliases.items() if canon in managers}
@@ -409,8 +435,8 @@ def build(
         "scraped_at": _dt.date.today().isoformat(),
         "source": (
             f"rebuilt from {screener_path.name} + {manager_history_path.name} "
-            f"(Monitor-keyed canonical + aka aliases; D4 Main/Co split + AUM totals; "
-            f"D3 canonical overrides)"
+            f"(uniform rule: Morningstar current-manager DB; Monitor lead; others co; "
+            f"Main/Co split + AUM totals; data-derived lead-spelling aliases; no per-manager overrides)"
         ),
         "aliases": aliases,
         "managers": managers,
