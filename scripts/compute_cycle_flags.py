@@ -6,13 +6,19 @@ Cycle-over-cycle diff: writes `cycle_flags` on every fund in the latest
 
 Powers Home's Active Flags panel and the fund-detail "What Changed" section.
 Per-fund flag fields (null/False unless the change crosses a threshold).
-Thresholds + rules revised 2026-05-28 (Stage B Partner-Review D2):
+Thresholds + rules revised 2026-05-29 (Stage B 'E' round, E2):
 
     cycle_flags: {
         "manager_change":          {prior, current} | null   (_fl first+last fold:
                                        no flag when only the spelling drifts),
-        "aum_swing_pct":           float | null     (|%| >= 10),
-        "return_1m_swing_pct":     float | null     (|pp| >= 10),
+        "aum_cr_current":          float | null     (this cycle's AUM ₹ Cr),
+        "aum_cr_prior":            float | null     (prior cycle's AUM ₹ Cr),
+        "aum_change_cr":           float | null     (current - prior, ₹ Cr),
+        "aum_change_pct":          float | null     (full %, NOT thresholded —
+                                       the JS rule applies the ±20% gate so the
+                                       threshold lives in ONE place),
+        "return_1m_swing_pct":     float | null     (|pp| >= 10; informational
+                                       only since E2 — no longer in the panel),
         "return_1y_swing_pct":     float | null     (|pp| >= 5, legacy consumer),
         "rank_change_in_category": int   | null     (|delta| >= 5, legacy consumer),
         "category_changed":        bool             (True when the ranking
@@ -23,8 +29,11 @@ Thresholds + rules revised 2026-05-28 (Stage B Partner-Review D2):
                                            kept for schema symmetry)
     }
 
-The Home Active Flags PANEL (D7 rule) reads only manager_change /
-return_1m_swing_pct / aum_swing_pct. return_1y_swing_pct +
+The Home Active Flags PANEL (E2 rule v2) reads only manager_change OR
+|aum_change_pct| >= 20. The 1-month return swing was DROPPED from the panel
+(E2). aum_change_pct/cr fields are ALWAYS populated when both cycles carry an
+AUM (so the flags table can show current / last-month / Δ for every flagged
+fund, including manager-change-only rows). return_1y_swing_pct +
 rank_change_in_category stay in the JSON for the What-Changed cards.
 category_changed powers the What-Changed "Category Reclassified" card and the
 gainers/losers exclusion (D9).
@@ -42,10 +51,13 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = REPO_ROOT / "data"
 
-# Stage B Partner-Review D2 (2026-05-28): AUM swing 20 -> 10; add 1-month
-# return swing (>= 10pp). 1-year swing (5pp) + rank change (5) kept for the
-# What-Changed cards but are NOT part of the Active Flags panel rule.
-AUM_SWING_THRESHOLD_PCT = 10.0
+# Stage B 'E' round E2 (2026-05-29): Active Flags panel rule v2 =
+# manager_change OR |AUM change| >= 20%. AUM swing threshold 10 -> 20; the
+# 1-month return swing is DROPPED from the panel (kept as an informational
+# field). The AUM ±20% gate is applied JS-side (active-flags.js) off the
+# always-on aum_change_pct, so AUM_SWING_THRESHOLD_PCT here is used ONLY for
+# the stderr aggregate count — the persisted field is never thresholded.
+AUM_SWING_THRESHOLD_PCT = 20.0
 RETURN_1M_SWING_THRESHOLD_PP = 10.0
 RETURN_1Y_SWING_THRESHOLD_PP = 5.0
 RANK_CHANGE_THRESHOLD = 5
@@ -93,7 +105,10 @@ def _diff_one(current: dict, prior: dict | None) -> dict:
     """Compute the per-fund flag object."""
     flags: dict = {
         "manager_change": None,
-        "aum_swing_pct": None,
+        "aum_cr_current": current.get("aum_cr") if isinstance(current.get("aum_cr"), (int, float)) else None,
+        "aum_cr_prior": None,
+        "aum_change_cr": None,
+        "aum_change_pct": None,
         "return_1m_swing_pct": None,
         "return_1y_swing_pct": None,
         "rank_change_in_category": None,
@@ -112,13 +127,16 @@ def _diff_one(current: dict, prior: dict | None) -> dict:
     if cur_mgr and pri_mgr and _fl(cur_mgr) != _fl(pri_mgr):
         flags["manager_change"] = {"prior": pri_mgr, "current": cur_mgr}
 
-    # aum_swing_pct — % change; flag if |pct| >= 10
+    # AUM — always-on facts (current / prior / Δ ₹Cr / Δ %). The ±20% panel
+    # gate is applied JS-side off aum_change_pct so the threshold lives once.
     cur_aum = current.get("aum_cr")
     pri_aum = prior.get("aum_cr")
-    if isinstance(cur_aum, (int, float)) and isinstance(pri_aum, (int, float)) and pri_aum > 0:
-        pct = (cur_aum - pri_aum) / pri_aum * 100.0
-        if abs(pct) >= AUM_SWING_THRESHOLD_PCT:
-            flags["aum_swing_pct"] = round(pct, 2)
+    if isinstance(pri_aum, (int, float)):
+        flags["aum_cr_prior"] = round(pri_aum, 2)
+    if isinstance(cur_aum, (int, float)) and isinstance(pri_aum, (int, float)):
+        flags["aum_change_cr"] = round(cur_aum - pri_aum, 2)
+        if pri_aum > 0:
+            flags["aum_change_pct"] = round((cur_aum - pri_aum) / pri_aum * 100.0, 2)
 
     # return_1m_swing_pct — 1-month point-to-point delta from the Monitor
     # overlay (monitor_returns.return_1m_pct); flag if |pp| >= 10.
@@ -181,14 +199,15 @@ def run(latest_path: Path, prior_path: Path) -> dict:
     # None-gated value flags (counted when not None)
     flag_counts: dict[str, int] = {
         "manager_change": 0,
-        "aum_swing_pct": 0,
         "return_1m_swing_pct": 0,
         "return_1y_swing_pct": 0,
         "rank_change_in_category": 0,
         "status_change": 0,
     }
+    # aum_change_pct is always-on; count only those crossing the ±20% panel gate.
+    aum_swing_count = 0
     category_changed_count = 0
-    # Active Flags panel rule (D7): manager_change OR |1M ret| >= 10 OR |AUM swing| >= 10
+    # Active Flags panel rule v2 (E2): manager_change OR |AUM change| >= 20%
     active_panel_count = 0
 
     for fund in latest_funds:
@@ -201,11 +220,13 @@ def run(latest_path: Path, prior_path: Path) -> dict:
         for k in flag_counts:
             if flags[k] is not None:
                 flag_counts[k] += 1
+        acp = flags["aum_change_pct"]
+        aum_swings = isinstance(acp, (int, float)) and abs(acp) >= AUM_SWING_THRESHOLD_PCT
+        if aum_swings:
+            aum_swing_count += 1
         if flags["category_changed"]:
             category_changed_count += 1
-        if (flags["manager_change"] is not None
-                or flags["return_1m_swing_pct"] is not None
-                or flags["aum_swing_pct"] is not None):
+        if flags["manager_change"] is not None or aum_swings:
             active_panel_count += 1
 
     # Dropped funds — present in prior, absent in latest
@@ -217,6 +238,8 @@ def run(latest_path: Path, prior_path: Path) -> dict:
         1 for f in latest_funds if (
             any(f["cycle_flags"][k] is not None for k in flag_counts)
             or f["cycle_flags"]["category_changed"]
+            or (isinstance(f["cycle_flags"]["aum_change_pct"], (int, float))
+                and abs(f["cycle_flags"]["aum_change_pct"]) >= AUM_SWING_THRESHOLD_PCT)
         )
     )
 
@@ -229,13 +252,13 @@ def run(latest_path: Path, prior_path: Path) -> dict:
         f"  dropped_from_cycle: {dropped_count} (reported, not persisted on latest)\n"
         f"  flag counts (notable changes only):\n"
         f"    manager_change (_fl-folded):             {flag_counts['manager_change']}\n"
-        f"    aum_swing_pct (|%|≥10):                  {flag_counts['aum_swing_pct']}\n"
-        f"    return_1m_swing_pct (|pp|≥10):           {flag_counts['return_1m_swing_pct']}\n"
+        f"    aum_change |%|≥20 (panel gate):          {aum_swing_count}\n"
+        f"    return_1m_swing_pct (|pp|≥10, info only): {flag_counts['return_1m_swing_pct']}\n"
         f"    return_1y_swing_pct (|pp|≥5, legacy):    {flag_counts['return_1y_swing_pct']}\n"
         f"    rank_change_in_category (|Δ|≥5, legacy): {flag_counts['rank_change_in_category']}\n"
         f"    category_changed:                        {category_changed_count}\n"
         f"    status_change:                           {flag_counts['status_change']}\n"
-        f"  Active Flags panel (mgr OR |1M|≥10 OR |AUM|≥10): {active_panel_count}\n"
+        f"  Active Flags panel v2 (mgr OR |AUM Δ|≥20%): {active_panel_count}\n"
         f"  funds with at least one non-null/true flag: {funds_with_any_flag}",
         file=sys.stderr,
     )
@@ -243,6 +266,7 @@ def run(latest_path: Path, prior_path: Path) -> dict:
         "new_count": new_count,
         "dropped_count": dropped_count,
         "flag_counts": flag_counts,
+        "aum_swing_count": aum_swing_count,
         "category_changed_count": category_changed_count,
         "active_panel_count": active_panel_count,
         "funds_with_any_flag": funds_with_any_flag,

@@ -1,8 +1,9 @@
 /* ============================================================
- *  flags.js — Stage B Partner-Review D7
+ *  flags.js — Stage B 'E' round (E2) · Active Flags v2
  *  Full Active Flags list (every fund matching the shared rule in
- *  js/active-flags.js). Columns: Fund | Category | AUM ₹ Cr | Flag(s) | Δ value.
- *  Sortable by severity / AUM; cycle dropdown re-renders via ?cycle=.
+ *  js/active-flags.js). Columns: Fund | Category | Current AUM | Last-month
+ *  AUM | Δ AUM ₹Cr | Δ AUM % | Flag(s). Default order = AF.compare; also
+ *  sortable by Current AUM and Δ AUM %. Cycle dropdown re-renders via ?cycle=.
  * ============================================================ */
 (function () {
   'use strict';
@@ -35,13 +36,26 @@
   function _flagged() {
     const AF = window.ActiveFlags;
     const rows = (_cycle.funds || []).filter(f => AF.matches(f.cycle_flags));
-    if (_sort === 'aum') {
-      rows.sort((a, b) => (b.aum_cr || 0) - (a.aum_cr || 0));
-    } else {
+    if (_sort === 'current_aum') {
       rows.sort((a, b) =>
-        AF.severity(b.cycle_flags) - AF.severity(a.cycle_flags) || (b.aum_cr || 0) - (a.aum_cr || 0));
+        (AF.aumCurrent(b.cycle_flags) ?? b.aum_cr ?? 0) - (AF.aumCurrent(a.cycle_flags) ?? a.aum_cr ?? 0));
+    } else if (_sort === 'aum_pct') {
+      const p = f => { const v = AF.aumChangePct(f.cycle_flags); return v == null ? -Infinity : v; };
+      rows.sort((a, b) => p(b) - p(a));
+    } else {
+      // 'severity' (default) — the shared manager-first / AUM-growth ordering.
+      rows.sort(AF.compare);
     }
     return rows;
+  }
+
+  function _aumCell(v) {
+    return v != null ? '₹ ' + DataLoader.fmtINR(v) : '—';
+  }
+  function _pctCell(v) {
+    if (v == null) return '—';
+    const neg = v < 0;
+    return `<span class="${neg ? 'neg' : ''}">${neg ? '−' : '+'}${Math.abs(v).toFixed(1)}%</span>`;
   }
 
   function _render() {
@@ -56,23 +70,34 @@
         <p>No funds tripped the active-flags rule this cycle.</p></div>`;
       return;
     }
-    count.innerHTML = `<b>${rows.length}</b> funds tripped the active-flags rule this cycle.`;
+    count.innerHTML = `<b>${rows.length}</b> funds tripped the active-flags rule this cycle (manager change or ±20% AUM swing).`;
     const body = rows.map(f => {
-      const tags = AF.tags(f.cycle_flags);
-      const kinds = tags.map(t =>
-        t.kind === 'mgr' ? 'Manager change' : t.kind === 'aum' ? 'AUM swing' : '1M return swing').join(', ');
-      const deltas = tags.map(AF.tagHtml).join(' ');
+      const cf = f.cycle_flags || {};
+      const tags = AF.tags(cf);
+      const kinds = tags.map(t => t.kind === 'mgr' ? 'Manager change' : 'AUM swing').join(', ');
+      const flagHtml = tags.map(AF.tagHtml).join(' ');
+      const curAum = AF.aumCurrent(cf) != null ? AF.aumCurrent(cf) : f.aum_cr;
+      const priAum = AF.aumPrior(cf);
+      const chgCr  = AF.aumChangeCr(cf);
+      const chgPct = AF.aumChangePct(cf);
+      const chgNeg = (chgCr != null && chgCr < 0);
       const href = `fund-detail.html?scheme=${encodeURIComponent(f.scheme_code)}&cycle=${encodeURIComponent(cd)}`;
       return `<tr>
         <td><a class="fund-link" href="${href}">${esc(f.fund_name)}</a></td>
         <td>${esc(f.category || '—')}</td>
-        <td class="num">${f.aum_cr != null ? '₹ ' + DataLoader.fmtINR(f.aum_cr) : '—'}</td>
-        <td>${esc(kinds)}</td>
-        <td class="delta-cell">${deltas}</td>
+        <td class="num">${_aumCell(curAum)}</td>
+        <td class="num">${_aumCell(priAum)}</td>
+        <td class="num">${chgCr != null ? (chgNeg ? '<span class="neg">−₹ ' + DataLoader.fmtINR(Math.abs(chgCr)) + '</span>' : '+₹ ' + DataLoader.fmtINR(chgCr)) : '—'}</td>
+        <td class="num">${_pctCell(chgPct)}</td>
+        <td class="delta-cell">${flagHtml || esc(kinds)}</td>
       </tr>`;
     }).join('');
     mount.innerHTML = `<table class="flags-tbl">
-      <thead><tr><th>Fund</th><th>Category</th><th class="num">AUM ₹ Cr</th><th>Flag(s)</th><th>Δ value</th></tr></thead>
+      <thead><tr>
+        <th>Fund</th><th>Category</th>
+        <th class="num">Current AUM ₹ Cr</th><th class="num">Last-month AUM ₹ Cr</th>
+        <th class="num">Δ AUM ₹ Cr</th><th class="num">Δ AUM %</th><th>Flag(s)</th>
+      </tr></thead>
       <tbody>${body}</tbody></table>`;
   }
 

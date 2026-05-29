@@ -74,16 +74,17 @@
   <div class="inner">
     <div>
       <h1>Active <em>Flags</em></h1>
-      <p class="sub">Every fund that tripped the active-flags rule this cycle — a <b>manager change</b>,
-         a <b>±10% 1-month return swing</b>, or a <b>±10% AUM swing</b>. Sorted by severity
-         (manager change &gt; AUM swing &gt; 1-month return swing).</p>
+      <p class="sub">Every fund that tripped the active-flags rule this cycle — a <b>manager change</b>
+         or a <b>±20% AUM swing</b> versus last cycle. Default order: manager changes first
+         (by current AUM), then AUM swings by % growth.</p>
     </div>
     <div class="flags-controls">
       <span><label for="flagsCycleSel">Cycle</label><select id="flagsCycleSel" aria-label="Select cycle"></select></span>
       <span><label for="flagsSortSel">Sort</label>
         <select id="flagsSortSel" aria-label="Sort by">
-          <option value="severity">Severity</option>
-          <option value="aum">AUM (high → low)</option>
+          <option value="severity">Severity (default)</option>
+          <option value="current_aum">Current AUM (high → low)</option>
+          <option value="aum_pct">Δ AUM % (high → low)</option>
         </select></span>
     </div>
   </div>

@@ -47,8 +47,7 @@
   // js/active-flags.js (window.ActiveFlags.RULE), shared with flags.html so the
   // Home panel and the full-list page can never drift; literal fallback below.
   const ACTIVE_FLAGS_RULE = (window.ActiveFlags && window.ActiveFlags.RULE) || {
-    AUM_SWING_PCT: 10,
-    RETURN_1M_SWING_PCT: 10,
+    AUM_SWING_PCT: 20,
     MANAGER_CHANGE: true,
   };
 
@@ -459,7 +458,7 @@
     });
   }
 
-  /* --------- Active Flags (D7 — shared cycle_flags rule, top 5) --------- */
+  /* --------- Active Flags (E2 — shared cycle_flags rule v2, top 6) --------- */
   function renderActiveFlags(cycle) {
     const row = document.getElementById('alertsRow');
     const cycles = _currentManifest && _currentManifest.cycles;
@@ -474,16 +473,16 @@
       return;
     }
 
-    // D7 rule: manager_change OR |1M return swing| ≥ 10 OR |AUM swing| ≥ 10.
-    // No AUM floor (removed the old ₹50K Cr gate). Sort by severity
-    // (manager > AUM > 1M), AUM as tiebreak. Top 5 on the panel; the full
-    // list is on flags.html ("View all flags →").
+    // E2 rule v2: manager_change OR |AUM change| ≥ 20%. (1-month return swing
+    // dropped from the panel.) Default order = AF.compare (manager-change
+    // funds first by current AUM desc, then AUM-swing-only by %-growth desc).
+    // Top 6 on the panel; the full list is on flags.html ("View all flags →").
     const AF = window.ActiveFlags;
     const flagged = (cycle.funds || [])
       .filter(f => AF.matches(f.cycle_flags))
-      .map(f => ({ fund: f, score: AF.severity(f.cycle_flags) }))
-      .sort((a, b) => b.score - a.score || (b.fund.aum_cr || 0) - (a.fund.aum_cr || 0))
-      .slice(0, 5);
+      .sort(AF.compare)
+      .slice(0, 6)
+      .map(fund => ({ fund }));
 
     if (flagged.length === 0) {
       row.innerHTML = `
