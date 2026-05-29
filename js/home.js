@@ -40,6 +40,16 @@
   let _assetClassMS = null;
   let _categoryMS = null;
   let _topSortState = { key: 'centricity_rank_in_category', dir: 'asc' };
+  let _debtMeta = { count: 0, categoryCount: 0 };   // D7 — debt universe (separate debt-*.json)
+
+  // D7 Active Flags rule — single named block. Canonical source is
+  // js/active-flags.js (window.ActiveFlags.RULE), shared with flags.html so the
+  // Home panel and the full-list page can never drift; literal fallback below.
+  const ACTIVE_FLAGS_RULE = (window.ActiveFlags && window.ActiveFlags.RULE) || {
+    AUM_SWING_PCT: 10,
+    RETURN_1M_SWING_PCT: 10,
+    MANAGER_CHANGE: true,
+  };
 
   document.addEventListener('DOMContentLoaded', main);
 
@@ -56,6 +66,7 @@
 
     _currentManifest = manifest;
     _currentCycle = cycle;
+    await loadDebtMeta(cycle.cycle_meta.cycle_date);   // D7 — debt count for hero + Explore
 
     populateCyclePicker(manifest, cycle.cycle_meta.cycle_date);
     renderHero(cycle);
@@ -73,6 +84,7 @@
         const newCycle = await DataLoader.loadCycle(newDate);
         await Cycle.setActiveCycle(newDate);
         _currentCycle = newCycle;
+        await loadDebtMeta(newDate);
         renderHero(newCycle);
         renderQuickTiles(newCycle);
         // Refresh the category MS items in case the new cycle has a different
@@ -103,18 +115,39 @@
       </div>`;
   }
 
+  /* --------- debt universe (D7) — separate debt-<cycle>.json, not scored --------- */
+  async function loadDebtMeta(cycleDate) {
+    try {
+      const res = await fetch(`data/debt-${cycleDate}.json`, { cache: 'default' });
+      if (!res.ok) { _debtMeta = { count: 0, categoryCount: 0 }; return; }
+      const doc = await res.json();
+      const cm = doc.cycle_meta || {};
+      _debtMeta = {
+        count: Array.isArray(doc.funds) ? doc.funds.length : (cm.total_funds || 0),
+        categoryCount: cm.category_count || 0,
+      };
+    } catch (e) {
+      _debtMeta = { count: 0, categoryCount: 0 };
+    }
+  }
+
   /* --------- hero --------- */
   function renderHero(cycle) {
     const m = cycle.cycle_meta;
+    const debtN = _debtMeta.count || 0;
+    const totalUniverse = (m.total_funds || 0) + debtN;     // D7 — incl. debt
+    const totalCats = (m.category_count || 0) + (_debtMeta.categoryCount || 0);
     document.getElementById('heroEyebrow').innerHTML =
       `<span class="bar"></span><b>Update as on ${m.as_on_display}</b>`;
     document.getElementById('heroTitle').innerHTML =
       `Centricity Mutual Fund Screener<span class="sep">·</span><span class="cycle-tag">${escapeHtml(DataLoader.fmtCycleLabelDate(m))}</span>`;
     document.getElementById('heroLede').textContent =
-      `${m.total_funds.toLocaleString('en-IN')} funds across ${m.category_count} SEBI categories, ` +
-      `ranked on Products Team framework. As on ${m.as_on_display}.`;
-    document.getElementById('heroFunds').textContent = m.total_funds.toLocaleString('en-IN');
-    document.getElementById('heroCats').textContent = m.category_count;
+      `${totalUniverse.toLocaleString('en-IN')} funds across ${totalCats} categories ` +
+      `(${m.total_funds.toLocaleString('en-IN')} equity & hybrid scored` +
+      `${debtN > 0 ? ` + ${debtN.toLocaleString('en-IN')} debt` : ''}), ` +
+      `ranked on the Products Team framework. As on ${m.as_on_display}.`;
+    document.getElementById('heroFunds').textContent = totalUniverse.toLocaleString('en-IN');
+    document.getElementById('heroCats').textContent = totalCats;
     document.getElementById('heroDate').textContent = m.as_on_display;
   }
 
@@ -405,9 +438,7 @@
     });
   }
 
-  /* --------- Active Flags (Stage B B3 — cycle_flags driven) --------- */
-  const ACTIVE_FLAG_AUM_CR = 50000;   // AUM threshold per spec
-
+  /* --------- Active Flags (D7 — shared cycle_flags rule, top 5) --------- */
   function renderActiveFlags(cycle) {
     const row = document.getElementById('alertsRow');
     const cycles = _currentManifest && _currentManifest.cycles;
@@ -416,67 +447,35 @@
         <div class="empty-state" style="grid-column: 1 / -1;">
           <div class="ring-motif" aria-hidden="true"></div>
           <h3>No prior cycle to compare against</h3>
-          <p>First auto-flags will populate from the next cycle onwards.
-             Cycle-over-cycle deltas require a prior cycle to diff against.</p>
+          <p>Active flags populate from the next cycle onwards — cycle-over-cycle
+             deltas need a prior cycle to diff against.</p>
         </div>`;
       return;
     }
 
-    // Severity order (kickoff): manager_change > big AUM swing > rank change
-    //                          > return swing > status change.
-    const severityScore = (cf) => {
-      if (!cf) return 0;
-      let s = 0;
-      if (cf.manager_change)              s += 10;
-      if (cf.aum_swing_pct != null)       s += 8;
-      if (cf.rank_change_in_category != null) s += 6;
-      if (cf.return_1y_swing_pct != null) s += 4;
-      if (cf.status_change)               s += 5;
-      return s;
-    };
-
+    // D7 rule: manager_change OR |1M return swing| ≥ 10 OR |AUM swing| ≥ 10.
+    // No AUM floor (removed the old ₹50K Cr gate). Sort by severity
+    // (manager > AUM > 1M), AUM as tiebreak. Top 5 on the panel; the full
+    // list is on flags.html ("View all flags →").
+    const AF = window.ActiveFlags;
     const flagged = (cycle.funds || [])
-      .filter(f => (f.aum_cr || 0) >= ACTIVE_FLAG_AUM_CR)
-      .map(f => ({ fund: f, score: severityScore(f.cycle_flags) }))
-      .filter(x => x.score > 0)
+      .filter(f => AF.matches(f.cycle_flags))
+      .map(f => ({ fund: f, score: AF.severity(f.cycle_flags) }))
       .sort((a, b) => b.score - a.score || (b.fund.aum_cr || 0) - (a.fund.aum_cr || 0))
-      .slice(0, 3);
+      .slice(0, 5);
 
     if (flagged.length === 0) {
       row.innerHTML = `
         <div class="empty-state" style="grid-column: 1 / -1;">
           <div class="ring-motif" aria-hidden="true"></div>
           <h3>No active flags this cycle</h3>
-          <p>No funds with AUM ≥ ₹${DataLoader.fmtINR(ACTIVE_FLAG_AUM_CR)} Cr crossed the cycle-over-cycle thresholds.</p>
+          <p>No funds tripped the active-flags rule this cycle.</p>
         </div>`;
       return;
     }
 
-    row.innerHTML = flagged.map(({ fund, score }) => {
-      const cf = fund.cycle_flags || {};
-      const tags = [];
-      if (cf.manager_change) {
-        tags.push(`<span class="flag-tag flag-mgr">Manager change · <b>${escapeHtml(cf.manager_change.prior)}</b> → <b>${escapeHtml(cf.manager_change.current)}</b></span>`);
-      }
-      if (cf.aum_swing_pct != null) {
-        const dir = cf.aum_swing_pct >= 0 ? '+' : '−';
-        const cls = cf.aum_swing_pct >= 0 ? '' : ' neg';
-        tags.push(`<span class="flag-tag${cls}">AUM swing · <b>${dir}${Math.abs(cf.aum_swing_pct).toFixed(1)}%</b></span>`);
-      }
-      if (cf.rank_change_in_category != null) {
-        const delta = cf.rank_change_in_category;
-        const cls = delta < 0 ? '' : ' neg';
-        tags.push(`<span class="flag-tag${cls}">Category-rank shift · <b>${delta > 0 ? '+' : ''}${delta}</b></span>`);
-      }
-      if (cf.return_1y_swing_pct != null) {
-        const v = cf.return_1y_swing_pct;
-        const cls = v < 0 ? ' neg' : '';
-        const sign = v >= 0 ? '+' : '−';
-        tags.push(`<span class="flag-tag${cls}">1Y return swing · <b>${sign}${Math.abs(v).toFixed(2)}pp</b></span>`);
-      }
-      if (cf.status_change) {
-        tags.push(`<span class="flag-tag">Status change · <b>${escapeHtml(cf.status_change.prior)}</b> → <b>${escapeHtml(cf.status_change.current)}</b></span>`);
-      }
+    row.innerHTML = flagged.map(({ fund }) => {
+      const tagsHtml = AF.tags(fund.cycle_flags).map(AF.tagHtml).join('');
       return `
         <a class="alert-card" href="fund-detail.html?scheme=${fund.scheme_code}">
           <div class="alert-hd">
@@ -484,7 +483,7 @@
             <span class="alert-aum num">₹ ${DataLoader.fmtINR(fund.aum_cr)} Cr</span>
           </div>
           <div class="alert-cat">${escapeHtml(fund.amc || '')} · ${escapeHtml(fund.category || '')}</div>
-          <div class="alert-tags">${tags.join('')}</div>
+          <div class="alert-tags">${tagsHtml}</div>
         </a>`;
     }).join('');
   }
@@ -586,30 +585,32 @@
     const wrap = document.getElementById('exploreWrap');
     if (!wrap) return;
     const funds = cycle.funds || [];
-    const byClass = { Equity: 0, Hybrid: 0, Debt: 0, Other: 0 };
+    const byClass = { Equity: 0, Hybrid: 0 };
     let activeCount = 0, passiveCount = 0;
     for (const f of funds) {
-      const c = f.sub_category_class || 'Other';
-      byClass[c] = (byClass[c] || 0) + 1;
+      const c = f.sub_category_class;
+      if (c === 'Equity' || c === 'Hybrid') byClass[c]++;
       if (f.centricity_score_status === 'Index — Not Scored') passiveCount++;
       else activeCount++;
     }
-    const total = funds.length;
-    const pct = (n) => total > 0 ? ((n / total) * 100).toFixed(1) : '0.0';
+    const debtN = _debtMeta.count || 0;                        // D7 — debt universe (separate file)
+    const acTotal = byClass.Equity + byClass.Hybrid + debtN;   // full universe incl. debt
+    const scoredTotal = funds.length;                          // equity + hybrid (Active/Passive base)
+    const pct = (n, t) => t > 0 ? ((n / t) * 100).toFixed(1) : '0.0';
     wrap.innerHTML = `
       <div class="explore-grid">
         <div class="explore-card">
           <h3>By asset class</h3>
-          <div class="explore-row"><span>Equity</span><b class="num">${byClass.Equity}</b><span class="pct">${pct(byClass.Equity)}%</span></div>
-          <div class="explore-row"><span>Hybrid</span><b class="num">${byClass.Hybrid}</b><span class="pct">${pct(byClass.Hybrid)}%</span></div>
-          <div class="explore-row"><span>Debt</span><b class="num">${byClass.Debt}</b><span class="pct">${pct(byClass.Debt)}%</span></div>
-          <p class="explore-foot">Total ${total} funds. Click → Screener.</p>
+          <div class="explore-row"><span>Equity</span><b class="num">${byClass.Equity.toLocaleString('en-IN')}</b><span class="pct">${pct(byClass.Equity, acTotal)}%</span></div>
+          <div class="explore-row"><span>Hybrid</span><b class="num">${byClass.Hybrid.toLocaleString('en-IN')}</b><span class="pct">${pct(byClass.Hybrid, acTotal)}%</span></div>
+          <div class="explore-row"><span>Debt</span><b class="num">${debtN.toLocaleString('en-IN')}</b><span class="pct">${pct(debtN, acTotal)}%</span></div>
+          <p class="explore-foot">Total ${acTotal.toLocaleString('en-IN')} funds incl. ${debtN.toLocaleString('en-IN')} debt. Click → Screener.</p>
         </div>
         <div class="explore-card">
           <h3>Active vs Passive</h3>
-          <div class="explore-row"><span>Active (Ranked / Warning / New)</span><b class="num">${activeCount}</b><span class="pct">${pct(activeCount)}%</span></div>
-          <div class="explore-row"><span>Passive (Index — Not Scored)</span><b class="num">${passiveCount}</b><span class="pct">${pct(passiveCount)}%</span></div>
-          <p class="explore-foot">Pie visualization — v1.x.</p>
+          <div class="explore-row"><span>Active (Ranked / Warning / New)</span><b class="num">${activeCount.toLocaleString('en-IN')}</b><span class="pct">${pct(activeCount, scoredTotal)}%</span></div>
+          <div class="explore-row"><span>Passive (Index — Not Scored)</span><b class="num">${passiveCount.toLocaleString('en-IN')}</b><span class="pct">${pct(passiveCount, scoredTotal)}%</span></div>
+          <p class="explore-foot">Of ${scoredTotal.toLocaleString('en-IN')} scored equity &amp; hybrid funds. Debt is not scored.</p>
         </div>
       </div>`;
   }

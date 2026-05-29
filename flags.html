@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Centricity MF Screener — Active Flags</title>
+<meta name="viewport" content="width=1680">
+<link rel="icon" href="assets/logo.png">
+<link rel="stylesheet" href="css/centricity.css">
+<link rel="stylesheet" href="css/transitions.css">
+<link rel="stylesheet" href="css/home.css">
+<style>
+  .flags-band { background:#fff; border-bottom:1px solid var(--rule); padding:28px 56px 22px; }
+  .flags-band .inner { max-width:1740px; margin:0 auto; display:flex; align-items:flex-end; justify-content:space-between; gap:24px; flex-wrap:wrap; }
+  .flags-band h1 { margin:0; font-size:32px; font-weight:700; letter-spacing:-.01em; }
+  .flags-band h1 em { font-style:italic; font-weight:400; color:var(--gold-deep); }
+  .flags-band .sub { font-size:13.5px; color:var(--text-mid); margin:8px 0 0; max-width:90ch; }
+  .flags-controls { display:flex; align-items:center; gap:18px; }
+  .flags-controls label { font-size:12px; color:var(--text-mid); margin-right:6px; }
+  .flags-controls select { font-family:inherit; font-size:13px; padding:6px 10px; border:1px solid var(--rule); border-radius:4px; background:#fff; }
+  .flags-body { max-width:1740px; margin:32px auto 80px; padding:0 56px; }
+  .flags-count { font-size:13px; color:var(--text-mid); margin:0 0 14px; }
+  .flags-count b { color:var(--gold-deep); }
+  table.flags-tbl { width:100%; border-collapse:collapse; background:#fff; box-shadow:var(--shadow-sm); border-radius:4px; overflow:hidden; }
+  table.flags-tbl th, table.flags-tbl td { text-align:left; padding:10px 14px; border-bottom:1px solid var(--rule); font-size:13px; vertical-align:top; }
+  table.flags-tbl th { background:var(--tan-soft); font-weight:700; font-size:12px; letter-spacing:.02em; }
+  table.flags-tbl td.num, table.flags-tbl th.num { text-align:right; font-variant-numeric:tabular-nums; }
+  table.flags-tbl tr:hover td { background:#faf7f2; }
+  table.flags-tbl .fund-link { font-weight:600; }
+  .flags-empty { background:#fff; border:1px solid var(--rule); border-radius:4px; padding:80px 32px; text-align:center; box-shadow:var(--shadow-sm); }
+  .flags-empty h2 { font-size:22px; font-weight:700; margin:0 0 10px; }
+  .flags-empty p { font-size:14px; color:var(--text-mid); margin:0; }
+  .delta-cell .flag-tag { margin:0 4px 4px 0; }
+</style>
+<script defer src="js/data-loader.js"></script>
+<script defer src="js/cycle.js"></script>
+<script defer src="js/search.js"></script>
+<script defer src="js/transitions.js"></script>
+<script defer src="js/active-flags.js"></script>
+<script defer src="js/flags.js"></script>
+</head>
+<body>
+
+<header class="appbar" role="banner">
+  <div class="left"><div class="logo-cell"><img src="assets/logo.png" alt="Centricity WealthTech"></div></div>
+  <nav aria-label="primary">
+    <a href="index.html">Home</a>
+    <a href="screener.html">Screener</a>
+    <a href="fund-detail.html">Fund One Pagers</a>
+    <a href="portfolio-builder.html">Portfolio Builder</a>
+    <a href="compare.html">Compare</a>
+    <a href="overlap.html">Overlap</a>
+    <div class="nav-dropdown">
+      <a href="#" class="dropdown-trigger active">Others &#9662;</a>
+      <div class="nav-dropdown-menu">
+        <a href="manager-profiles.html">Manager Profiles</a>
+        <a href="archive.html">Archive</a>
+        <a href="watchlist.html">Watchlist</a>
+        <a href="alerts.html">Alerts</a>
+      </div>
+    </div>
+  </nav>
+  <div class="right">
+    <label class="search"><span style="opacity:.6">⌕</span>
+      <input type="text" placeholder="Search…" aria-label="Search"></label>
+  </div>
+</header>
+
+<div class="crumb">
+  <a href="index.html">Home</a><span class="sep">›</span><span>Active Flags</span>
+</div>
+
+<main>
+<section class="flags-band">
+  <div class="inner">
+    <div>
+      <h1>Active <em>Flags</em></h1>
+      <p class="sub">Every fund that tripped the active-flags rule this cycle — a <b>manager change</b>,
+         a <b>±10% 1-month return swing</b>, or a <b>±10% AUM swing</b>. Sorted by severity
+         (manager change &gt; AUM swing &gt; 1-month return swing).</p>
+    </div>
+    <div class="flags-controls">
+      <span><label for="flagsCycleSel">Cycle</label><select id="flagsCycleSel" aria-label="Select cycle"></select></span>
+      <span><label for="flagsSortSel">Sort</label>
+        <select id="flagsSortSel" aria-label="Sort by">
+          <option value="severity">Severity</option>
+          <option value="aum">AUM (high → low)</option>
+        </select></span>
+    </div>
+  </div>
+</section>
+
+<section class="flags-body">
+  <p class="flags-count" id="flagsCount"></p>
+  <div id="flagsMount"></div>
+</section>
+</main>
+
+<footer class="appfoot" role="contentinfo">
+  <div class="left">
+    <span class="gold">CENTRICITY WEALTHTECH</span><span>·</span><span>Products Team</span><span>·</span><span>Confidential</span>
+  </div>
+  <div class="right" id="footUpdated">Last updated · —</div>
+</footer>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
