@@ -601,10 +601,10 @@
       <div class="explore-grid">
         <div class="explore-card">
           <h3>By asset class</h3>
-          <div class="explore-row"><span>Equity</span><b class="num">${byClass.Equity.toLocaleString('en-IN')}</b><span class="pct">${pct(byClass.Equity, acTotal)}%</span></div>
-          <div class="explore-row"><span>Hybrid</span><b class="num">${byClass.Hybrid.toLocaleString('en-IN')}</b><span class="pct">${pct(byClass.Hybrid, acTotal)}%</span></div>
-          <div class="explore-row"><span>Debt</span><b class="num">${debtN.toLocaleString('en-IN')}</b><span class="pct">${pct(debtN, acTotal)}%</span></div>
-          <p class="explore-foot">Total ${acTotal.toLocaleString('en-IN')} funds incl. ${debtN.toLocaleString('en-IN')} debt. Click → Screener.</p>
+          <a class="explore-row explore-link" href="screener.html?ac=equity"><span>Equity</span><b class="num">${byClass.Equity.toLocaleString('en-IN')}</b><span class="pct">${pct(byClass.Equity, acTotal)}%</span></a>
+          <a class="explore-row explore-link" href="screener.html?ac=hybrid"><span>Hybrid</span><b class="num">${byClass.Hybrid.toLocaleString('en-IN')}</b><span class="pct">${pct(byClass.Hybrid, acTotal)}%</span></a>
+          <a class="explore-row explore-link" href="screener.html?ac=debt"><span>Debt</span><b class="num">${debtN.toLocaleString('en-IN')}</b><span class="pct">${pct(debtN, acTotal)}%</span></a>
+          <p class="explore-foot">Total ${acTotal.toLocaleString('en-IN')} funds incl. ${debtN.toLocaleString('en-IN')} debt. Click a class → Screener.</p>
         </div>
         <div class="explore-card">
           <h3>Active vs Passive</h3>

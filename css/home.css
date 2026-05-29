@@ -360,6 +360,14 @@ table.fund-tbl .score-cell {
 .explore-foot {
   margin: 10px 0 0; font-size: 11px; color: var(--text-mid); font-style: italic;
 }
+/* D8 — clickable asset-class rows deep-link to the screener (?ac=) */
+a.explore-link {
+  color: inherit; text-decoration: none; cursor: pointer;
+  padding: 6px 4px; margin: 0 -4px; border-radius: 3px;
+  transition: background .15s ease;
+}
+a.explore-link:hover { background: var(--tan-soft, #f5efe6); }
+a.explore-link:hover span:first-child { color: var(--gold-deep, #8a6d43); }
 
 /* ============ RESPONSIVE NUDGES (Home-specific) ============ */
 @media (max-width: 1380px) {
