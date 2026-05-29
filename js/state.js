@@ -212,12 +212,15 @@
       cur = m.value;
     }
     if (!Array.isArray(cur)) {
-      cur = ['equity', 'debt', 'hybrid'];  // first-load default
-      _set('home.top10_assetclasses', cur);
+      // Cold-load (no persisted state, no legacy key): NOTHING selected, and
+      // do NOT write — localStorage is written only on a user gesture (D6 /
+      // Stage A rule). The Top-10 opens on the empty-state CTA.
+      return [];
     }
-    // Sanitise
-    cur = cur.filter(v => ASSET_CLASS_VALID.has(v));
-    return cur;
+    // Sanitise: keep only valid values and drop 'debt' — Debt is removed from
+    // the Top-10 asset-class chooser universe-wide (D6); debt funds live in
+    // the separate debt screener, not the scored Top-10.
+    return cur.filter(v => ASSET_CLASS_VALID.has(v) && v !== 'debt');
   }
 
   function setTop10AssetClasses(arr) {

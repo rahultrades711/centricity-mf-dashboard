@@ -155,12 +155,12 @@
   function initFilters(cycle) {
     const m = cycle.cycle_meta;
 
-    // Asset Class items — locked v1 set; future PMS / AIF land as additional
-    // top-level options (per CLAUDE.md §4.1 4×3 grid). Order is Cowork-locked:
-    // Equity, Debt, Hybrid.
+    // Asset Class items — Debt removed from the Top-10 chooser universe-wide
+    // (D6): debt funds aren't scored (no centricity_score), so they can't
+    // compete for ranked Top-10 slots. They remain in the Explore counts and
+    // the screener. Only the two scored asset classes are offered here.
     const assetClassItems = [
       { value: 'equity', label: 'Equity' },
-      { value: 'debt',   label: 'Debt'   },
       { value: 'hybrid', label: 'Hybrid' },
     ];
 
@@ -255,23 +255,14 @@
   function renderTopTable() {
     const cycle = _currentCycle;
     const wrap = document.getElementById('top10Wrap');
-    const selectedAssetClasses = _assetClassMS ? _assetClassMS.getSelected() : ['equity', 'debt', 'hybrid'];
+    const selectedAssetClasses = _assetClassMS ? _assetClassMS.getSelected() : [];
     const selectedCategories = _categoryMS ? _categoryMS.getSelected() : [];
 
-    // Empty states — order matters
-    if (selectedAssetClasses.length === 0) {
-      wrap.innerHTML = emptyState('Select at least one asset class', 'Use the Asset Class filter above to choose Equity, Debt, and/or Hybrid.');
-      return;
-    }
-    if (selectedAssetClasses.length === 1 && selectedAssetClasses[0] === 'debt') {
-      wrap.innerHTML = emptyState(
-        'Debt MF Screener pipeline pending — coming in v1.x',
-        'Debt Analytics underlyings already exist; rankings will be wired when the upstream Debt Whitelisting skill ships its first cycle Excel.'
-      );
-      return;
-    }
-    if (selectedCategories.length === 0) {
-      wrap.innerHTML = emptyState('Select at least one category', 'Use the SEBI Category filter above to pick at least one category from the asset classes you\'ve selected.');
+    // Empty state (D6) — cold-load opens with NOTHING selected, so the Top-10
+    // shows a single CTA (gold accent on "Select") rather than auto-selecting
+    // every category. Same copy when the user unchecks all categories.
+    if (selectedAssetClasses.length === 0 || selectedCategories.length === 0) {
+      wrap.innerHTML = emptyStateCTA();
       return;
     }
 
@@ -372,6 +363,17 @@
         <div class="ring-motif" aria-hidden="true"></div>
         <h3>${escapeHtml(title)}</h3>
         <p>${escapeHtml(body)}</p>
+      </div>`;
+  }
+
+  /** D6 — cold-load / nothing-selected CTA for the Top-10 leaderboard.
+   *  Gold accent on "Select"; Cambria inherited from the brand foundation. */
+  function emptyStateCTA() {
+    return `
+      <div class="empty-state">
+        <div class="ring-motif" aria-hidden="true"></div>
+        <h3><span style="color:var(--gold,#BD9568)">Select</span> at least one category to see the leaderboard.</h3>
+        <p>Pick an asset class — Equity or Hybrid — and its categories load automatically; then refine by SEBI category.</p>
       </div>`;
   }
 
