@@ -316,6 +316,7 @@
     // every category. Same copy when the user unchecks all categories.
     if (selectedAssetClasses.length === 0 || selectedCategories.length === 0) {
       wrap.innerHTML = emptyStateCTA();
+      setReRankNote([]);
       return;
     }
 
@@ -337,8 +338,10 @@
         'No funds match the current filter',
         'Try selecting more categories or asset classes.'
       );
+      setReRankNote([]);
       return;
     }
+    setReRankNote(top);
 
     // Restore the table shell if we just came from an empty state
     if (!wrap.querySelector('table.fund-tbl')) {
@@ -417,6 +420,23 @@
         <h3>${escapeHtml(title)}</h3>
         <p>${escapeHtml(body)}</p>
       </div>`;
+  }
+
+  /** E4 — when the Top-10 pools ≥2 categories, the list order is by combined
+   *  Centricity Score (a cross-category-comparable percentile) but the Rank
+   *  badge is each fund's rank WITHIN its own category — so multiple "#1"s can
+   *  appear. Spell that out; hide the note for a single-category pool. */
+  function setReRankNote(top) {
+    const el = document.getElementById('top10ReRankNote');
+    if (!el) return;
+    const distinctCats = new Set((top || []).map(f => f.category));
+    if (distinctCats.size >= 2) {
+      el.hidden = false;
+      el.innerHTML = `Pooled across the <b>${distinctCats.size}</b> selected categories — the top 10 by <b>Centricity Score</b> (a per-category percentile, so it is comparable across categories). The <b>Rank</b> column is each fund's rank <em>within its own category</em>, so more than one “#1” can appear; click <b>Score</b> to order the table by the combined score.`;
+    } else {
+      el.hidden = true;
+      el.innerHTML = '';
+    }
   }
 
   /** D6 — cold-load / nothing-selected CTA for the Top-10 leaderboard.
