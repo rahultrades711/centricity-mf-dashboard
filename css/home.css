@@ -369,6 +369,14 @@ a.explore-link {
 a.explore-link:hover { background: var(--tan-soft, #f5efe6); }
 a.explore-link:hover span:first-child { color: var(--gold-deep, #8a6d43); }
 
+/* D9 — What-Changed: clickable counts, ranking-direction arrows */
+a.count-link { color: inherit; text-decoration: none; cursor: pointer; border-bottom: 2px solid var(--gold, #BD9568); }
+a.count-link:hover { color: var(--gold-deep, #8a6d43); }
+.count-disabled { opacity: .45; cursor: not-allowed; }
+.ch-muted { color: var(--text-mid, #666); font-size: 12px; }
+.rank-up { color: var(--green, #0F5132); font-variant-numeric: tabular-nums; }
+.rank-down { color: var(--red, #931621); font-variant-numeric: tabular-nums; }
+
 /* ============ RESPONSIVE NUDGES (Home-specific) ============ */
 @media (max-width: 1380px) {
   .quick { grid-template-columns: repeat(3, 1fr); }

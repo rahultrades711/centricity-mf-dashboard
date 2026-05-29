@@ -519,22 +519,34 @@
 
     // Source funds with cycle_flags
     const funds = cycle.funds || [];
-    const newEntrants = funds.filter(f => (f.cycle_flags || {}).is_new_in_cycle);
-    const managerExits = funds.filter(f => (f.cycle_flags || {}).manager_change != null);
+    const byAum = (a, b) => (b.aum_cr || 0) - (a.aum_cr || 0);
+    const newEntrants = funds.filter(f => (f.cycle_flags || {}).is_new_in_cycle).slice().sort(byAum);
+    const reclassified = funds.filter(f => (f.cycle_flags || {}).category_changed).slice().sort(byAum);
+    // Manager exits — display-side _fl fold guards against same-person spelling
+    // drift (D9). cycle_flags already folds in D2; this is belt-and-suspenders.
+    const managerExits = funds.filter(f => {
+      const mc = (f.cycle_flags || {}).manager_change;
+      return mc && _fl(mc.prior) !== _fl(mc.current);
+    });
+    // Ranking gainers/losers — EXCLUDE category-reclassified funds: their
+    // in-category rank delta is meaningless across a redefined category (D9).
     const rankChanged = funds
+      .filter(f => !(f.cycle_flags || {}).category_changed)
       .map(f => ({ fund: f, delta: (f.cycle_flags || {}).rank_change_in_category }))
       .filter(x => typeof x.delta === 'number');
-    const gainers = rankChanged.slice().filter(x => x.delta < 0).sort((a, b) => a.delta - b.delta).slice(0, 5);
-    const losers  = rankChanged.slice().filter(x => x.delta > 0).sort((a, b) => b.delta - a.delta).slice(0, 5);
+    const gainers = rankChanged.filter(x => x.delta < 0).sort((a, b) => a.delta - b.delta).slice(0, 5);
+    const losers  = rankChanged.filter(x => x.delta > 0).sort((a, b) => b.delta - a.delta).slice(0, 5);
 
-    // Render the 5 cards. "Funds dropped" requires loading the prior cycle.
     const renderTopList = (xs, fmt) => xs.slice(0, 5).map(fmt).join('') || '<em>—</em>';
+    const fundRow = f => `<div><a href="fund-detail.html?scheme=${f.scheme_code}">${escapeHtml(f.fund_name)}</a> · <span class="ch-muted">₹ ${DataLoader.fmtINR(f.aum_cr)} Cr</span></div>`;
+    const countLink = (n, type) =>
+      `<a class="count num count-link" href="what-changed.html?type=${type}">${n}</a>`;
 
     grid.innerHTML = `
       <div class="change-card">
-        <div class="hd"><span class="lbl">New entrants</span><span class="count num">${newEntrants.length}</span></div>
-        <div class="body">${renderTopList(newEntrants.slice(0, 5), f => `<div><a href="fund-detail.html?scheme=${f.scheme_code}">${escapeHtml(f.fund_name)}</a></div>`)}</div>
-        <div class="foot"><span>Top 5 by appearance</span></div>
+        <div class="hd"><span class="lbl">New entrants</span>${countLink(newEntrants.length, 'new')}</div>
+        <div class="body">${renderTopList(newEntrants, fundRow)}</div>
+        <div class="foot"><span>Top 5 by AUM · click the count for the full list</span></div>
       </div>
       <div class="change-card" id="changeDropped">
         <div class="hd"><span class="lbl">Funds dropped</span><span class="count num">—</span></div>
@@ -542,42 +554,64 @@
         <div class="foot"><span>vs ${priorEntry ? escapeHtml(DataLoader.fmtCycleLabelDate(priorEntry.date)) : '—'}</span></div>
       </div>
       <div class="change-card">
+        <div class="hd"><span class="lbl">Category reclassified</span>${countLink(reclassified.length, 'reclassified')}</div>
+        <div class="body">${renderTopList(reclassified, f => `<div><a href="fund-detail.html?scheme=${f.scheme_code}">${escapeHtml(f.fund_name)}</a> · <span class="ch-muted">${escapeHtml(f.category)}</span></div>`)}</div>
+        <div class="foot"><span>Ranking category redefined between cycles</span></div>
+      </div>
+      <div class="change-card">
         <div class="hd"><span class="lbl">Top 5 ranking gainers</span><span class="count num">${gainers.length}</span></div>
-        <div class="body">${renderTopList(gainers, x => `<div><a href="fund-detail.html?scheme=${x.fund.scheme_code}">${escapeHtml(x.fund.fund_name)}</a> <b>(${x.delta})</b></div>`)}</div>
-        <div class="foot"><span>Δ rank in category (negative = up)</span></div>
+        <div class="body">${renderTopList(gainers, x => `<div><a href="fund-detail.html?scheme=${x.fund.scheme_code}">${escapeHtml(x.fund.fund_name)}</a> ${rankArrow(x.delta)}</div>`)}</div>
+        <div class="foot"><span>Excludes funds whose category was reclassified between cycles.</span></div>
       </div>
       <div class="change-card">
         <div class="hd"><span class="lbl">Top 5 ranking losers</span><span class="count num">${losers.length}</span></div>
-        <div class="body">${renderTopList(losers, x => `<div><a href="fund-detail.html?scheme=${x.fund.scheme_code}">${escapeHtml(x.fund.fund_name)}</a> <b>(+${x.delta})</b></div>`)}</div>
-        <div class="foot"><span>Δ rank in category (positive = down)</span></div>
+        <div class="body">${renderTopList(losers, x => `<div><a href="fund-detail.html?scheme=${x.fund.scheme_code}">${escapeHtml(x.fund.fund_name)}</a> ${rankArrow(x.delta)}</div>`)}</div>
+        <div class="foot"><span>Excludes funds whose category was reclassified between cycles.</span></div>
       </div>
       <div class="change-card">
         <div class="hd"><span class="lbl">Manager exits</span><span class="count num">${managerExits.length}</span></div>
         <div class="body">${renderTopList(managerExits.slice(0, 5), f => `<div><a href="fund-detail.html?scheme=${f.scheme_code}">${escapeHtml(f.fund_name)}</a> · ${escapeHtml(f.cycle_flags.manager_change.prior)} → ${escapeHtml(f.cycle_flags.manager_change.current)}</div>`)}</div>
-        <div class="foot"><span>Lead manager change</span></div>
+        <div class="foot"><span>Lead manager change (spelling-drift folded out)</span></div>
       </div>`;
 
-    // Lazy-load prior cycle to compute dropped funds (funds present in prior, absent in active).
+    // Lazy-load prior cycle for dropped funds (present in prior, absent now).
     if (priorEntry) {
       DataLoader.loadCycle(priorEntry.date).then(priorCycle => {
-        const activeAmfis = new Set((funds).map(f => f.scheme_code));
-        const droppedFunds = (priorCycle.funds || []).filter(f => !activeAmfis.has(f.scheme_code));
+        const activeAmfis = new Set(funds.map(f => f.scheme_code));
+        const droppedFunds = (priorCycle.funds || []).filter(f => !activeAmfis.has(f.scheme_code)).slice().sort(byAum);
         const card = document.getElementById('changeDropped');
         if (!card) return;
-        card.querySelector('.count').textContent = droppedFunds.length;
+        const countEl = card.querySelector('.count');
         const body = card.querySelector('.body');
-        if (droppedFunds.length === 0) {
-          body.innerHTML = '<em>None this cycle.</em>';
+        if (droppedFunds.length > 0) {
+          countEl.outerHTML = `<a class="count num count-link" href="what-changed.html?type=dropped">${droppedFunds.length}</a>`;
+          body.innerHTML = droppedFunds.slice(0, 5).map(fundRow).join('');
         } else {
-          body.innerHTML = droppedFunds.slice(0, 5).map(f =>
-            `<div>${escapeHtml(f.fund_name)}</div>`
-          ).join('');
+          countEl.outerHTML = `<span class="count num count-disabled" title="No funds dropped this cycle.">0</span>`;
+          body.innerHTML = '<em>No funds dropped this cycle.</em>';
         }
       }).catch(() => {
         const card = document.getElementById('changeDropped');
         if (card) card.querySelector('.body').textContent = 'Could not load prior cycle.';
       });
     }
+  }
+
+  /** D9 — ranking direction arrow: rank improved (delta<0, number decreased) →
+   *  green ▲; rank dropped (delta>0) → red ▼. */
+  function rankArrow(delta) {
+    if (delta < 0) return `<b class="rank-up">▲${Math.abs(delta)}</b>`;
+    if (delta > 0) return `<b class="rank-down">▼${delta}</b>`;
+    return '';
+  }
+
+  /** First+last name fold (mirrors the converter / cycle-flags) for the
+   *  manager-exit display-side dedupe (D9). */
+  function _fl(name) {
+    const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return '';
+    const s = p => p.toLowerCase().replace(/[.,]/g, '').trim();
+    return parts.length === 1 ? s(parts[0]) : `${s(parts[0])} ${s(parts[parts.length - 1])}`;
   }
 
   /* --------- Explore section (Stage B B3 — asset-class + Active/Passive split) --------- */
