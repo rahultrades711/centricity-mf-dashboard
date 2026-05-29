@@ -15,7 +15,9 @@ Classification (E1 locked rules, Rahul 2026-05-29):
           Hybrid / Solution (Hybrid)            -> "Hybrid"
           Debt   / Solution (Debt)              -> "Debt"
           (the 75%/75% underlying split is already applied in that column)
-      - "Mixed/Unspecified" (Other Misc ETFs)  -> "Equity" (flagged for review)
+      - "Mixed/Unspecified" (no 75%+ majority)  -> "Hybrid" (decision #3
+          in-between default; ALL flagged so Rahul can reclassify the few that
+          are clearly equity (overseas/sectoral ETF FoFs) or debt (G-Sec FoFs))
   • sub_category (NEW peer groups — never merged into existing eq/hybrid/debt):
       - FoF (Overseas) + Underlying Focus=Equity (or any global/overseas equity)
                                                -> Equity / "Global"
