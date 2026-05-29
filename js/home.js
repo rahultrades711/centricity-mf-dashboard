@@ -540,6 +540,14 @@
     // Source funds with cycle_flags
     const funds = cycle.funds || [];
     const byAum = (a, b) => (b.aum_cr || 0) - (a.aum_cr || 0);
+    // E3 — category size = # of Ranked funds in each category (the rank
+    // denominator), so "▲8 ranks" reads in context (▲8 of 12 ≠ ▲8 of 120).
+    const catSize = {};
+    funds.forEach(f => {
+      if (f.centricity_score_status === 'Ranked' && f.category) {
+        catSize[f.category] = (catSize[f.category] || 0) + 1;
+      }
+    });
     const newEntrants = funds.filter(f => (f.cycle_flags || {}).is_new_in_cycle).slice().sort(byAum);
     const reclassified = funds.filter(f => (f.cycle_flags || {}).category_changed).slice().sort(byAum);
     // Manager exits — display-side _fl fold guards against same-person spelling
@@ -554,11 +562,18 @@
       .filter(f => !(f.cycle_flags || {}).category_changed)
       .map(f => ({ fund: f, delta: (f.cycle_flags || {}).rank_change_in_category }))
       .filter(x => typeof x.delta === 'number');
-    const gainers = rankChanged.filter(x => x.delta < 0).sort((a, b) => a.delta - b.delta).slice(0, 5);
-    const losers  = rankChanged.filter(x => x.delta > 0).sort((a, b) => b.delta - a.delta).slice(0, 5);
+    // E3 — universe-wide top movers (delta<0 = rank improved). Full lists for
+    // the counts; top 3 shown on the panel, top 10 on what-changed.html.
+    const allGainers = rankChanged.filter(x => x.delta < 0).sort((a, b) => a.delta - b.delta);
+    const allLosers  = rankChanged.filter(x => x.delta > 0).sort((a, b) => b.delta - a.delta);
 
     const renderTopList = (xs, fmt) => xs.slice(0, 5).map(fmt).join('') || '<em>—</em>';
     const fundRow = f => `<div><a href="fund-detail.html?scheme=${f.scheme_code}">${escapeHtml(f.fund_name)}</a> · <span class="ch-muted">₹ ${DataLoader.fmtINR(f.aum_cr)} Cr</span></div>`;
+    // E3 mover row: Fund · ▲/▼N ranks · # funds in category (the denominator).
+    const moverRow = x => {
+      const n = catSize[x.fund.category];
+      return `<div><a href="fund-detail.html?scheme=${x.fund.scheme_code}">${escapeHtml(x.fund.fund_name)}</a> ${rankArrow(x.delta)} <span class="ch-muted">of ${n != null ? n : '—'} · ${escapeHtml(x.fund.category || '—')}</span></div>`;
+    };
     const countLink = (n, type) =>
       `<a class="count num count-link" href="what-changed.html?type=${type}">${n}</a>`;
 
@@ -579,14 +594,14 @@
         <div class="foot"><span>Ranking category redefined between cycles</span></div>
       </div>
       <div class="change-card">
-        <div class="hd"><span class="lbl">Top 5 ranking gainers</span><span class="count num">${gainers.length}</span></div>
-        <div class="body">${renderTopList(gainers, x => `<div><a href="fund-detail.html?scheme=${x.fund.scheme_code}">${escapeHtml(x.fund.fund_name)}</a> ${rankArrow(x.delta)}</div>`)}</div>
-        <div class="foot"><span>Excludes funds whose category was reclassified between cycles.</span></div>
+        <div class="hd"><span class="lbl">Top ranking gainers</span>${allGainers.length ? countLink(allGainers.length, 'gainers') : '<span class="count num count-disabled">0</span>'}</div>
+        <div class="body">${allGainers.slice(0, 3).map(moverRow).join('') || '<em>—</em>'}</div>
+        <div class="foot"><span>In-category rank improved · top 3 · click for top 10. Excludes reclassified.</span></div>
       </div>
       <div class="change-card">
-        <div class="hd"><span class="lbl">Top 5 ranking losers</span><span class="count num">${losers.length}</span></div>
-        <div class="body">${renderTopList(losers, x => `<div><a href="fund-detail.html?scheme=${x.fund.scheme_code}">${escapeHtml(x.fund.fund_name)}</a> ${rankArrow(x.delta)}</div>`)}</div>
-        <div class="foot"><span>Excludes funds whose category was reclassified between cycles.</span></div>
+        <div class="hd"><span class="lbl">Top ranking losers</span>${allLosers.length ? countLink(allLosers.length, 'losers') : '<span class="count num count-disabled">0</span>'}</div>
+        <div class="body">${allLosers.slice(0, 3).map(moverRow).join('') || '<em>—</em>'}</div>
+        <div class="foot"><span>In-category rank dropped · top 3 · click for top 10. Excludes reclassified.</span></div>
       </div>
       <div class="change-card">
         <div class="hd"><span class="lbl">Manager exits</span><span class="count num">${managerExits.length}</span></div>
