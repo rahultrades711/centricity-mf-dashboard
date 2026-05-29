@@ -93,6 +93,56 @@ def _surname(s: str) -> str:
     return parts[-1].lower() if parts else ""
 
 
+def _fl(name: str) -> str:
+    """First+last fold (mirrors excel_to_json_screener.py) so a fund's lead
+    `manager_name` matches the canonical co-manager spelling even across
+    middle-initial / dot drift ("Amit Ganatra" == "Amit B. Ganatra")."""
+    parts = (name or "").strip().split()
+    if not parts:
+        return ""
+    def _s(p):
+        return p.lower().replace(".", "").replace(",", "").strip()
+    return _s(parts[0]) if len(parts) == 1 else f"{_s(parts[0])} {_s(parts[-1])}"
+
+
+# ---------------------------------------------------------------------------
+# Canonical-source override (Stage B Partner-Review D3, 2026-05-28/29).
+# See mf-issues-solutions SKILL.md §7.9.
+#
+# Some managers' CO-manager attribution cannot be resolved from the pipeline's
+# canonical sources:
+#   • MF Monitor carries only the LEAD (one Fund Manager column per sheet; no
+#     "Fund Manager 2/3" co-manager column exists — verified 2026-05-29).
+#   • Morningstar's LIVE "Manager Name" datapoint (OF015) is ALSO lead-only.
+#   • The full co-manager list comes ONLY from the Morningstar manager-history
+#     EXPORT, which is stale for ICICI's dedicated overseas FM Sharmila D'Silva
+#     ("D'Mello") — it carries `end=null` on funds ICICI has since reassigned,
+#     so it over-counts her at 33 in-universe (real book ≈ 16 schemes per
+#     ICICI factsheets / web, of which ~3 are off-universe FoFs).
+#
+# This override pins (a) the off-universe overseas FoFs she manages that are
+# NOT in the screener universe (name + AUM, ₹ Cr — live Morningstar Fund Size
+# OF009, 2026-05), and optionally (b) `current_in_universe_amfis` to gate her
+# in-universe co_managed to her confirmed current funds. When (b) is None the
+# builder keeps the Morningstar-export set and STAMPS a `_needs_partner_prune`
+# flag on the profile so the residual is visible (the exact in-universe prune
+# needs partner confirmation — no pipeline source can derive it).
+MANAGER_OVERRIDES: dict[str, dict] = {
+    "Sharmila D'Silva": {
+        # "D'Mello" is the same person (live Morningstar OF015 returns
+        # "Sharmila D'Silva"; aggregators/AMC notices use "D'Mello"). Register
+        # both so URL deep-links resolve either spelling (D5).
+        "aka_extra": ["Sharmila D'Mello", "Sharmila Dmello", "Sharmila D Mello"],
+        "off_universe_overseas": [
+            {"scheme_name": "ICICI Pru Global Advantage Fund (FOF)", "aum_cr": 390, "role": "lead"},
+            {"scheme_name": "ICICI Pru Passive Multi-Asset Fund of Fund", "aum_cr": 1538, "role": "co"},
+            {"scheme_name": "ICICI Pru Global Stable Equity Fund (FOF)", "aum_cr": 88, "role": "co"},
+        ],
+        "current_in_universe_amfis": None,  # PENDING partner confirmation
+    },
+}
+
+
 def build(
     screener_path: Path,
     manager_history_path: Path,
@@ -268,19 +318,89 @@ def build(
                     "tenure_yrs": None,
                 })
 
-    # Sort each profile's lists
-    for prof in managers.values():
-        prof["currently_managing"].sort(
-            key=lambda x: x.get("tenure_yrs") or 0, reverse=True
-        )
-        prof["previously_managed"].sort(
-            key=lambda x: x.get("ended") or "", reverse=True
-        )
-        prof["aka"].sort()
+    # ---- D4: de-dupe + enrich with aum_cr + split into Main (lead) / Co ----
+    # A fund is "main" for a manager iff that manager is the fund's LEAD
+    # (screener `manager_name`), matched via the _fl first+last fold; otherwise
+    # the manager is in manager_co_managers but not the lead -> "co".
+    for canonical, prof in managers.items():
+        canon_fl = _fl(canonical)
+        # de-dupe currently_managing by amfi (a fund may be appended across
+        # passes); keep the entry that carries tenure data.
+        seen: dict[str, dict] = {}
+        for c in prof["currently_managing"]:
+            amfi = c.get("amfi")
+            fund = fund_index.get(int(amfi)) if amfi else None
+            c["aum_cr"] = fund.get("aum_cr") if fund else None
+            prev = seen.get(amfi)
+            if prev is None or (c.get("tenure_yrs") is not None and prev.get("tenure_yrs") is None):
+                seen[amfi] = c
+        prof["currently_managing"] = list(seen.values())
+        for p in prof["previously_managed"]:
+            amfi = p.get("amfi")
+            fund = fund_index.get(int(amfi)) if amfi else None
+            p["aum_cr"] = fund.get("aum_cr") if fund else None
 
-    # Defensive — drop profiles with empty BOTH lists
+        main_managed, co_managed = [], []
+        for c in prof["currently_managing"]:
+            amfi = c.get("amfi")
+            fund = fund_index.get(int(amfi)) if amfi else None
+            is_lead = bool(fund) and _fl(fund.get("manager_name")) == canon_fl
+            (main_managed if is_lead else co_managed).append(c)
+        prof["main_managed"] = main_managed
+        prof["co_managed"] = co_managed
+
+    # ---- D3: apply documented canonical overrides (D'Silva etc.) ----
+    for canonical, ov in MANAGER_OVERRIDES.items():
+        prof = managers.get(canonical)
+        if not prof:
+            continue
+        keep = ov.get("current_in_universe_amfis")
+        if keep is not None:  # gate in-universe co to the confirmed current set
+            keepset = {str(a) for a in keep}
+            moved = [c for c in prof["currently_managing"] if c.get("amfi") not in keepset]
+            prof["currently_managing"] = [c for c in prof["currently_managing"] if c.get("amfi") in keepset]
+            prof["main_managed"] = [c for c in prof["main_managed"] if c.get("amfi") in keepset]
+            prof["co_managed"] = [c for c in prof["co_managed"] if c.get("amfi") in keepset]
+            for c in moved:  # demote pruned current funds to previously_managed
+                prof["previously_managed"].append({
+                    "amfi": c.get("amfi"), "scheme_name": c.get("scheme_name"),
+                    "category": c.get("category"), "started": c.get("since"),
+                    "ended": None, "tenure_yrs": c.get("tenure_yrs"),
+                    "aum_cr": c.get("aum_cr"), "_source": "override-prune",
+                })
+        else:
+            # No pipeline source can prune her co-attribution (Monitor + live
+            # Morningstar are lead-only). Flag the residual for partner review.
+            prof["_needs_partner_prune"] = True
+        if ov.get("off_universe_overseas"):
+            prof["off_universe_overseas"] = ov["off_universe_overseas"]
+        for alt in ov.get("aka_extra", []):  # register extra spellings as aliases
+            if alt != canonical:
+                if alt not in prof["aka"]:
+                    prof["aka"].append(alt)
+                aliases[alt] = canonical
+
+    # ---- Sort (AUM desc for D5 display) + AUM totals + counts (D4) ----
+    def _aum(x):
+        return x.get("aum_cr") or 0
+    for prof in managers.values():
+        prof["currently_managing"].sort(key=_aum, reverse=True)
+        prof["main_managed"].sort(key=_aum, reverse=True)
+        prof["co_managed"].sort(key=_aum, reverse=True)
+        prof["previously_managed"].sort(key=lambda x: x.get("ended") or "", reverse=True)
+        prof["aka"].sort()
+        main_aum = sum(_aum(c) for c in prof["main_managed"])
+        co_aum = sum(_aum(c) for c in prof["co_managed"])
+        prof["total_aum_cr"] = round(main_aum + co_aum)   # Main + Co (in-universe)
+        prof["main_aum_cr"] = round(main_aum)
+        prof["main_count"] = len(prof["main_managed"])
+        prof["co_count"] = len(prof["co_managed"])
+        prof["previously_count"] = len(prof["previously_managed"])
+
+    # Defensive — drop profiles with no current + no previous + no off-universe
     managers = {nm: prof for nm, prof in managers.items()
-                if prof["currently_managing"] or prof["previously_managed"]}
+                if prof["currently_managing"] or prof["previously_managed"]
+                or prof.get("off_universe_overseas")}
 
     # Prune aliases that point to dropped profiles
     aliases = {alt: canon for alt, canon in aliases.items() if canon in managers}
@@ -289,7 +409,8 @@ def build(
         "scraped_at": _dt.date.today().isoformat(),
         "source": (
             f"rebuilt from {screener_path.name} + {manager_history_path.name} "
-            f"(Monitor-keyed canonical + aka aliases)"
+            f"(Monitor-keyed canonical + aka aliases; D4 Main/Co split + AUM totals; "
+            f"D3 canonical overrides)"
         ),
         "aliases": aliases,
         "managers": managers,
@@ -298,10 +419,12 @@ def build(
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(output, f, ensure_ascii=False, separators=(",", ":"))
 
+    total_main = sum(p["main_count"] for p in managers.values())
     print(
         f"[manager-profiles] managers: {len(managers)} · aliases: {len(aliases)} · "
         f"matches exact={monitor_matches['exact']} surname={monitor_matches['surname']} none={monitor_matches['none']} · "
         f"out-of-universe AMFIs skipped: {skipped_out_of_universe} · "
+        f"total main_count (≈ funds w/ a resolvable lead): {total_main} · "
         f"file: {out_path.name} ({out_path.stat().st_size:,} bytes)",
         file=sys.stderr,
     )
