@@ -266,8 +266,11 @@
       const n = peerRanked.length;
       rankLine = `Ranked <b>#${x}</b> of ${n} in ${escapeHtml(fund.category)} category`;
     }
+    // F3 — the cycle-change is filled in by renderCycleMovement() (the SAME
+    // prior-cycle resolver as the "vs last cycle" block). Placeholder until it
+    // resolves; for debt/Other (no renderCycleMovement) it stays neutral.
     document.getElementById('scoreDelta').innerHTML =
-      `Cycle change · — (no prior cycle in archive). ${rankLine}`;
+      `<span id="scoreCycleChange">Cycle change · …</span>${rankLine ? ' · ' + rankLine : ''}`;
 
     // Mini grid (4 cells per Fund Detail Fix-List spec)
     const grid = document.getElementById('scoreMiniGrid');
@@ -2643,12 +2646,17 @@
     const cycles = (manifest.cycles || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1));
     const idx = cycles.findIndex(c => c.date === cycle.cycle_meta.cycle_date);
     const priorEntry = idx >= 0 && idx < cycles.length - 1 ? cycles[idx + 1] : null;
-    if (!priorEntry) return;   // keep the static "no prior cycle" placeholder
+    if (!priorEntry) {
+      // Genuinely no prior cycle — this IS the earliest archived cycle.
+      _setScoreCycleChange('Cycle change · — · earliest cycle in archive');
+      return;   // keep the static "no prior cycle" placeholder in #changed
+    }
 
     const cf = fund.cycle_flags || {};
     if (sub) sub.textContent = `Versus the ${DataLoader.fmtCycleLabelDate(priorEntry.date)} cycle.`;
 
     if (cf.is_new_in_cycle) {
+      _setScoreCycleChange('Cycle change · <b>New this cycle</b>');
       grid.innerHTML = `
         <div class="empty-state" style="grid-column:1/-1">
           <div class="ring-motif" aria-hidden="true"></div>
@@ -2712,6 +2720,9 @@
       curSd != null ? DataLoader.fmtNum(curSd, 2) + '%' : '—',
       priSd != null ? DataLoader.fmtNum(priSd, 2) + '%' : '—', sdDelta, 'pp', false));
 
+    /* ---- F3: real score-card cycle-change line (same prior-cycle data) ---- */
+    _setScoreCycleChange(_cycleChangeLine(priorEntry.date, curRank, priRank, rankDelta, scoreDelta));
+
     /* ---- top-20 holdings weight-% diff ---- */
     const holdingsHtml = _holdingsDiffHtml(curA, priA);
 
@@ -2724,6 +2735,36 @@
       </div>
       ${holdingsHtml}
       ${perfNote}`;
+  }
+
+  /* F3 — the hero score-card "Cycle change" line, routed through the same
+   * prior-cycle data renderCycleMovement uses (fixes the false "no prior cycle
+   * in archive"). Shows rank + score movement with brand arrows. */
+  function _setScoreCycleChange(html) {
+    const el = document.getElementById('scoreCycleChange');
+    if (el) el.innerHTML = html;
+  }
+  function _cycleChangeLine(priorDate, curRank, priRank, rankDelta, scoreDelta) {
+    const label = DataLoader.fmtCycleLabelDate(priorDate);
+    // White-on-brand-colour chips read on the black score card (≈10:1); plain
+    // brand red/green text would be ~2:1 (illegible). Green ▲ improve / red ▼ drop.
+    const chip = (cls, txt) => `<span class="sc-chip ${cls}">${txt}</span>`;
+    const parts = [];
+    if (typeof curRank === 'number' && typeof priRank === 'number') {
+      if (rankDelta === 0) parts.push(`Rank <b>#${curRank}</b> · unchanged`);
+      else if (rankDelta < 0) parts.push(`Rank ${chip('up', '▲' + Math.abs(rankDelta))} (was #${priRank})`);
+      else parts.push(`Rank ${chip('down', '▼' + rankDelta)} (was #${priRank})`);
+    } else if (typeof curRank === 'number') {
+      parts.push(`Rank <b>#${curRank}</b>`);
+    }
+    if (typeof scoreDelta === 'number' && scoreDelta !== 0) {
+      const up = scoreDelta > 0;
+      parts.push(`Score ${chip(up ? 'up' : 'down', (up ? '+' : '−') + Math.abs(scoreDelta).toFixed(1) + 'pp')}`);
+    } else if (scoreDelta === 0) {
+      parts.push('Score flat');
+    }
+    const body = parts.length ? parts.join(' · ') : '—';
+    return `vs ${escapeHtml(label)} · ${body}`;
   }
 
   async function _fetchAnalyticsFund(aDate, schemeCode) {

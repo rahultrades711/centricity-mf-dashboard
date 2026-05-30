@@ -917,6 +917,17 @@ table.holdings-tbl tbody tr:hover td { background: var(--tan-soft); }
 .cm-delta { font-weight: 700; margin-left: 4px; }
 .cm-good { color: var(--green, #0F5132); }
 .cm-bad  { color: var(--red, #931621); }
+
+/* F3 — score-card cycle-change movement chips. White-on-brand-colour (matches
+   the buy/avoid pill convention) so green ▲ / red ▼ stay legible on the black
+   score card, where plain brand red/green text would be ~2:1 contrast. */
+.score-card .sc-chip {
+  display: inline-block; padding: 0 6px; border-radius: 999px;
+  font-size: 11px; font-weight: 700; color: #fff; line-height: 1.55;
+  font-variant-numeric: tabular-nums;
+}
+.score-card .sc-chip.up   { background: var(--green, #0F5132); }
+.score-card .sc-chip.down { background: var(--red, #931621); }
 .cm-flat { color: var(--text-mid); font-weight: 600; }
 .cm-note {
   grid-column: 1 / -1; font-size: 12px; color: var(--text-mid);
