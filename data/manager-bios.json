@@ -1,0 +1,57 @@
+{
+  "schema_version": "manager-bios-v1",
+  "note": "Manager background bios — load-time merged into manager profiles (aka-aware), keyed by the canonical manager name in manager-profiles.json. Delivered incrementally; a manager absent here simply renders no Background section. Researched from public sources; verify before external use.",
+  "managers": {
+    "Sankaran Naren": {
+      "amc": "ICICI Prudential AMC",
+      "education": "B.Tech, IIT Madras · MBA, IIM Calcutta",
+      "qualifications": ["B.Tech — IIT Madras", "MBA — IIM Calcutta"],
+      "experience_years_approx": 30,
+      "experience_summary": "Over three decades in Indian capital markets; with ICICI Prudential AMC since 2004.",
+      "prior_roles": [],
+      "current_role": "Executive Director & Chief Investment Officer, ICICI Prudential AMC",
+      "notable": [
+        "Known for a value / contrarian investment approach",
+        "Oversees ICICI Prudential's equity and asset-allocation strategies"
+      ],
+      "philosophy": "Contrarian, valuation-led investing across market cycles.",
+      "source_urls": ["https://www.icicipruamc.com/"],
+      "confidence": "high",
+      "scraped_date": "2026-05-29"
+    },
+    "Rajeev Thakkar": {
+      "amc": "PPFAS Mutual Fund",
+      "education": "B.Com, University of Mumbai",
+      "qualifications": ["Chartered Accountant (CA)", "Cost Accountant (CMA)", "CFA charterholder", "Certified Financial Planner (CFP)"],
+      "experience_years_approx": 30,
+      "experience_summary": "~30 years across investment banking, broking and fund management; with PPFAS since 2001.",
+      "prior_roles": [],
+      "current_role": "Chief Investment Officer & Director, PPFAS Mutual Fund",
+      "notable": [
+        "Manages the flagship Parag Parikh Flexi Cap Fund",
+        "Long-term value investor influenced by Buffett / Munger"
+      ],
+      "philosophy": "Long-term value investing, behavioural-finance aware.",
+      "source_urls": ["https://amc.ppfas.com/"],
+      "confidence": "high",
+      "scraped_date": "2026-05-29"
+    },
+    "R. Srinivasan": {
+      "amc": "SBI Funds Management",
+      "education": "M.Com · Master of Financial Management (MFM), University of Mumbai",
+      "qualifications": ["M.Com", "Master of Financial Management (MFM)"],
+      "experience_years_approx": 30,
+      "experience_summary": "~30 years in equities — research and fund management; with SBI Funds Management since 2009.",
+      "prior_roles": [],
+      "current_role": "Chief Investment Officer – Equity, SBI Funds Management",
+      "notable": [
+        "Manages SBI's small-cap and focused equity strategies",
+        "Long tenure running SBI's marquee equity funds"
+      ],
+      "philosophy": "Bottom-up, business-quality-focused stock selection.",
+      "source_urls": ["https://www.sbimf.com/"],
+      "confidence": "high",
+      "scraped_date": "2026-05-29"
+    }
+  }
+}

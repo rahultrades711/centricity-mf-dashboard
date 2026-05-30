@@ -25,6 +25,7 @@
   let _history = null;           // manager-history doc
   let _profiles = {};            // { managerName: {main_managed, co_managed, ...} }
   let _aliases = {};             // { alt-spelling: canonical } from manager-profiles.json
+  let _bios = {};                // F4: { canonicalName: bio } from data/manager-bios.json (load-time merged, optional)
 
   // Inverted index built from history: each unique manager name (any
   // is_current OR past) → array of {code, manager_entry, fund_name, etc}
@@ -47,14 +48,17 @@
           DataLoader.loadCycle(activeDate),
           _loadManagerHistory(),
           _loadProfiles(),
+          _loadBios(),
         ]);
       })
-      .then(([cycle, history, profiles]) => {
+      .then(([cycle, history, profiles, bios]) => {
         _cycle = cycle;
         _history = history;
         const pdoc = profiles || {};
         _profiles = (pdoc.managers && typeof pdoc.managers === 'object') ? pdoc.managers : pdoc;
         _aliases = (pdoc.aliases && typeof pdoc.aliases === 'object') ? pdoc.aliases : {};
+        _bios = (bios && bios.managers && typeof bios.managers === 'object') ? bios.managers
+              : (bios && typeof bios === 'object') ? bios : {};
         _composeManagers();
         _renderEyebrow();
         initCyclePicker(cycle);   // Stage B B2 — Stage A cycle dropdown wiring
@@ -104,6 +108,35 @@
     } catch (e) {
       return {};
     }
+  }
+
+  /** F4 — Manager bios (education / experience / roles). OPTIONAL + delivered
+   *  incrementally; a 404 or parse error resolves to {} so the page renders
+   *  without any Background sections (graceful degradation, CLAUDE.md §4.1). */
+  async function _loadBios() {
+    try {
+      const res = await fetch('data/manager-bios.json', { cache: 'default' });
+      if (!res.ok) return {};
+      const doc = await res.json();
+      return (doc && typeof doc === 'object') ? doc : {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  /** Resolve the bio for a manager, aka-aware: try the canonical name, then
+   *  every `aka` spelling on the profile, then the alias map. Returns the bio
+   *  object or null. */
+  function _bioFor(name, profile) {
+    if (_bios[name]) return _bios[name];
+    const akas = (profile && Array.isArray(profile.aka)) ? profile.aka : [];
+    for (const a of akas) if (_bios[a]) return _bios[a];
+    // alias map (alt → canonical): if a bio is keyed by a spelling that aliases
+    // to this canonical name, use it.
+    for (const alt in _aliases) {
+      if (_aliases[alt] === name && _bios[alt]) return _bios[alt];
+    }
+    return null;
   }
 
   /* -------------------------------------------------------- *
@@ -452,6 +485,52 @@
     history.replaceState(null, '', url);
   }
 
+  /** F4 — render the structured Background section from a manager-bios entry.
+   *  Every field is optional; the section hides entirely when no bio exists.
+   *  Never renders "undefined" — missing fields are simply skipped. */
+  function _renderBackground(bio) {
+    const el = document.getElementById('mpBackground');
+    if (!el) return;
+    if (!bio || typeof bio !== 'object') { el.hidden = true; el.innerHTML = ''; return; }
+    const esc = escapeHtml;
+    const rows = [];
+    const quals = Array.isArray(bio.qualifications) ? bio.qualifications.filter(Boolean) : [];
+    if (bio.education || quals.length) {
+      const chips = quals.map(q => `<span class="mp-bg-chip">${esc(q)}</span>`).join('');
+      rows.push(`<div class="mp-bg-row"><span class="mp-bg-k">Education</span><span class="mp-bg-v">${bio.education ? esc(bio.education) : '—'}${chips ? ' ' + chips : ''}</span></div>`);
+    }
+    const yrs = bio.experience_years_approx;
+    if (bio.experience_summary || yrs != null) {
+      const parts = [(yrs != null ? `~${esc(String(yrs))} yrs` : ''), (bio.experience_summary ? esc(bio.experience_summary) : '')].filter(Boolean);
+      rows.push(`<div class="mp-bg-row"><span class="mp-bg-k">Experience</span><span class="mp-bg-v">${parts.join(' · ')}</span></div>`);
+    }
+    if (bio.current_role) {
+      rows.push(`<div class="mp-bg-row"><span class="mp-bg-k">Current role</span><span class="mp-bg-v">${esc(bio.current_role)}</span></div>`);
+    }
+    const prior = Array.isArray(bio.prior_roles) ? bio.prior_roles.filter(Boolean) : [];
+    if (prior.length) {
+      rows.push(`<div class="mp-bg-row"><span class="mp-bg-k">Previously</span><span class="mp-bg-v">${prior.map(esc).join('; ')}</span></div>`);
+    }
+    const notable = Array.isArray(bio.notable) ? bio.notable.filter(Boolean) : [];
+    if (notable.length) {
+      rows.push(`<div class="mp-bg-row"><span class="mp-bg-k">Notable</span><span class="mp-bg-v"><ul class="mp-bg-ul">${notable.map(n => `<li>${esc(n)}</li>`).join('')}</ul></span></div>`);
+    }
+    if (bio.philosophy) {
+      rows.push(`<div class="mp-bg-row"><span class="mp-bg-k">Philosophy</span><span class="mp-bg-v">${esc(bio.philosophy)}</span></div>`);
+    }
+    if (!rows.length) { el.hidden = true; el.innerHTML = ''; return; }
+    const urls = Array.isArray(bio.source_urls) ? bio.source_urls.filter(Boolean) : [];
+    const srcLinks = urls.slice(0, 3).map((u, i) =>
+      `<a href="${esc(u)}" target="_blank" rel="noopener">source${urls.length > 1 ? ' ' + (i + 1) : ''}</a>`).join(' · ');
+    const noteBits = [];
+    if (srcLinks) noteBits.push(srcLinks);
+    if (bio.scraped_date) noteBits.push(`as researched ${esc(bio.scraped_date)}`);
+    if (bio.confidence) noteBits.push(`confidence: ${esc(bio.confidence)}`);
+    const note = noteBits.length ? `<div class="mp-bg-note">${noteBits.join(' · ')}</div>` : '';
+    el.hidden = false;
+    el.innerHTML = `<h3 class="mp-bg-title">Background</h3>${rows.join('')}${note}`;
+  }
+
   function _renderCard(row) {
     document.getElementById('mpAvatar').textContent = _initials(row.name);
     document.getElementById('mpName').textContent = row.name;
@@ -480,6 +559,9 @@
       bioEl.hidden = true;
       bioEl.textContent = '';
     }
+
+    // ---- F4: structured Background (from manager-bios.json, aka-aware) ----
+    _renderBackground(_bioFor(row.name, profile));
 
     // ---- D5: two AUM pills (Total = Main + Co; Main = lead-only) ----
     const totalAum = Number(profile.total_aum_cr) || 0;
