@@ -34,7 +34,7 @@
   let _selectedName = null;
   let _filterText = '';
   let _filterAmcs = new Set();
-  let _sortBy = 'aum';           // aum / name / tenure / funds
+  let _sortBy = 'main_aum';      // F2: main_aum (default) / total_aum / name / tenure / funds
 
   /* -------------------------------------------------------- *
    *  Bootstrap
@@ -285,9 +285,14 @@
     // Prefer the rebuilt profile's counts/AUM so the picker matches the card
     // (and respects any D3 override prune). Falls back to the recompute.
     const prof = (_profiles && _profiles[row.name]) || null;
+    // F2 — carry BOTH AUM bases. main = lead-only (Σ Main AUM); total = main + co.
+    const totalAum = prof ? (Number(prof.total_aum_cr) || recomputeAum) : recomputeAum;
+    const mainAum = prof ? (Number(prof.main_aum_cr) || 0) : recomputeAum;
     return {
       ...row,
-      aum: prof ? (Number(prof.total_aum_cr) || recomputeAum) : recomputeAum,
+      aum: totalAum,                 // back-compat
+      mainAum,
+      totalAum,
       longestTenure,
       primaryAmc,
       currentCount: prof
@@ -375,12 +380,17 @@
       sorted.sort((a, b) => b.longestTenure - a.longestTenure);
     } else if (_sortBy === 'funds') {
       sorted.sort((a, b) => b.currentCount - a.currentCount || a.name.localeCompare(b.name));
+    } else if (_sortBy === 'total_aum') {
+      sorted.sort((a, b) => b.totalAum - a.totalAum || a.name.localeCompare(b.name));
     } else {
-      // aum (default)
-      sorted.sort((a, b) => b.aum - a.aum);
+      // main_aum (F2 default) — lead-only AUM, does NOT include co-managed
+      sorted.sort((a, b) => b.mainAum - a.mainAum || a.name.localeCompare(b.name));
     }
     return sorted;
   }
+
+  // F2 — which AUM basis to DISPLAY in the row, tied to the active sort.
+  function _aumBasis() { return _sortBy === 'total_aum' ? 'total' : 'main'; }
 
   function _renderManagerList() {
     const list = document.getElementById('mpManagerList');
@@ -391,15 +401,25 @@
       list.innerHTML = `<p class="picker-pending">No managers match the current filters.</p>`;
       return;
     }
-    list.innerHTML = visible.map(r => `
+    // F2 — display AUM on the active basis (Main lead-only by default, Total
+    // when toggled), labelled so the basis is unambiguous.
+    const basis = _aumBasis();
+    const basisLabel = basis === 'total' ? 'Total' : 'Main';
+    list.innerHTML = visible.map(r => {
+      const aumVal = basis === 'total' ? r.totalAum : r.mainAum;
+      const aumStr = aumVal > 0
+        ? ` · ${basisLabel} ₹ ${DataLoader.fmtINR(aumVal)} Cr`
+        : '';
+      return `
       <div class="mp-row${r.name === _selectedName ? ' selected' : ''}"
            data-name="${escapeHtml(r.name)}">
         <div class="pr-name">
           <b>${escapeHtml(r.name)}</b>
           <span class="pr-count">${r.currentCount} fund${r.currentCount === 1 ? '' : 's'}</span>
         </div>
-        <span class="pr-amc">${escapeHtml(r.primaryAmc)}${r.aum > 0 ? ' · ₹ ' + DataLoader.fmtINR(r.aum) + ' Cr' : ''}</span>
-      </div>`).join('');
+        <span class="pr-amc">${escapeHtml(r.primaryAmc)}${aumStr}</span>
+      </div>`;
+    }).join('');
     list.querySelectorAll('.mp-row').forEach(el => {
       el.addEventListener('click', () => {
         const name = el.getAttribute('data-name');
