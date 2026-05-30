@@ -343,6 +343,14 @@
     }
     setReRankNote(top);
 
+    // F1 — combined re-rank ACTUALLY applied to the Rank column. When the pool
+    // spans ≥2 sub-categories the in-category rank repeats (1,1,2,2,…) and is
+    // meaningless across categories, so assign a fresh combined rank 1..N by
+    // descending Centricity score (`top` is already score-desc here) and show
+    // THAT in the Rank column. Single sub-category → keep the in-category rank.
+    const _combined = new Set(top.map(f => f.category)).size >= 2;
+    top.forEach((f, i) => { f._displayRank = _combined ? (i + 1) : f.centricity_rank_in_category; });
+
     // Restore the table shell if we just came from an empty state
     if (!wrap.querySelector('table.fund-tbl')) {
       wrap.innerHTML = `
@@ -372,7 +380,7 @@
       const r5 = f.trailing_returns?.return_5y_pct;
       const sharpe = f.risk_metrics?.sharpe_3y;
       const score = f.centricity_score;  // ← from JSON, NOT recomputed
-      const rankBadge = f.centricity_rank_in_category;
+      const rankBadge = f._displayRank;  // F1 — combined rank when ≥2 categories, else in-category
       const subline = `${escapeHtml(f.amc)} · #${f.scheme_code}`;
       return `
         <tr tabindex="0" data-scheme="${f.scheme_code}">
@@ -432,7 +440,7 @@
     const distinctCats = new Set((top || []).map(f => f.category));
     if (distinctCats.size >= 2) {
       el.hidden = false;
-      el.innerHTML = `Pooled across the <b>${distinctCats.size}</b> selected categories — the top 10 by <b>Centricity Score</b> (a per-category percentile, so it is comparable across categories). The <b>Rank</b> column is each fund's rank <em>within its own category</em>, so more than one “#1” can appear; click <b>Score</b> to order the table by the combined score.`;
+      el.innerHTML = `Pooled across the <b>${distinctCats.size}</b> selected categories and re-ranked <b>1–10 by combined Centricity Score</b> — a per-category percentile, so it is comparable across categories. The <b>Category</b> column shows each fund's own peer group.`;
     } else {
       el.hidden = true;
       el.innerHTML = '';
@@ -455,7 +463,7 @@
     const key = state.key;
     const access = (f) => {
       switch (key) {
-        case 'centricity_rank_in_category': return f.centricity_rank_in_category;
+        case 'centricity_rank_in_category': return f._displayRank != null ? f._displayRank : f.centricity_rank_in_category;
         case 'fund_name': return (f.fund_name || '').toLowerCase();
         case 'category':  return (f.category || '').toLowerCase();
         case 'aum_cr':    return f.aum_cr;
