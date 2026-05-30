@@ -210,11 +210,11 @@
       sortable: false,
       sortValue: () => null,
       text: f => `<input type="checkbox" class="row-check" data-scheme="${f.scheme_code}"${_selected.has(f.scheme_code) ? ' checked' : ''} aria-label="Select for compare">` },
-    { key: 'rank',     label: 'Cat Rank',       align: 'center', cls: 'col-rank',
+    { key: 'rank',     label: 'Rank',           align: 'center', cls: 'col-rank',
       sortable: true,
       sortValue: f => f._displayRank,
       text: f => `<span class="num">${f._displayRank != null ? f._displayRank : '—'}</span>`,
-      titleHelp: 'Rank within SEBI category under current weights. Cross-category ranks are not comparable (the Centricity score is a per-category percentile).' },
+      titleHelp: 'Rank by Centricity score across the current selection.' },
     { key: 'name',     label: 'Fund Name',      align: 'left',   cls: 'col-name',
       sortable: true,
       sortValue: f => (f.fund_name || '').toLowerCase(),
@@ -1307,30 +1307,8 @@
         cloned._displayScore = (f.centricity_score_status === 'Ranked')
           ? DataLoader.recomputeScore(f, activeWeights)
           : null;
+        cloned._displayRank = null;   // F5 — assigned after ALL filters (below)
         return cloned;
-      });
-      // Phase 2.2 §1B — rank is IN-CATEGORY only. We previously sorted
-      // every Ranked fund globally and assigned a universal rank 1..N,
-      // which made cross-category comparison meaningless (a Large Cap
-      // 12th-place fund and an Aggressive Hybrid 3rd-place fund look
-      // adjacent at universal ranks 50 / 51). Group by category, sort
-      // by _displayScore desc within each, and assign rank 1..N inside
-      // the category. The Rank column on the screener now answers
-      // "how does this fund rank among its peers" — the only meaningful
-      // read for a percentile score.
-      const ranksByCat = new Map();
-      funds.forEach(f => {
-        if (f.centricity_score_status === 'Ranked' && f._displayScore != null) {
-          if (!ranksByCat.has(f.category)) ranksByCat.set(f.category, []);
-          ranksByCat.get(f.category).push(f);
-        }
-      });
-      ranksByCat.forEach(catFunds => {
-        catFunds.sort((a, b) => (b._displayScore || 0) - (a._displayScore || 0));
-        catFunds.forEach((f, idx) => { f._displayRank = idx + 1; });
-      });
-      funds.forEach(f => {
-        if (f.centricity_score_status !== 'Ranked' || f._displayScore == null) f._displayRank = null;
       });
     }
 
@@ -1349,6 +1327,18 @@
         funds = funds.filter(f => rangePass(f, cfg));
       }
     });
+
+    // F5 — Rank by Centricity score ACROSS THE CURRENT SELECTION (not per
+    // category). Over the final post-filter set, every Ranked fund with a live
+    // score gets a single 1..N rank by _displayScore desc; Non-Ranked (Warning /
+    // New / Index — Not Scored) stay null → "—". This re-runs on every weight or
+    // filter change (it's inside applyAndRender), so a weight edit re-ranks.
+    if (_family === 'eqh') {
+      funds
+        .filter(f => f.centricity_score_status === 'Ranked' && f._displayScore != null)
+        .sort((a, b) => (b._displayScore || 0) - (a._displayScore || 0))
+        .forEach((f, idx) => { f._displayRank = idx + 1; });
+    }
 
     funds.sort(rowComparator(_sortKey, _sortDir));
 
