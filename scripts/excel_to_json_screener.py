@@ -2862,6 +2862,15 @@ def build_funds(
             ("cy_ytd_pct", _round(cm["cy_ytd_pct"], 4)),
             ("cy_ytd_year", cycle_date.year),
         ])
+        # F11 (2026-05-30): this is the CM "Rolling 3Y Avg" cell — null/"—" for a
+        # few funds whose daily NAV spans < 3 years, so no rolling-3Y window
+        # exists. In 2026-05 that's 7 re-coded LIC MF schemes (152009/152001/
+        # 152003/152016/152025/152019/151950): mfapi only carries their NAV from
+        # 2023-07-31 (~2.8 yrs) under the new AMFI codes, even though the funds
+        # are 7–15 yrs old. The point-to-point 3Y (monitor_returns.return_3y_pct)
+        # is fine; only the rolling-3Y average is unavailable. Correctly left
+        # null — NEVER derive from 1Y/5Y or stitch the pre-recode series. See
+        # mf-issues-solutions/SKILL.md §7.13.
         record["rolling_3y_avg_pct"] = _round(cm["rolling_3y_avg_pct"], 4)
         record["consistency_pct"] = _round(cm["consistency_pct"], 4)
         # Latest NAV pulled from the last row of 📈 Fund NAV — used by Fund
