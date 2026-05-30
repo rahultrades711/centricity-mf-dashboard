@@ -36,6 +36,12 @@
   let _filterText = '';
   let _filterAmcs = new Set();
   let _sortBy = 'main_aum';      // F2: main_aum (default) / total_aum / name / tenure / funds
+  // F8 — combined current-funds table: cycle-fund join + filter state (persist
+  // across manager switches, per page).
+  let _fundByCode = new Map();   // scheme_code(int) → cycle fund (for Active/Passive + Score)
+  let _currentProfile = null;    // the profile whose card is shown (for live re-render)
+  let _apFilter = { active: true, passive: true };
+  let _roleFilter = { main: true, co: true };
 
   /* -------------------------------------------------------- *
    *  Bootstrap
@@ -54,6 +60,9 @@
       .then(([cycle, history, profiles, bios]) => {
         _cycle = cycle;
         _history = history;
+        // F8 — index the cycle by scheme_code for the current-funds join.
+        _fundByCode = new Map();
+        (cycle && cycle.funds || []).forEach(f => _fundByCode.set(Number(f.scheme_code), f));
         const pdoc = profiles || {};
         _profiles = (pdoc.managers && typeof pdoc.managers === 'object') ? pdoc.managers : pdoc;
         _aliases = (pdoc.aliases && typeof pdoc.aliases === 'object') ? pdoc.aliases : {};
@@ -388,6 +397,16 @@
       _sortBy = e.target.value;
       _renderManagerList();
     });
+    // F8 — current-funds filter checkboxes (Active/Passive × Main/Co). State
+    // persists across manager switches; re-render the table live on toggle.
+    const wireFilt = (id, grp, key) => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('change', () => { grp[key] = el.checked; _renderCurrentFunds(); });
+    };
+    wireFilt('mpFiltActive', _apFilter, 'active');
+    wireFilt('mpFiltPassive', _apFilter, 'passive');
+    wireFilt('mpFiltMain', _roleFilter, 'main');
+    wireFilt('mpFiltCo', _roleFilter, 'co');
   }
 
   function _filteredManagers() {
@@ -571,15 +590,12 @@
     document.getElementById('mpStatMainAum').textContent = `₹ ${DataLoader.fmtINR(mainAum)} Cr`;
     document.getElementById('mpStatTenure').textContent = _formatTenureYM(row.longestTenure);
 
-    // ---- D5: three sections (Main / Co / Previously), each sorted by AUM ----
-    const mainFunds = profile.main_managed || [];
-    const coFunds = profile.co_managed || [];
+    // ---- F8: one combined CURRENT-funds table (Main ∪ Co) with filters ----
+    _currentProfile = profile;
+    _renderCurrentFunds();
+    // Previously-managed stays its own section (not current; no status to join).
     const prevFunds = profile.previously_managed || [];
-    document.getElementById('mpMainCount').textContent = String(mainFunds.length);
-    document.getElementById('mpCoCount').textContent = String(coFunds.length);
     document.getElementById('mpPrevCount').textContent = String(prevFunds.length);
-    document.getElementById('mpMainMount').innerHTML = _renderProfileFunds(mainFunds, 'current');
-    document.getElementById('mpCoMount').innerHTML = _renderProfileFunds(coFunds, 'current');
     document.getElementById('mpPrevMount').innerHTML = _renderProfileFunds(prevFunds, 'previous');
 
     // ---- D5: off-universe overseas funds (name + AUM only) — e.g. D'Silva ----
@@ -604,6 +620,88 @@
         `partner confirmation of the current book.`;
     }
     document.getElementById('mpFoot').textContent = footMsg;
+  }
+
+  /* F8 — build combined current-funds rows: every Main + Co fund joined to its
+   * cycle fund by amfi for Active/Passive (status-derived) + Centricity Score.
+   * Active ⇔ status ∈ {Ranked, 1-3yr Warning, New Fund Monitoring}; Passive ⇔
+   * "Index — Not Scored"; not in the current cycle ⇔ unknown ("—"). */
+  function _currentRows(profile) {
+    const rows = [];
+    const add = (items, role) => (items || []).forEach(it => {
+      const f = _fundByCode.get(Number(it.amfi)) || null;
+      const status = f ? f.centricity_score_status : null;
+      const type = !f ? 'unknown' : (status === 'Index — Not Scored' ? 'passive' : 'active');
+      const score = (f && status === 'Ranked' && f.centricity_score != null) ? f.centricity_score : null;
+      rows.push({ it, role, type, score });
+    });
+    add(profile.main_managed, 'Main');
+    add(profile.co_managed, 'Co');
+    return rows;
+  }
+
+  /* F8 — render the one combined current-funds table honouring the four filter
+   * checkboxes (Active/Passive × Main/Co) + the Active/Passive summary line.
+   * Re-runs on every toggle; never crashes when a group is fully unchecked. */
+  function _renderCurrentFunds() {
+    const profile = _currentProfile || {};
+    const allRows = _currentRows(profile);
+    const cnt = document.getElementById('mpCurrentCount');
+    if (cnt) cnt.textContent = String(allRows.length);
+
+    const sumEl = document.getElementById('mpApSummary');
+    if (sumEl) {
+      const mainRows = allRows.filter(r => r.role === 'Main');
+      const mA = mainRows.filter(r => r.type === 'active').length;
+      const mP = mainRows.filter(r => r.type === 'passive').length;
+      const mU = mainRows.filter(r => r.type === 'unknown').length;
+      const coRows = allRows.filter(r => r.role === 'Co');
+      let s = mainRows.length ? `Main: <b>${mA}</b> active · <b>${mP}</b> passive` : 'No lead-managed funds';
+      if (mU) s += ` · ${mU} not in current cycle`;
+      if (coRows.length) {
+        const cA = coRows.filter(r => r.type === 'active').length;
+        const cP = coRows.filter(r => r.type === 'passive').length;
+        const cU = coRows.filter(r => r.type === 'unknown').length;
+        s += ` &nbsp;|&nbsp; Co: <b>${cA}</b> active · <b>${cP}</b> passive` + (cU ? ` · ${cU} not in cycle` : '');
+      }
+      sumEl.innerHTML = s;
+    }
+
+    const mount = document.getElementById('mpCurrentMount');
+    if (!mount) return;
+    const apAny = _apFilter.active || _apFilter.passive;
+    const roleAny = _roleFilter.main || _roleFilter.co;
+    if (!apAny || !roleAny) {
+      mount.innerHTML = `<table class="mp-funds"><tbody><tr class="mp-empty-row"><td>Select at least one Type and one Role to show funds.</td></tr></tbody></table>`;
+      return;
+    }
+    const visible = allRows.filter(r => {
+      const roleOk = (r.role === 'Main' && _roleFilter.main) || (r.role === 'Co' && _roleFilter.co);
+      if (!roleOk) return false;
+      if (r.type === 'active') return _apFilter.active;
+      if (r.type === 'passive') return _apFilter.passive;
+      return true;   // unknown — keep while any Type box is checked
+    }).sort((a, b) => (Number(b.it.aum_cr) || 0) - (Number(a.it.aum_cr) || 0));
+
+    if (!visible.length) {
+      mount.innerHTML = `<table class="mp-funds"><tbody><tr class="mp-empty-row"><td>No funds match the current filters.</td></tr></tbody></table>`;
+      return;
+    }
+    const cycleDate = (_cycle && _cycle.cycle_meta && _cycle.cycle_meta.cycle_date) || '';
+    const headers = `<tr><th>Fund</th><th>Category</th><th>Role</th><th>Type</th><th class="num">AUM ₹ Cr</th><th class="num">Centricity Score</th></tr>`;
+    const body = visible.map(r => {
+      const it = r.it;
+      const href = `fund-detail.html?scheme=${encodeURIComponent(it.amfi)}`
+        + (cycleDate ? `&cycle=${encodeURIComponent(cycleDate)}` : '');
+      const fundCell = `<a class="fund-link" href="${href}">${escapeHtml(it.scheme_name || `Scheme ${it.amfi}`)}</a>`;
+      const typeLabel = r.type === 'active' ? 'Active' : r.type === 'passive' ? 'Passive' : '—';
+      const aumCell = it.aum_cr != null ? `₹ ${DataLoader.fmtINR(it.aum_cr)}` : '—';
+      const scoreCell = r.score != null ? DataLoader.fmtScorePct(r.score) : '—';
+      return `<tr><td>${fundCell}</td><td>${escapeHtml(it.category || '—')}</td>`
+        + `<td>${r.role}</td><td>${typeLabel}</td>`
+        + `<td class="num">${aumCell}</td><td class="num">${scoreCell}</td></tr>`;
+    }).join('');
+    mount.innerHTML = `<table class="mp-funds"><thead>${headers}</thead><tbody>${body}</tbody></table>`;
   }
 
   /** D5 — render a funds table from the rebuilt manager-profiles schema

@@ -152,11 +152,23 @@
           </div>
         </div>
 
-        <h3 class="mp-section-h">Main Managed Funds <span class="mp-count-badge" id="mpMainCount">0</span></h3>
-        <div class="mp-funds-table-wrap" id="mpMainMount"></div>
-
-        <h3 class="mp-section-h">Co-Managed Funds <span class="mp-count-badge" id="mpCoCount">0</span></h3>
-        <div class="mp-funds-table-wrap" id="mpCoMount"></div>
+        <!-- F8 — one combined current-funds table with Active/Passive × Main/Co
+             filters above it. Replaces the separate Main / Co cards. -->
+        <h3 class="mp-section-h">Current Funds <span class="mp-count-badge" id="mpCurrentCount">0</span></h3>
+        <p class="mp-ap-summary" id="mpApSummary"></p>
+        <div class="mp-filters" id="mpFundFilters">
+          <div class="mp-filter-group">
+            <span class="mp-filter-lbl">Type</span>
+            <label><input type="checkbox" id="mpFiltActive" checked> Active</label>
+            <label><input type="checkbox" id="mpFiltPassive" checked> Passive</label>
+          </div>
+          <div class="mp-filter-group">
+            <span class="mp-filter-lbl">Role</span>
+            <label><input type="checkbox" id="mpFiltMain" checked> Main manager</label>
+            <label><input type="checkbox" id="mpFiltCo" checked> Co manager</label>
+          </div>
+        </div>
+        <div class="mp-funds-table-wrap" id="mpCurrentMount"></div>
 
         <div class="mp-offuniverse" id="mpOffUniverseWrap" hidden>
           <h3 class="mp-section-h">Also Manages — Overseas <span class="mp-off-note">(outside this universe)</span> <span class="mp-count-badge" id="mpOffCount">0</span></h3>
