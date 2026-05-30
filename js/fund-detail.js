@@ -1625,9 +1625,10 @@
           ? ` · ${escapeHtml(benchName)}: <b>₹ ${DataLoader.fmtINR(finalBench)}</b>`
           : '');
     }
-    // The static legend swatch stays the generic word "Benchmark" (F7 — the
-    // named value shows in the caption + the chart hover-tooltip), keeping this
-    // change to js/fund-detail.js only.
+    // F10 — name the legend swatch too (caption + tooltip already named in F7).
+    // Long index names wrap (the legend row already wraps); fallback "Benchmark".
+    const benchLeg = document.getElementById('navLegendBench');
+    if (benchLeg) benchLeg.textContent = benchName;
 
     const ctx = document.getElementById('navChart').getContext('2d');
     if (_navChartInstance) { _navChartInstance.destroy(); _navChartInstance = null; }
