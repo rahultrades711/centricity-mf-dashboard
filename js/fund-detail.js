@@ -253,31 +253,21 @@
         : `—`;
     }
 
-    /* Phase 2.2 §1B — rank is IN-CATEGORY only. Use the converter-computed
-       centricity_rank_in_category directly (canonical, matches screener);
-       N = count of Ranked funds in the category so "rank #1 of 20" doesn't
-       mislead readers into thinking the Warning + New-Fund funds count
-       toward the denominator. */
-    const peerSubCat = (_cycle.funds || []).filter(f => f.category === fund.category);
-    const peerRanked = peerSubCat.filter(f => f.centricity_rank_in_category != null);
-    let rankLine = '';
-    if (fund.centricity_rank_in_category != null && peerRanked.length) {
-      const x = fund.centricity_rank_in_category;
-      const n = peerRanked.length;
-      rankLine = `Ranked <b>#${x}</b> of ${n} in ${escapeHtml(fund.category)} category`;
-    }
-    // F6 — two-row change line. Row 1: "Rank #N" (+ ▲/▼ chip when the rank moved
-    // vs the prior cycle, added by renderCycleMovement). Row 2: "vs <prior> ·
-    // Score <priorScore> · Score <delta>% · <rankLine>". renderCycleMovement()
-    // (the same prior-cycle resolver as the "vs last cycle" block) fills the
-    // dynamic parts; the base rank + the "Ranked #N of M" tail are set here.
-    // Debt/Other don't call renderCycleMovement → the neutral Row 2 stays.
+    // F6/F9 — two-row change line (rank is IN-CATEGORY, canonical
+    // centricity_rank_in_category, matches screener Phase 2.2 §1B). Row 1:
+    // "Rank #N in <Category>" (+ ▲/▼ chip when the rank moved vs the prior
+    // cycle, added by renderCycleMovement). Row 2: "vs <prior> · <Mon> Score
+    // <priorScore> · Δ <delta>%" — the verbose "Ranked #N of M in <cat>
+    // category" tail was dropped (Rahul 2026-05-30); the category now lives in
+    // Row 1. Debt/Other don't call renderCycleMovement → the neutral Row 2 stays.
     const curRankSC = fund.centricity_rank_in_category;
-    const rankBase = (curRankSC != null) ? `Rank <b>#${curRankSC}</b>` : '';
+    const catSC = fund.category ? escapeHtml(fund.category) : '';
+    const rankBase = (curRankSC != null)
+      ? `Rank <b>#${curRankSC}</b>${catSC ? ` in ${catSC}` : ''}`
+      : '';
     document.getElementById('scoreDelta').innerHTML =
       `<div id="scoreRankLine" class="score-rank-line">${rankBase}</div>` +
-      `<div class="score-cycle-line"><span id="scoreCycleChange">—</span>` +
-      `<span id="scoreRankTail">${rankLine ? ' · ' + rankLine : ''}</span></div>`;
+      `<div class="score-cycle-line"><span id="scoreCycleChange">—</span></div>`;
 
     // Mini grid (4 cells per Fund Detail Fix-List spec)
     const grid = document.getElementById('scoreMiniGrid');
@@ -2739,7 +2729,7 @@
     /* ---- F6 STATE A: two-row score-card change line (same prior-cycle data).
        Row 1 = rank + ▲/▼ chip (override the base to add the chip when moved);
        Row 2 = vs <prior> · prior score · score delta%. ---- */
-    _setScoreRankLine(_scoreRankRow(curRank, priRank, rankDelta));
+    _setScoreRankLine(_scoreRankRow(curRank, priRank, rankDelta, fund.category));
     _setScoreCycleChange(_scoreCycleRow(priorEntry.date, priScore, scoreDelta));
 
     /* ---- top-20 holdings weight-% diff ---- */
@@ -2767,13 +2757,14 @@
     const el = document.getElementById('scoreCycleChange');
     if (el) el.innerHTML = html;
   }
-  /* F6 Row 1 — "Rank #N" + a ▲/▼ chip when the in-category rank MOVED vs the
-   * prior cycle (green ▲ improved / red ▼ dropped). White-on-brand-colour chips
-   * read on the black score card (≈10:1); plain brand red/green text would be
-   * ~2:1. Unchanged → just "Rank #N", no chip. */
-  function _scoreRankRow(curRank, priRank, rankDelta) {
+  /* F6/F9 Row 1 — "Rank #N in <Category>" + a ▲/▼ chip when the in-category rank
+   * MOVED vs the prior cycle (green ▲ improved / red ▼ dropped). White-on-brand-
+   * colour chips read on the black score card (≈10:1); plain brand red/green
+   * text would be ~2:1. Unchanged → just "Rank #N in <Category>", no chip. */
+  function _scoreRankRow(curRank, priRank, rankDelta, category) {
     if (curRank == null) return '';
-    let html = `Rank <b>#${curRank}</b>`;
+    const cat = category ? ` in ${escapeHtml(category)}` : '';
+    let html = `Rank <b>#${curRank}</b>${cat}`;
     if (typeof priRank === 'number' && typeof rankDelta === 'number' && rankDelta !== 0) {
       const chip = rankDelta < 0
         ? `<span class="sc-chip up">▲${Math.abs(rankDelta)}</span>`
@@ -2782,18 +2773,23 @@
     }
     return html;
   }
-  /* F6 Row 2 lead — "vs <prior> · Score <priorScore> · Score <delta>%" (delta in
-   * a green/red chip; "%" per Rahul's ask, though a percentile move is in pp).
-   * Score parts are omitted when the fund carries no score (index/passive). */
+  /* F9 Row 2 lead — "vs <prior> · <Mon> Score <priorScore> · Δ <delta>%". The
+   * two tokens are now self-describing (was "Score … · Score …"): prior-cycle
+   * absolute prefixed with its short month, delta as "Δ". Chip + "%" (per
+   * Rahul) kept; green/red by sign; 0 → "Δ flat". Score parts omitted when the
+   * fund carries no score (index/passive). */
   function _scoreCycleRow(priorDate, priScore, scoreDelta) {
+    const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const label = DataLoader.fmtCycleLabelDate(priorDate);
+    const moIdx = parseInt(String(priorDate).split('-')[1], 10) - 1;
+    const mo = (moIdx >= 0 && moIdx < 12) ? MON[moIdx] : '';
     const parts = [`vs ${escapeHtml(label)}`];
-    if (typeof priScore === 'number') parts.push(`Score ${DataLoader.fmtScorePct(priScore)}`);
+    if (typeof priScore === 'number') parts.push(`${mo ? mo + ' ' : ''}Score ${DataLoader.fmtScorePct(priScore)}`);
     if (typeof scoreDelta === 'number' && scoreDelta !== 0) {
       const up = scoreDelta > 0;
-      parts.push(`Score <span class="sc-chip ${up ? 'up' : 'down'}">${up ? '+' : '−'}${Math.abs(scoreDelta).toFixed(1)}%</span>`);
+      parts.push(`Δ <span class="sc-chip ${up ? 'up' : 'down'}">${up ? '+' : '−'}${Math.abs(scoreDelta).toFixed(1)}%</span>`);
     } else if (scoreDelta === 0) {
-      parts.push('Score flat');
+      parts.push('Δ flat');
     }
     return parts.join(' · ');
   }
