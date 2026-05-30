@@ -266,11 +266,18 @@
       const n = peerRanked.length;
       rankLine = `Ranked <b>#${x}</b> of ${n} in ${escapeHtml(fund.category)} category`;
     }
-    // F3 — the cycle-change is filled in by renderCycleMovement() (the SAME
-    // prior-cycle resolver as the "vs last cycle" block). Placeholder until it
-    // resolves; for debt/Other (no renderCycleMovement) it stays neutral.
+    // F6 — two-row change line. Row 1: "Rank #N" (+ ▲/▼ chip when the rank moved
+    // vs the prior cycle, added by renderCycleMovement). Row 2: "vs <prior> ·
+    // Score <priorScore> · Score <delta>% · <rankLine>". renderCycleMovement()
+    // (the same prior-cycle resolver as the "vs last cycle" block) fills the
+    // dynamic parts; the base rank + the "Ranked #N of M" tail are set here.
+    // Debt/Other don't call renderCycleMovement → the neutral Row 2 stays.
+    const curRankSC = fund.centricity_rank_in_category;
+    const rankBase = (curRankSC != null) ? `Rank <b>#${curRankSC}</b>` : '';
     document.getElementById('scoreDelta').innerHTML =
-      `<span id="scoreCycleChange">Cycle change · …</span>${rankLine ? ' · ' + rankLine : ''}`;
+      `<div id="scoreRankLine" class="score-rank-line">${rankBase}</div>` +
+      `<div class="score-cycle-line"><span id="scoreCycleChange">—</span>` +
+      `<span id="scoreRankTail">${rankLine ? ' · ' + rankLine : ''}</span></div>`;
 
     // Mini grid (4 cells per Fund Detail Fix-List spec)
     const grid = document.getElementById('scoreMiniGrid');
@@ -2647,8 +2654,9 @@
     const idx = cycles.findIndex(c => c.date === cycle.cycle_meta.cycle_date);
     const priorEntry = idx >= 0 && idx < cycles.length - 1 ? cycles[idx + 1] : null;
     if (!priorEntry) {
-      // Genuinely no prior cycle — this IS the earliest archived cycle.
-      _setScoreCycleChange('Cycle change · — · earliest cycle in archive');
+      // STATE C — genuinely no prior cycle (this IS the earliest archived cycle).
+      // Row 1 ("Rank #N") base + the "Ranked #N of M" tail stay from renderScoreCard.
+      _setScoreCycleChange('earliest cycle in archive');
       return;   // keep the static "no prior cycle" placeholder in #changed
     }
 
@@ -2656,7 +2664,8 @@
     if (sub) sub.textContent = `Versus the ${DataLoader.fmtCycleLabelDate(priorEntry.date)} cycle.`;
 
     if (cf.is_new_in_cycle) {
-      _setScoreCycleChange('Cycle change · <b>New this cycle</b>');
+      // STATE B — new this cycle: no vs-prior, no score delta.
+      _setScoreCycleChange('New this cycle');
       grid.innerHTML = `
         <div class="empty-state" style="grid-column:1/-1">
           <div class="ring-motif" aria-hidden="true"></div>
@@ -2720,8 +2729,11 @@
       curSd != null ? DataLoader.fmtNum(curSd, 2) + '%' : '—',
       priSd != null ? DataLoader.fmtNum(priSd, 2) + '%' : '—', sdDelta, 'pp', false));
 
-    /* ---- F3: real score-card cycle-change line (same prior-cycle data) ---- */
-    _setScoreCycleChange(_cycleChangeLine(priorEntry.date, curRank, priRank, rankDelta, scoreDelta));
+    /* ---- F6 STATE A: two-row score-card change line (same prior-cycle data).
+       Row 1 = rank + ▲/▼ chip (override the base to add the chip when moved);
+       Row 2 = vs <prior> · prior score · score delta%. ---- */
+    _setScoreRankLine(_scoreRankRow(curRank, priRank, rankDelta));
+    _setScoreCycleChange(_scoreCycleRow(priorEntry.date, priScore, scoreDelta));
 
     /* ---- top-20 holdings weight-% diff ---- */
     const holdingsHtml = _holdingsDiffHtml(curA, priA);
@@ -2740,31 +2752,43 @@
   /* F3 — the hero score-card "Cycle change" line, routed through the same
    * prior-cycle data renderCycleMovement uses (fixes the false "no prior cycle
    * in archive"). Shows rank + score movement with brand arrows. */
+  function _setScoreRankLine(html) {
+    const el = document.getElementById('scoreRankLine');
+    if (el) el.innerHTML = html;
+  }
   function _setScoreCycleChange(html) {
     const el = document.getElementById('scoreCycleChange');
     if (el) el.innerHTML = html;
   }
-  function _cycleChangeLine(priorDate, curRank, priRank, rankDelta, scoreDelta) {
-    const label = DataLoader.fmtCycleLabelDate(priorDate);
-    // White-on-brand-colour chips read on the black score card (≈10:1); plain
-    // brand red/green text would be ~2:1 (illegible). Green ▲ improve / red ▼ drop.
-    const chip = (cls, txt) => `<span class="sc-chip ${cls}">${txt}</span>`;
-    const parts = [];
-    if (typeof curRank === 'number' && typeof priRank === 'number') {
-      if (rankDelta === 0) parts.push(`Rank <b>#${curRank}</b> · unchanged`);
-      else if (rankDelta < 0) parts.push(`Rank ${chip('up', '▲' + Math.abs(rankDelta))} (was #${priRank})`);
-      else parts.push(`Rank ${chip('down', '▼' + rankDelta)} (was #${priRank})`);
-    } else if (typeof curRank === 'number') {
-      parts.push(`Rank <b>#${curRank}</b>`);
+  /* F6 Row 1 — "Rank #N" + a ▲/▼ chip when the in-category rank MOVED vs the
+   * prior cycle (green ▲ improved / red ▼ dropped). White-on-brand-colour chips
+   * read on the black score card (≈10:1); plain brand red/green text would be
+   * ~2:1. Unchanged → just "Rank #N", no chip. */
+  function _scoreRankRow(curRank, priRank, rankDelta) {
+    if (curRank == null) return '';
+    let html = `Rank <b>#${curRank}</b>`;
+    if (typeof priRank === 'number' && typeof rankDelta === 'number' && rankDelta !== 0) {
+      const chip = rankDelta < 0
+        ? `<span class="sc-chip up">▲${Math.abs(rankDelta)}</span>`
+        : `<span class="sc-chip down">▼${rankDelta}</span>`;
+      html += ` ${chip} (was #${priRank})`;
     }
+    return html;
+  }
+  /* F6 Row 2 lead — "vs <prior> · Score <priorScore> · Score <delta>%" (delta in
+   * a green/red chip; "%" per Rahul's ask, though a percentile move is in pp).
+   * Score parts are omitted when the fund carries no score (index/passive). */
+  function _scoreCycleRow(priorDate, priScore, scoreDelta) {
+    const label = DataLoader.fmtCycleLabelDate(priorDate);
+    const parts = [`vs ${escapeHtml(label)}`];
+    if (typeof priScore === 'number') parts.push(`Score ${DataLoader.fmtScorePct(priScore)}`);
     if (typeof scoreDelta === 'number' && scoreDelta !== 0) {
       const up = scoreDelta > 0;
-      parts.push(`Score ${chip(up ? 'up' : 'down', (up ? '+' : '−') + Math.abs(scoreDelta).toFixed(1) + 'pp')}`);
+      parts.push(`Score <span class="sc-chip ${up ? 'up' : 'down'}">${up ? '+' : '−'}${Math.abs(scoreDelta).toFixed(1)}%</span>`);
     } else if (scoreDelta === 0) {
       parts.push('Score flat');
     }
-    const body = parts.length ? parts.join(' · ') : '—';
-    return `vs ${escapeHtml(label)} · ${body}`;
+    return parts.join(' · ');
   }
 
   async function _fetchAnalyticsFund(aDate, schemeCode) {
