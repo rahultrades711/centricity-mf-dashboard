@@ -335,7 +335,7 @@ table.perf .neg { color: var(--red); }
   margin-top: 18px; border: 1px solid var(--rule); border-radius: 4px;
   padding: 18px 20px; background: #fafaf7;
 }
-.returns-chart-wrap .chart-canvas-wrap { height: 220px; }
+.returns-chart-wrap .chart-canvas-wrap { height: 280px; }
 
 /* ============ NAV CHART ============ */
 .nav-chart-wrap {
