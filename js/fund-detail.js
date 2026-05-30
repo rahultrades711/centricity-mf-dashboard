@@ -1619,6 +1619,10 @@
     // Category Avg — peers' nav-series, normalised to anchor month, mean per date
     const catData = _computeCategoryAvgSeries(labels, anchorYM);
 
+    // F7 — caption / legend / tooltip use the fund's real benchmark name, not
+    // the literal word "Benchmark". Fall back to "Benchmark" when absent.
+    const benchName = (_fund && _fund.benchmark) || 'Benchmark';
+
     const cap = document.getElementById('navChartCaption');
     if (cap) {
       const finalFund  = fundData[fundData.length - 1];
@@ -1628,9 +1632,12 @@
         `₹ 1,00,000 invested on <b>${escapeHtml(anchorLabel)}</b> → ` +
         `Fund: <b>₹ ${DataLoader.fmtINR(finalFund)}</b>` +
         (finalBench != null
-          ? ` · Benchmark: <b>₹ ${DataLoader.fmtINR(finalBench)}</b>`
+          ? ` · ${escapeHtml(benchName)}: <b>₹ ${DataLoader.fmtINR(finalBench)}</b>`
           : '');
     }
+    // The static legend swatch stays the generic word "Benchmark" (F7 — the
+    // named value shows in the caption + the chart hover-tooltip), keeping this
+    // change to js/fund-detail.js only.
 
     const ctx = document.getElementById('navChart').getContext('2d');
     if (_navChartInstance) { _navChartInstance.destroy(); _navChartInstance = null; }
@@ -1646,7 +1653,7 @@
         spanGaps: true,
       },
       {
-        label: 'Benchmark', data: benchData,
+        label: benchName, data: benchData,
         borderColor: '#5B8DB8', backgroundColor: 'transparent',
         fill: false, tension: .25, pointRadius: 0, borderWidth: 1.5,
         spanGaps: true,
