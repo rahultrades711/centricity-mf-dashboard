@@ -124,6 +124,10 @@ html, body { background: #fafaf7; }
 }
 .score-card .delta { font-size: 12.5px; color: rgba(255, 255, 255, .7); margin-top: 8px; }
 .score-card .delta b { color: var(--gold); }
+/* F6 — two-row change line. Row 1 (rank) prominent white; Row 2 (cycle) muted. */
+.score-card .delta .score-rank-line { font-size: 14px; color: #fff; font-weight: 600; line-height: 1.45; }
+.score-card .delta .score-rank-line:empty { display: none; }
+.score-card .delta .score-cycle-line { font-size: 12px; color: rgba(255, 255, 255, .7); margin-top: 3px; line-height: 1.5; }
 .score-card .conviction {
   font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase;
   color: rgba(255, 255, 255, .55);
@@ -331,7 +335,7 @@ table.perf .neg { color: var(--red); }
   margin-top: 18px; border: 1px solid var(--rule); border-radius: 4px;
   padding: 18px 20px; background: #fafaf7;
 }
-.returns-chart-wrap .chart-canvas-wrap { height: 220px; }
+.returns-chart-wrap .chart-canvas-wrap { height: 280px; }
 
 /* ============ NAV CHART ============ */
 .nav-chart-wrap {
@@ -913,6 +917,47 @@ table.holdings-tbl tbody tr:hover td { background: var(--tan-soft); }
   background: #fafaf7;
 }
 
+/* E6 — cycle-over-cycle "vs last cycle" block */
+.cm-delta { font-weight: 700; margin-left: 4px; }
+.cm-good { color: var(--green, #0F5132); }
+.cm-bad  { color: var(--red, #931621); }
+
+/* F3 — score-card cycle-change movement chips. White-on-brand-colour (matches
+   the buy/avoid pill convention) so green ▲ / red ▼ stay legible on the black
+   score card, where plain brand red/green text would be ~2:1 contrast. */
+.score-card .sc-chip {
+  display: inline-block; padding: 0 6px; border-radius: 999px;
+  font-size: 11px; font-weight: 700; color: #fff; line-height: 1.55;
+  font-variant-numeric: tabular-nums;
+}
+.score-card .sc-chip.up   { background: var(--green, #0F5132); }
+.score-card .sc-chip.down { background: var(--red, #931621); }
+.cm-flat { color: var(--text-mid); font-weight: 600; }
+.cm-note {
+  grid-column: 1 / -1; font-size: 12px; color: var(--text-mid);
+  margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--rule);
+}
+.cm-holdings { margin-top: 16px; }
+.cm-h-head { font-size: 13px; font-weight: 700; letter-spacing: .01em; }
+.cm-h-head .cm-h-sub { font-weight: 400; color: var(--text-mid); font-size: 11.5px; }
+.cm-h-col {
+  border: 1px solid var(--rule); border-radius: 8px; padding: 10px 12px; background: #fff;
+}
+.cm-h-title {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--text-mid); margin-bottom: 6px;
+}
+.cm-h-row {
+  display: flex; justify-content: space-between; gap: 8px;
+  font-size: 12.5px; padding: 3px 0; border-bottom: 1px dotted var(--rule);
+}
+.cm-h-row:last-child { border-bottom: none; }
+.cm-h-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cm-h-val { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+@media (max-width: 1100px) {
+  .cm-h-grid { grid-template-columns: repeat(2, 1fr) !important; }
+}
+
 /* ============ VERDICT — Fix-List 7 §5 white / black + gold theme ============
  * Reverts the dark v6 treatment. White card, black text, gold accent
  * (h2 em, column headings, bullets). All selectors lead with `section.`
@@ -938,19 +983,26 @@ section.verdict-block .h-sub { color: #444; }
 .verdict-grid .v-col ul {
   margin: 0; padding: 0; list-style: none;
 }
+/* D10 — continuous-prose verdict. The old `display:flex; gap:12px` turned each
+ * text run + inline <b> into a separate flex item, so values "floated between
+ * stems" (finding #13). Render every bullet as a normal flowing list-item with
+ * an absolute-positioned dot. Brand (§7.7): gold for strong values, dark-red
+ * for negatives. */
 .verdict-grid .v-col li {
-  font-size: 13.5px; padding: 10px 0; line-height: 1.55;
+  font-size: 13.5px; padding: 10px 0 10px 18px; line-height: 1.6;
   border-bottom: 1px solid var(--rule);
   color: #000;
-  display: flex; gap: 12px;
+  display: list-item; list-style: none; position: relative; text-align: left;
 }
 .verdict-grid .v-col li:last-child { border-bottom: 0; }
 .verdict-grid .v-col li::before {
-  content: ''; flex: 0 0 6px; width: 6px; height: 6px; border-radius: 99px;
-  background: var(--gold); margin-top: 8px;
+  content: ''; position: absolute; left: 0; top: 18px;
+  width: 6px; height: 6px; border-radius: 99px;
+  background: var(--gold);
 }
 .verdict-grid .v-col.cons li::before { background: var(--red); }
-.verdict-grid .v-col li b { color: #000; font-weight: 700; }
+.verdict-grid .v-col li b { color: var(--gold-deep, #8a6d43); font-weight: 700; }
+.verdict-grid .v-col li b.neg { color: var(--red, #931621); }
 
 /* Fix-List 8 §4 — Areas to Watch word-gap fix.
  * The default `.v-col li { display: flex; gap: 12px }` rule treats the
@@ -985,7 +1037,8 @@ section.verdict-block .h-sub { color: #444; }
 .concerns-list li b,
 .concerns-list li strong {
   display: inline;
-  font-weight: 600;
+  font-weight: 700;
+  color: var(--red, #931621);   /* D10 — dark-red for areas-to-watch values */
 }
 .verdict-grid .v-col .v-empty {
   font-style: italic; color: var(--text-mid);

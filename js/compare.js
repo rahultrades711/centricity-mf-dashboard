@@ -291,7 +291,7 @@
 
   function renderRank(wrap) {
     const rows = [
-      { label: 'Centricity Rank (Overall)', pick: f => f.centricity_rank_overall, fmt: v => v != null ? '#' + v : '—' },
+      { label: 'Centricity Rank (in Category)', pick: f => f.centricity_rank_in_category, fmt: v => v != null ? '#' + v : '—' },
       { label: 'Centricity Rank (in Cat.)', pick: f => f.centricity_rank_in_category, fmt: v => v != null ? '#' + v : '—' },
       { label: 'Centricity Score',          pick: f => f.centricity_score, fmt: DataLoader.fmtScorePct },
       { label: 'Status',                     pick: f => f.centricity_score_status, fmt: v => v },

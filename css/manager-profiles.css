@@ -204,6 +204,53 @@
 }
 .mp-bio[hidden] { display: none; }
 
+/* F4 — structured Background section (from manager-bios.json) */
+.mp-background {
+  margin-top: 16px; padding: 14px 16px;
+  background: #fafaf7; border: 1px solid var(--rule, #D9D9D9); border-radius: 4px;
+}
+.mp-background[hidden] { display: none; }
+.mp-bg-title {
+  margin: 0 0 10px; font-size: 14px; font-weight: 700; letter-spacing: .01em;
+}
+.mp-bg-row {
+  display: grid; grid-template-columns: 110px 1fr; gap: 10px;
+  padding: 5px 0; border-bottom: 1px dotted var(--rule, #D9D9D9);
+  font-size: 13px; line-height: 1.55;
+}
+.mp-bg-row:last-of-type { border-bottom: none; }
+.mp-bg-k { color: var(--text-mid, #666); font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; padding-top: 1px; }
+.mp-bg-v { color: #1a1a1a; }
+.mp-bg-chip {
+  display: inline-block; margin: 0 4px 2px 0; padding: 0 7px;
+  background: var(--tan, #DBC8B2); border-radius: 999px; font-size: 11px; font-weight: 600;
+}
+.mp-bg-ul { margin: 2px 0 0; padding-left: 18px; }
+.mp-bg-ul li { margin: 1px 0; }
+.mp-bg-note {
+  margin-top: 10px; font-size: 11px; color: var(--text-mid, #666); font-style: italic;
+}
+.mp-bg-note a { color: var(--gold-deep, #9a7647); }
+
+/* F8 — current-funds filters + Active/Passive summary */
+.mp-ap-summary { font-size: 12.5px; color: var(--text-mid, #666); margin: 4px 0 10px; }
+.mp-ap-summary b { color: #1a1a1a; }
+.mp-filters {
+  display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center;
+  margin: 0 0 12px; padding: 9px 12px;
+  background: #fafaf7; border: 1px solid var(--rule, #D9D9D9); border-radius: 4px;
+}
+.mp-filter-group { display: flex; align-items: center; gap: 12px; }
+.mp-filter-lbl {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--text-mid, #666); font-weight: 700;
+}
+.mp-filters label {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 13px; cursor: pointer; user-select: none;
+}
+.mp-filters input[type="checkbox"] { accent-color: var(--gold, #BD9568); cursor: pointer; }
+
 .mp-stats {
   display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
   margin: 18px 0 22px;
@@ -259,4 +306,25 @@ table.mp-funds .mp-empty-row td {
 .mp-foot {
   margin: 14px 0 0; font-size: 11px; color: var(--text-mid);
   font-style: italic; line-height: 1.4;
+}
+
+/* ---- Stage B Partner-Review D5 — Main/Co/Previously + AUM pills ---- */
+.mp-stat-aum .v { color: var(--gold, #BD9568); }
+.mp-count-badge {
+  display: inline-block; min-width: 1.4em; padding: 0 .5em; margin-left: .4em;
+  font-size: .72em; font-weight: 700; line-height: 1.7; text-align: center;
+  color: #6b4f2a; background: var(--tan, #DBC8B2); border-radius: 999px;
+  vertical-align: middle; font-variant-numeric: tabular-nums;
+}
+.mp-prev-details { margin-top: 18px; }
+.mp-prev-summary { cursor: pointer; list-style: none; }
+.mp-prev-summary::-webkit-details-marker { display: none; }
+.mp-prev-summary::before { content: "\25B8 "; color: var(--gold, #BD9568); }
+.mp-prev-details[open] .mp-prev-summary::before { content: "\25BE "; }
+.mp-offuniverse { margin-top: 18px; }
+.mp-off-note { font-size: .72em; color: var(--text-mid, #666); font-weight: 400; }
+.mp-off-role {
+  display: inline-block; font-size: .7em; font-weight: 700; color: #6b4f2a;
+  background: var(--tan, #DBC8B2); border-radius: 3px; padding: 0 .4em;
+  margin-left: .3em; text-transform: uppercase; letter-spacing: .03em;
 }

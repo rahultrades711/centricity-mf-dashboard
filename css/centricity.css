@@ -804,6 +804,13 @@ select:focus-visible,
         page that needs an in-page cycle switcher renders the same control.
         Home's home.css carries an identical local copy; cascade resolves cleanly.
    ============================================================ */
+.hero-eyebrow-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; margin-bottom: 8px;
+}
+.hero-eyebrow-row .eyebrow { margin-bottom: 0; }
+.hero-eyebrow-row .hero-cycle { margin-top: 0; }
+
 .hero-cycle {
   display: flex; align-items: center; gap: 12px;
   font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--text-mid);

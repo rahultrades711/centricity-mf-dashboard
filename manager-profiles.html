@@ -55,7 +55,13 @@
 <main class="mp-main" id="mpMain">
 
   <section class="mp-head">
-    <span class="eyebrow" id="mpEyebrow">Manager Profiles · As on —</span>
+    <div class="hero-eyebrow-row">
+      <span class="eyebrow" id="mpEyebrow">Manager Profiles · As on —</span>
+      <div class="hero-cycle">
+        <label for="mpCycleSel">Cycle</label>
+        <select id="mpCycleSel" aria-label="Select cycle"></select>
+      </div>
+    </div>
     <h1>Manager <em>Profiles</em></h1>
     <p class="h-sub">
       Every fund manager currently running a fund in our universe. Click a name to see the funds they
@@ -86,7 +92,8 @@
         <div class="picker-sort-row">
           <label>Sort by:
             <select id="mpSortBy">
-              <option value="aum">AUM managed</option>
+              <option value="main_aum">Main AUM (lead)</option>
+              <option value="total_aum">Total AUM (incl. co)</option>
               <option value="name">Name</option>
               <option value="tenure">Longest tenure</option>
               <option value="funds">Funds running</option>
@@ -126,30 +133,52 @@
 
         <div class="mp-bio" id="mpBio" hidden></div>
 
+        <!-- F4 — Manager Background (from data/manager-bios.json, load-time
+             merged + aka-aware). Hidden when no bio exists for this manager. -->
+        <section class="mp-background" id="mpBackground" hidden></section>
+
         <div class="mp-stats" id="mpStats">
-          <div class="mp-stat">
-            <span class="k">Currently managing</span>
-            <span class="v" id="mpStatCurrent">—</span>
+          <div class="mp-stat mp-stat-aum">
+            <span class="k">Total AUM (Main + Co)</span>
+            <span class="v" id="mpStatTotalAum">—</span>
           </div>
-          <div class="mp-stat">
-            <span class="k">Total AUM</span>
-            <span class="v" id="mpStatAum">—</span>
+          <div class="mp-stat mp-stat-aum">
+            <span class="k">Main AUM (as lead)</span>
+            <span class="v" id="mpStatMainAum">—</span>
           </div>
           <div class="mp-stat">
             <span class="k">Longest current tenure</span>
             <span class="v" id="mpStatTenure">—</span>
           </div>
-          <div class="mp-stat">
-            <span class="k">Previously managed</span>
-            <span class="v" id="mpStatPrev">—</span>
-          </div>
         </div>
 
-        <h3 class="mp-section-h">Currently Managing</h3>
+        <!-- F8 — one combined current-funds table with Active/Passive × Main/Co
+             filters above it. Replaces the separate Main / Co cards. -->
+        <h3 class="mp-section-h">Current Funds <span class="mp-count-badge" id="mpCurrentCount">0</span></h3>
+        <p class="mp-ap-summary" id="mpApSummary"></p>
+        <div class="mp-filters" id="mpFundFilters">
+          <div class="mp-filter-group">
+            <span class="mp-filter-lbl">Type</span>
+            <label><input type="checkbox" id="mpFiltActive" checked> Active</label>
+            <label><input type="checkbox" id="mpFiltPassive" checked> Passive</label>
+          </div>
+          <div class="mp-filter-group">
+            <span class="mp-filter-lbl">Role</span>
+            <label><input type="checkbox" id="mpFiltMain" checked> Main manager</label>
+            <label><input type="checkbox" id="mpFiltCo" checked> Co manager</label>
+          </div>
+        </div>
         <div class="mp-funds-table-wrap" id="mpCurrentMount"></div>
 
-        <h3 class="mp-section-h">Previously Managed</h3>
-        <div class="mp-funds-table-wrap" id="mpPrevMount"></div>
+        <div class="mp-offuniverse" id="mpOffUniverseWrap" hidden>
+          <h3 class="mp-section-h">Also Manages — Overseas <span class="mp-off-note">(outside this universe)</span> <span class="mp-count-badge" id="mpOffCount">0</span></h3>
+          <div class="mp-funds-table-wrap" id="mpOffUniverseMount"></div>
+        </div>
+
+        <details class="mp-prev-details">
+          <summary class="mp-section-h mp-prev-summary">Previously Managed <span class="mp-count-badge" id="mpPrevCount">0</span></summary>
+          <div class="mp-funds-table-wrap" id="mpPrevMount"></div>
+        </details>
 
         <p class="mp-foot" id="mpFoot"></p>
       </div>

@@ -49,12 +49,16 @@
   const cycleCache = new Map();
   /** @type {Map<string, object>}  cycleDate -> MF_Debt cycle JSON */
   const debtCycleCache = new Map();
+  /** @type {Map<string, object>}  cycleDate -> MF_Other cycle JSON */
+  const otherCycleCache = new Map();
   /** @type {object|null}  loaded once from data/manifest.json */
   let manifestCache = null;
   /** Debt cycle dates the dashboard ships with. v1.x will replace this with a
    *  manifest-driven list once the converter+Action are wired. For now we
    *  hardcode the only ship-cycle. */
   const DEBT_CYCLES = ['2026-05-15'];
+  /** MF_Other cycle dates (Commodity / FoF / Solution / Other Misc — Not Scored). */
+  const OTHER_CYCLES = ['2026-05-15'];
 
   /* -------------------------------------------------------- *
    *  loadCycle — lazy fetch + cache
@@ -116,6 +120,32 @@
   }
   function listDebtCycles() {
     return DEBT_CYCLES.slice().sort();
+  }
+
+  /* -------------------------------------------------------- *
+   *  loadOther — lazy fetch + cache for the MF_Other family
+   * --------------------------------------------------------
+   *  Commodity / Fund-of-Funds / Solution / Other-Misc funds (~288). These
+   *  are **Not Scored** this cycle (no Centricity score/rank) and are merged
+   *  into the Equity / Hybrid / Debt / Commodity asset-class universes at the
+   *  page layer by `sub_category_class`. Guards product_family === "MF_Other".
+   */
+  async function loadOther(cycleDate) {
+    if (!cycleDate) cycleDate = latestOtherCycleDate();
+    if (!cycleDate) throw new Error('loadOther: no other cycle available');
+    if (otherCycleCache.has(cycleDate)) return otherCycleCache.get(cycleDate);
+    const res = await fetch(`data/other-${cycleDate}.json`, { cache: 'default' });
+    if (!res.ok) throw new Error(`loadOther: HTTP ${res.status} for ${cycleDate}`);
+    const data = await res.json();
+    const family = data && data.cycle_meta && data.cycle_meta.product_family;
+    if (family !== 'MF_Other') {
+      throw new Error(`loadOther: product_family "${family}" — expected "MF_Other"`);
+    }
+    otherCycleCache.set(cycleDate, data);
+    return data;
+  }
+  function latestOtherCycleDate() {
+    return OTHER_CYCLES.slice().sort().pop() || null;
   }
 
   /* -------------------------------------------------------- *
@@ -196,7 +226,7 @@
    * @param {string|string[]} [opts.status]      'Ranked' | '1-3yr Warning' | 'New Fund Monitoring'
    * @param {string} [opts.amc]
    * @param {string} [opts.searchText]           substring match against fund_name, amc, scheme_code
-   * @param {string} [opts.sortBy]               dotted path, e.g. 'centricity_rank_overall' or 'risk_metrics.sharpe_3y'
+   * @param {string} [opts.sortBy]               dotted path, e.g. 'centricity_rank_in_category' or 'risk_metrics.sharpe_3y'
    * @param {string} [opts.sortDir]              'asc' (default) | 'desc'
    * @param {number} [opts.limit]
    * @returns {object[]}
@@ -264,7 +294,7 @@
     n = n || 10;
     return getFunds(cycle, {
       status: 'Ranked',
-      sortBy: 'centricity_rank_overall',
+      sortBy: 'centricity_rank_in_category',
       sortDir: 'asc',
       limit: n,
     });
@@ -273,7 +303,7 @@
   /**
    * Top-N by recomputed score using a custom weight set
    * (the weight drawer's primary call). Falls back to stored
-   * centricity_rank_overall when weights are equal to defaults.
+   * centricity_rank_in_category when weights are equal to defaults.
    */
   function topByCustomWeights(cycle, weights, n) {
     n = n || 10;
@@ -423,6 +453,8 @@
     loadDebtCycle,
     latestDebtCycleDate,
     listDebtCycles,
+    loadOther,
+    latestOtherCycleDate,
     // Selectors
     getFund,
     getFunds,

@@ -407,8 +407,7 @@
         "source": "📊 CM col AM",
         "_note": "Same idea as mcap_goodness — negative-absolute deviation from category-centre PE; internal percentile input for the 'Fund PE' parameter."
       },
-      "centricity_rank_overall": { "type": "int|null", "source": "📊 CM col B", "null_when": "fund tenure < 3y" },
-      "centricity_rank_in_category": { "type": "int|null", "derived": true, "formula": "rank within category by centricity_score desc, only Ranked funds" },
+      "centricity_rank_in_category": { "type": "int|null", "derived": true, "formula": "rank within category by centricity_score desc, only Ranked funds", "_removed": "centricity_rank_overall — Stage B A6 2026-05-28; cross-category rank is invalid per §7.3 (the score is a per-category percentile)" },
       "centricity_score": { "type": "float|null", "unit": "0-1 decimal", "source": "📊 CM col AD when numeric" },
       "centricity_score_status": {
         "type": "string",

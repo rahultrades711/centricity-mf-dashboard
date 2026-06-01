@@ -23,7 +23,9 @@
 
   let _cycle = null;             // screener cycle JSON
   let _history = null;           // manager-history doc
-  let _profiles = {};            // { managerName: {bio, experience_years, ...} }
+  let _profiles = {};            // { managerName: {main_managed, co_managed, ...} }
+  let _aliases = {};             // { alt-spelling: canonical } from manager-profiles.json
+  let _bios = {};                // F4: { canonicalName: bio } from data/manager-bios.json (load-time merged, optional)
 
   // Inverted index built from history: each unique manager name (any
   // is_current OR past) → array of {code, manager_entry, fund_name, etc}
@@ -33,7 +35,13 @@
   let _selectedName = null;
   let _filterText = '';
   let _filterAmcs = new Set();
-  let _sortBy = 'aum';           // aum / name / tenure / funds
+  let _sortBy = 'main_aum';      // F2: main_aum (default) / total_aum / name / tenure / funds
+  // F8 — combined current-funds table: cycle-fund join + filter state (persist
+  // across manager switches, per page).
+  let _fundByCode = new Map();   // scheme_code(int) → cycle fund (for Active/Passive + Score)
+  let _currentProfile = null;    // the profile whose card is shown (for live re-render)
+  let _apFilter = { active: true, passive: true };
+  let _roleFilter = { main: true, co: true };
 
   /* -------------------------------------------------------- *
    *  Bootstrap
@@ -46,14 +54,23 @@
           DataLoader.loadCycle(activeDate),
           _loadManagerHistory(),
           _loadProfiles(),
+          _loadBios(),
         ]);
       })
-      .then(([cycle, history, profiles]) => {
+      .then(([cycle, history, profiles, bios]) => {
         _cycle = cycle;
         _history = history;
-        _profiles = profiles || {};
+        // F8 — index the cycle by scheme_code for the current-funds join.
+        _fundByCode = new Map();
+        (cycle && cycle.funds || []).forEach(f => _fundByCode.set(Number(f.scheme_code), f));
+        const pdoc = profiles || {};
+        _profiles = (pdoc.managers && typeof pdoc.managers === 'object') ? pdoc.managers : pdoc;
+        _aliases = (pdoc.aliases && typeof pdoc.aliases === 'object') ? pdoc.aliases : {};
+        _bios = (bios && bios.managers && typeof bios.managers === 'object') ? bios.managers
+              : (bios && typeof bios === 'object') ? bios : {};
         _composeManagers();
         _renderEyebrow();
+        initCyclePicker(cycle);   // Stage B B2 — Stage A cycle dropdown wiring
         _renderAmcFilter();
         _wirePicker();
         _renderManagerList();
@@ -95,15 +112,40 @@
       const res = await fetch('data/manager-profiles.json', { cache: 'default' });
       if (!res.ok) return {};
       const doc = await res.json();
-      // Two possible shapes: { managers: {…} } or just {…} keyed by name.
-      if (doc && typeof doc === 'object') {
-        if (doc.managers && typeof doc.managers === 'object') return doc.managers;
-        return doc;
-      }
-      return {};
+      // Return the WHOLE doc; the bootstrap splits managers + aliases.
+      return (doc && typeof doc === 'object') ? doc : {};
     } catch (e) {
       return {};
     }
+  }
+
+  /** F4 — Manager bios (education / experience / roles). OPTIONAL + delivered
+   *  incrementally; a 404 or parse error resolves to {} so the page renders
+   *  without any Background sections (graceful degradation, CLAUDE.md §4.1). */
+  async function _loadBios() {
+    try {
+      const res = await fetch('data/manager-bios.json', { cache: 'default' });
+      if (!res.ok) return {};
+      const doc = await res.json();
+      return (doc && typeof doc === 'object') ? doc : {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  /** Resolve the bio for a manager, aka-aware: try the canonical name, then
+   *  every `aka` spelling on the profile, then the alias map. Returns the bio
+   *  object or null. */
+  function _bioFor(name, profile) {
+    if (_bios[name]) return _bios[name];
+    const akas = (profile && Array.isArray(profile.aka)) ? profile.aka : [];
+    for (const a of akas) if (_bios[a]) return _bios[a];
+    // alias map (alt → canonical): if a bio is keyed by a spelling that aliases
+    // to this canonical name, use it.
+    for (const alt in _aliases) {
+      if (_aliases[alt] === name && _bios[alt]) return _bios[alt];
+    }
+    return null;
   }
 
   /* -------------------------------------------------------- *
@@ -112,53 +154,159 @@
   function _composeManagers() {
     // Per-manager rollups: which funds they ran, AMC fingerprint, total AUM
     // managed today, longest tenure.
+    //
+    // Cowork patch 2026-05-28 — profiles are keyed by the SCREENER's Monitor
+    // spelling (A1 canonical) whenever a Morningstar entry can be matched to
+    // a Monitor co-manager on the same fund (exact-name first, then surname).
+    // This matches the rebuilt data/manager-profiles.json keying so the
+    // URL `?manager=` param works for both the Monitor lead spelling and any
+    // Morningstar long-form. Falls back to Morningstar's own spelling only
+    // when no Monitor canon can be inferred (rare — fully historical names).
     const screenerByCode = new Map(
       (_cycle.funds || []).map(f => [String(f.scheme_code), f])
     );
+    const norm = (s) => (s == null ? "" : String(s).trim().toLowerCase().replace(/\s+/g, " "));
+    const surname = (s) => {
+      if (s == null) return "";
+      const parts = String(s).trim().split(/\s+/);
+      return parts.length ? parts[parts.length - 1].toLowerCase() : "";
+    };
+
+    // Universe-wide Monitor name pools for past-manager fold-in
+    const monitorByNorm = new Map();      // norm -> canonical Monitor spelling
+    const monitorBySurname = new Map();   // surname -> canonical Monitor spelling
+    for (const f of (_cycle.funds || [])) {
+      for (const nm of (f.manager_co_managers || [])) {
+        if (!nm) continue;
+        const k = norm(nm);
+        if (!monitorByNorm.has(k)) monitorByNorm.set(k, nm);
+        const sk = surname(nm);
+        if (sk && !monitorBySurname.has(sk)) monitorBySurname.set(sk, nm);
+      }
+    }
+
     const byName = new Map();
+    const akaSeen = new Map();   // alt-spelling -> canonical
+    const _ensure = (canonical) => {
+      let row = byName.get(canonical);
+      if (!row) {
+        row = {
+          name: canonical,
+          currentFunds: [],
+          prevFunds: [],
+          amcs: new Set(),
+          aka: new Set(),
+        };
+        byName.set(canonical, row);
+      }
+      return row;
+    };
 
     for (const code in _history.funds) {
       const entry = _history.funds[code];
       if (!entry || !entry.managers) continue;
       const screenerFund = screenerByCode.get(String(code));
-      // Skip funds we don't have screener metadata for (typically
-      // analytics-only funds — out of universe for v1)
       if (!screenerFund) continue;
+      const cos = Array.isArray(screenerFund.manager_co_managers)
+        ? screenerFund.manager_co_managers : [];
+      const coByNorm = new Map(cos.filter(Boolean).map(n => [norm(n), n]));
+      const coBySurname = new Map();
+      for (const n of cos) {
+        const sk = surname(n);
+        if (sk && !coBySurname.has(sk)) coBySurname.set(sk, n);
+      }
+
       for (const m of entry.managers) {
         if (!m.name) continue;
-        let row = byName.get(m.name);
-        if (!row) {
-          row = {
-            name: m.name,
-            currentFunds: [],   // [{code, fund, manager_entry}]
-            prevFunds: [],      // same shape
-            amcs: new Set(),
-          };
-          byName.set(m.name, row);
+        const msNorm = norm(m.name);
+        const msSurname = surname(m.name);
+        const isCurrent = m.is_current === true || m.end == null;
+
+        // Resolve canonical (Monitor) spelling. Same priority as the data-
+        // layer builder: exact → surname → universe fold-in → Morningstar.
+        let canonical = m.name;
+        let inCoManagers = false;
+        if (coByNorm.has(msNorm)) {
+          canonical = coByNorm.get(msNorm);
+          inCoManagers = true;
+        } else if (isCurrent && msSurname && coBySurname.has(msSurname)) {
+          canonical = coBySurname.get(msSurname);
+          inCoManagers = true;
+        } else if (monitorByNorm.has(msNorm)) {
+          canonical = monitorByNorm.get(msNorm);
+        } else if (!isCurrent && msSurname && monitorBySurname.has(msSurname)) {
+          canonical = monitorBySurname.get(msSurname);
         }
+
+        if (m.name !== canonical) {
+          akaSeen.set(m.name, canonical);
+        }
+
+        const row = _ensure(canonical);
+        if (m.name !== canonical) row.aka.add(m.name);
         const item = { code, fund: screenerFund, m };
-        if (m.is_current) {
+
+        if (isCurrent && inCoManagers) {
           row.currentFunds.push(item);
           if (screenerFund.amc) row.amcs.add(screenerFund.amc);
-        } else {
+        } else if (!isCurrent) {
           row.prevFunds.push(item);
         }
+        // else: Morningstar-current but no Monitor co-manager match on this
+        // fund → ambiguous / stale, skipped per kickoff rule.
+      }
+
+      // Cowork patch — Monitor leads on this fund that have NO matching
+      // Morningstar entry get an entry with empty tenure data so the click
+      // through still resolves. Typical case: brand-new launches where the
+      // Monitor sheet has the manager but Morningstar's bi-monthly export
+      // hasn't yet caught up.
+      const msNormsOnFund = new Set(
+        entry.managers.filter(m => m.name).map(m => norm(m.name))
+      );
+      const msSurnamesOnFund = new Set(
+        entry.managers.filter(m => m.name).map(m => surname(m.name)).filter(Boolean)
+      );
+      for (const mn of cos) {
+        if (!mn) continue;
+        const mnNorm = norm(mn);
+        const mnSurname = surname(mn);
+        if (msNormsOnFund.has(mnNorm)) continue;
+        if (mnSurname && msSurnamesOnFund.has(mnSurname)) continue;
+        const row = _ensure(mn);
+        row.currentFunds.push({
+          code,
+          fund: screenerFund,
+          m: { name: mn, start: null, end: null, is_current: true, tenure_years: null },
+        });
+        if (screenerFund.amc) row.amcs.add(screenerFund.amc);
       }
     }
 
-    // Drop managers with NO current funds (purely historical names from
-    // funds whose lineup has churned). Keep them on prevFunds for the
-    // selected-manager view, but don't surface them in the list.
     _allManagers = [];
     for (const [name, row] of byName.entries()) {
-      if (row.currentFunds.length === 0) {
-        // Still index them so URL ?manager=Name from a co-manager link
-        // can find them — but they won't be in the visible list.
-        _byName.set(name, _enrichRow(row));
-        continue;
-      }
       _byName.set(name, _enrichRow(row));
-      _allManagers.push(_byName.get(name));
+      if (row.currentFunds.length > 0) {
+        _allManagers.push(_byName.get(name));
+      }
+    }
+    // Add alias entries so `?manager=<Morningstar long-form>` ALSO resolves to
+    // the Monitor-canonical row. This is the flat lookup table Cowork asked
+    // for; it keeps `_byName.has(fromUrl)` a one-liner in `_selectManager`.
+    for (const [alt, canon] of akaSeen.entries()) {
+      if (!_byName.has(alt) && _byName.has(canon)) {
+        _byName.set(alt, _byName.get(canon));
+      }
+    }
+    // Also fold in the data-layer aliases map (manager-profiles.json) so
+    // override-only spellings resolve too — e.g. "Sharmila D'Mello" -> the
+    // "Sharmila D'Silva" profile (D3). No regression: the akaSeen pass above
+    // already covers the 6f448d1 Morningstar long-forms.
+    for (const alt in _aliases) {
+      const canon = _aliases[alt];
+      if (!_byName.has(alt) && _byName.has(canon)) {
+        _byName.set(alt, _byName.get(canon));
+      }
     }
 
     _amcs = Array.from(
@@ -167,7 +315,7 @@
   }
 
   function _enrichRow(row) {
-    const aum = row.currentFunds.reduce(
+    const recomputeAum = row.currentFunds.reduce(
       (s, x) => s + (Number(x.fund && x.fund.aum_cr) || 0), 0
     );
     const longestTenure = row.currentFunds.reduce(
@@ -176,13 +324,23 @@
     const primaryAmc = row.currentFunds.length > 0
       ? (row.currentFunds[0].fund.amc || '—')
       : '—';
+    // Prefer the rebuilt profile's counts/AUM so the picker matches the card
+    // (and respects any D3 override prune). Falls back to the recompute.
+    const prof = (_profiles && _profiles[row.name]) || null;
+    // F2 — carry BOTH AUM bases. main = lead-only (Σ Main AUM); total = main + co.
+    const totalAum = prof ? (Number(prof.total_aum_cr) || recomputeAum) : recomputeAum;
+    const mainAum = prof ? (Number(prof.main_aum_cr) || 0) : recomputeAum;
     return {
       ...row,
-      aum,
+      aum: totalAum,                 // back-compat
+      mainAum,
+      totalAum,
       longestTenure,
       primaryAmc,
-      currentCount: row.currentFunds.length,
-      prevCount: row.prevFunds.length,
+      currentCount: prof
+        ? ((prof.main_count || 0) + (prof.co_count || 0))
+        : row.currentFunds.length,
+      prevCount: prof ? (prof.previously_count || 0) : row.prevFunds.length,
     };
   }
 
@@ -239,6 +397,16 @@
       _sortBy = e.target.value;
       _renderManagerList();
     });
+    // F8 — current-funds filter checkboxes (Active/Passive × Main/Co). State
+    // persists across manager switches; re-render the table live on toggle.
+    const wireFilt = (id, grp, key) => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('change', () => { grp[key] = el.checked; _renderCurrentFunds(); });
+    };
+    wireFilt('mpFiltActive', _apFilter, 'active');
+    wireFilt('mpFiltPassive', _apFilter, 'passive');
+    wireFilt('mpFiltMain', _roleFilter, 'main');
+    wireFilt('mpFiltCo', _roleFilter, 'co');
   }
 
   function _filteredManagers() {
@@ -264,12 +432,17 @@
       sorted.sort((a, b) => b.longestTenure - a.longestTenure);
     } else if (_sortBy === 'funds') {
       sorted.sort((a, b) => b.currentCount - a.currentCount || a.name.localeCompare(b.name));
+    } else if (_sortBy === 'total_aum') {
+      sorted.sort((a, b) => b.totalAum - a.totalAum || a.name.localeCompare(b.name));
     } else {
-      // aum (default)
-      sorted.sort((a, b) => b.aum - a.aum);
+      // main_aum (F2 default) — lead-only AUM, does NOT include co-managed
+      sorted.sort((a, b) => b.mainAum - a.mainAum || a.name.localeCompare(b.name));
     }
     return sorted;
   }
+
+  // F2 — which AUM basis to DISPLAY in the row, tied to the active sort.
+  function _aumBasis() { return _sortBy === 'total_aum' ? 'total' : 'main'; }
 
   function _renderManagerList() {
     const list = document.getElementById('mpManagerList');
@@ -280,15 +453,25 @@
       list.innerHTML = `<p class="picker-pending">No managers match the current filters.</p>`;
       return;
     }
-    list.innerHTML = visible.map(r => `
+    // F2 — display AUM on the active basis (Main lead-only by default, Total
+    // when toggled), labelled so the basis is unambiguous.
+    const basis = _aumBasis();
+    const basisLabel = basis === 'total' ? 'Total' : 'Main';
+    list.innerHTML = visible.map(r => {
+      const aumVal = basis === 'total' ? r.totalAum : r.mainAum;
+      const aumStr = aumVal > 0
+        ? ` · ${basisLabel} ₹ ${DataLoader.fmtINR(aumVal)} Cr`
+        : '';
+      return `
       <div class="mp-row${r.name === _selectedName ? ' selected' : ''}"
            data-name="${escapeHtml(r.name)}">
         <div class="pr-name">
           <b>${escapeHtml(r.name)}</b>
           <span class="pr-count">${r.currentCount} fund${r.currentCount === 1 ? '' : 's'}</span>
         </div>
-        <span class="pr-amc">${escapeHtml(r.primaryAmc)}${r.aum > 0 ? ' · ₹ ' + DataLoader.fmtINR(r.aum) + ' Cr' : ''}</span>
-      </div>`).join('');
+        <span class="pr-amc">${escapeHtml(r.primaryAmc)}${aumStr}</span>
+      </div>`;
+    }).join('');
     list.querySelectorAll('.mp-row').forEach(el => {
       el.addEventListener('click', () => {
         const name = el.getAttribute('data-name');
@@ -321,6 +504,52 @@
     history.replaceState(null, '', url);
   }
 
+  /** F4 — render the structured Background section from a manager-bios entry.
+   *  Every field is optional; the section hides entirely when no bio exists.
+   *  Never renders "undefined" — missing fields are simply skipped. */
+  function _renderBackground(bio) {
+    const el = document.getElementById('mpBackground');
+    if (!el) return;
+    if (!bio || typeof bio !== 'object') { el.hidden = true; el.innerHTML = ''; return; }
+    const esc = escapeHtml;
+    const rows = [];
+    const quals = Array.isArray(bio.qualifications) ? bio.qualifications.filter(Boolean) : [];
+    if (bio.education || quals.length) {
+      const chips = quals.map(q => `<span class="mp-bg-chip">${esc(q)}</span>`).join('');
+      rows.push(`<div class="mp-bg-row"><span class="mp-bg-k">Education</span><span class="mp-bg-v">${bio.education ? esc(bio.education) : '—'}${chips ? ' ' + chips : ''}</span></div>`);
+    }
+    const yrs = bio.experience_years_approx;
+    if (bio.experience_summary || yrs != null) {
+      const parts = [(yrs != null ? `~${esc(String(yrs))} yrs` : ''), (bio.experience_summary ? esc(bio.experience_summary) : '')].filter(Boolean);
+      rows.push(`<div class="mp-bg-row"><span class="mp-bg-k">Experience</span><span class="mp-bg-v">${parts.join(' · ')}</span></div>`);
+    }
+    if (bio.current_role) {
+      rows.push(`<div class="mp-bg-row"><span class="mp-bg-k">Current role</span><span class="mp-bg-v">${esc(bio.current_role)}</span></div>`);
+    }
+    const prior = Array.isArray(bio.prior_roles) ? bio.prior_roles.filter(Boolean) : [];
+    if (prior.length) {
+      rows.push(`<div class="mp-bg-row"><span class="mp-bg-k">Previously</span><span class="mp-bg-v">${prior.map(esc).join('; ')}</span></div>`);
+    }
+    const notable = Array.isArray(bio.notable) ? bio.notable.filter(Boolean) : [];
+    if (notable.length) {
+      rows.push(`<div class="mp-bg-row"><span class="mp-bg-k">Notable</span><span class="mp-bg-v"><ul class="mp-bg-ul">${notable.map(n => `<li>${esc(n)}</li>`).join('')}</ul></span></div>`);
+    }
+    if (bio.philosophy) {
+      rows.push(`<div class="mp-bg-row"><span class="mp-bg-k">Philosophy</span><span class="mp-bg-v">${esc(bio.philosophy)}</span></div>`);
+    }
+    if (!rows.length) { el.hidden = true; el.innerHTML = ''; return; }
+    const urls = Array.isArray(bio.source_urls) ? bio.source_urls.filter(Boolean) : [];
+    const srcLinks = urls.slice(0, 3).map((u, i) =>
+      `<a href="${esc(u)}" target="_blank" rel="noopener">source${urls.length > 1 ? ' ' + (i + 1) : ''}</a>`).join(' · ');
+    const noteBits = [];
+    if (srcLinks) noteBits.push(srcLinks);
+    if (bio.scraped_date) noteBits.push(`as researched ${esc(bio.scraped_date)}`);
+    if (bio.confidence) noteBits.push(`confidence: ${esc(bio.confidence)}`);
+    const note = noteBits.length ? `<div class="mp-bg-note">${noteBits.join(' · ')}</div>` : '';
+    el.hidden = false;
+    el.innerHTML = `<h3 class="mp-bg-title">Background</h3>${rows.join('')}${note}`;
+  }
+
   function _renderCard(row) {
     document.getElementById('mpAvatar').textContent = _initials(row.name);
     document.getElementById('mpName').textContent = row.name;
@@ -350,59 +579,170 @@
       bioEl.textContent = '';
     }
 
-    document.getElementById('mpStatCurrent').textContent = String(row.currentCount);
-    document.getElementById('mpStatAum').textContent =
-      row.aum > 0 ? `₹ ${DataLoader.fmtINR(row.aum)} Cr` : '—';
-    document.getElementById('mpStatTenure').textContent = _formatTenureYM(row.longestTenure);
-    document.getElementById('mpStatPrev').textContent = String(row.prevCount);
+    // ---- F4: structured Background (from manager-bios.json, aka-aware) ----
+    _renderBackground(_bioFor(row.name, profile));
 
-    document.getElementById('mpCurrentMount').innerHTML = _renderFundsTable(row.currentFunds, true);
-    document.getElementById('mpPrevMount').innerHTML = _renderFundsTable(row.prevFunds, false);
+    // ---- D5: two AUM pills (Total = Main + Co; Main = lead-only) ----
+    const totalAum = Number(profile.total_aum_cr) || 0;
+    const mainAum = Number(profile.main_aum_cr) || 0;
+    document.getElementById('mpStatTotalAum').textContent =
+      totalAum > 0 ? `₹ ${DataLoader.fmtINR(totalAum)} Cr` : '—';
+    document.getElementById('mpStatMainAum').textContent = `₹ ${DataLoader.fmtINR(mainAum)} Cr`;
+    document.getElementById('mpStatTenure').textContent = _formatTenureYM(row.longestTenure);
+
+    // ---- F8: one combined CURRENT-funds table (Main ∪ Co) with filters ----
+    _currentProfile = profile;
+    _renderCurrentFunds();
+    // Previously-managed stays its own section (not current; no status to join).
+    const prevFunds = profile.previously_managed || [];
+    document.getElementById('mpPrevCount').textContent = String(prevFunds.length);
+    document.getElementById('mpPrevMount').innerHTML = _renderProfileFunds(prevFunds, 'previous');
+
+    // ---- D5: off-universe overseas funds (name + AUM only) — e.g. D'Silva ----
+    const off = profile.off_universe_overseas || [];
+    const offWrap = document.getElementById('mpOffUniverseWrap');
+    if (offWrap) {
+      if (off.length > 0) {
+        offWrap.hidden = false;
+        document.getElementById('mpOffCount').textContent = String(off.length);
+        document.getElementById('mpOffUniverseMount').innerHTML = _renderOffUniverse(off);
+      } else {
+        offWrap.hidden = true;
+      }
+    }
 
     const dateStr = _history.as_of_date ? DataLoader.fmtDate(_history.as_of_date) : '—';
-    document.getElementById('mpFoot').textContent =
-      `Manager records sourced from Morningstar as of ${dateStr}. ` +
-      `Bio + source URL where available are scraped from public AMC / VRO pages by ` +
-      `scripts/scrape_manager_profiles.py.`;
+    let footMsg =
+      `Main = lead manager (MF Monitor "Fund Manager"); Co = co-manager. ` +
+      `Tenure + previous-fund history from Morningstar as of ${dateStr}.`;
+    if (profile._needs_partner_prune) {
+      footMsg += ` Co-managed list reflects the Morningstar attribution and awaits ` +
+        `partner confirmation of the current book.`;
+    }
+    document.getElementById('mpFoot').textContent = footMsg;
   }
 
-  function _renderFundsTable(items, isCurrent) {
-    if (items.length === 0) {
-      return `
-        <table class="mp-funds">
-          <tbody><tr class="mp-empty-row"><td>—</td></tr></tbody>
-        </table>`;
+  /* F8 — build combined current-funds rows: every Main + Co fund joined to its
+   * cycle fund by amfi for Active/Passive (status-derived) + Centricity Score.
+   * Active ⇔ status ∈ {Ranked, 1-3yr Warning, New Fund Monitoring}; Passive ⇔
+   * "Index — Not Scored"; not in the current cycle ⇔ unknown ("—"). */
+  function _currentRows(profile) {
+    const rows = [];
+    const add = (items, role) => (items || []).forEach(it => {
+      const f = _fundByCode.get(Number(it.amfi)) || null;
+      const status = f ? f.centricity_score_status : null;
+      const type = !f ? 'unknown' : (status === 'Index — Not Scored' ? 'passive' : 'active');
+      const score = (f && status === 'Ranked' && f.centricity_score != null) ? f.centricity_score : null;
+      rows.push({ it, role, type, score });
+    });
+    add(profile.main_managed, 'Main');
+    add(profile.co_managed, 'Co');
+    return rows;
+  }
+
+  /* F8 — render the one combined current-funds table honouring the four filter
+   * checkboxes (Active/Passive × Main/Co) + the Active/Passive summary line.
+   * Re-runs on every toggle; never crashes when a group is fully unchecked. */
+  function _renderCurrentFunds() {
+    const profile = _currentProfile || {};
+    const allRows = _currentRows(profile);
+    const cnt = document.getElementById('mpCurrentCount');
+    if (cnt) cnt.textContent = String(allRows.length);
+
+    const sumEl = document.getElementById('mpApSummary');
+    if (sumEl) {
+      const mainRows = allRows.filter(r => r.role === 'Main');
+      const mA = mainRows.filter(r => r.type === 'active').length;
+      const mP = mainRows.filter(r => r.type === 'passive').length;
+      const mU = mainRows.filter(r => r.type === 'unknown').length;
+      const coRows = allRows.filter(r => r.role === 'Co');
+      let s = mainRows.length ? `Main: <b>${mA}</b> active · <b>${mP}</b> passive` : 'No lead-managed funds';
+      if (mU) s += ` · ${mU} not in current cycle`;
+      if (coRows.length) {
+        const cA = coRows.filter(r => r.type === 'active').length;
+        const cP = coRows.filter(r => r.type === 'passive').length;
+        const cU = coRows.filter(r => r.type === 'unknown').length;
+        s += ` &nbsp;|&nbsp; Co: <b>${cA}</b> active · <b>${cP}</b> passive` + (cU ? ` · ${cU} not in cycle` : '');
+      }
+      sumEl.innerHTML = s;
     }
-    const sorted = items.slice().sort((a, b) =>
-      // Current: AUM desc; Previous: end-date desc
-      isCurrent
-        ? (Number(b.fund.aum_cr) || 0) - (Number(a.fund.aum_cr) || 0)
-        : (b.m.end || '').localeCompare(a.m.end || '')
-    );
+
+    const mount = document.getElementById('mpCurrentMount');
+    if (!mount) return;
+    const apAny = _apFilter.active || _apFilter.passive;
+    const roleAny = _roleFilter.main || _roleFilter.co;
+    if (!apAny || !roleAny) {
+      mount.innerHTML = `<table class="mp-funds"><tbody><tr class="mp-empty-row"><td>Select at least one Type and one Role to show funds.</td></tr></tbody></table>`;
+      return;
+    }
+    const visible = allRows.filter(r => {
+      const roleOk = (r.role === 'Main' && _roleFilter.main) || (r.role === 'Co' && _roleFilter.co);
+      if (!roleOk) return false;
+      if (r.type === 'active') return _apFilter.active;
+      if (r.type === 'passive') return _apFilter.passive;
+      return true;   // unknown — keep while any Type box is checked
+    }).sort((a, b) => (Number(b.it.aum_cr) || 0) - (Number(a.it.aum_cr) || 0));
+
+    if (!visible.length) {
+      mount.innerHTML = `<table class="mp-funds"><tbody><tr class="mp-empty-row"><td>No funds match the current filters.</td></tr></tbody></table>`;
+      return;
+    }
+    const cycleDate = (_cycle && _cycle.cycle_meta && _cycle.cycle_meta.cycle_date) || '';
+    const headers = `<tr><th>Fund</th><th>Category</th><th>Role</th><th>Type</th><th class="num">AUM ₹ Cr</th><th class="num">Centricity Score</th></tr>`;
+    const body = visible.map(r => {
+      const it = r.it;
+      const href = `fund-detail.html?scheme=${encodeURIComponent(it.amfi)}`
+        + (cycleDate ? `&cycle=${encodeURIComponent(cycleDate)}` : '');
+      const fundCell = `<a class="fund-link" href="${href}">${escapeHtml(it.scheme_name || `Scheme ${it.amfi}`)}</a>`;
+      const typeLabel = r.type === 'active' ? 'Active' : r.type === 'passive' ? 'Passive' : '—';
+      const aumCell = it.aum_cr != null ? `₹ ${DataLoader.fmtINR(it.aum_cr)}` : '—';
+      const scoreCell = r.score != null ? DataLoader.fmtScorePct(r.score) : '—';
+      return `<tr><td>${fundCell}</td><td>${escapeHtml(it.category || '—')}</td>`
+        + `<td>${r.role}</td><td>${typeLabel}</td>`
+        + `<td class="num">${aumCell}</td><td class="num">${scoreCell}</td></tr>`;
+    }).join('');
+    mount.innerHTML = `<table class="mp-funds"><thead>${headers}</thead><tbody>${body}</tbody></table>`;
+  }
+
+  /** D5 — render a funds table from the rebuilt manager-profiles schema
+   *  (entries: {amfi, scheme_name, category, since|started, ended, tenure_yrs,
+   *  aum_cr}). `kind` ∈ {'current','previous'}. Rows link to the one-pager
+   *  carrying the active cycle so cross-cycle navigation stays in-cycle. */
+  function _renderProfileFunds(items, kind) {
+    if (!items || items.length === 0) {
+      return `<table class="mp-funds"><tbody><tr class="mp-empty-row"><td>—</td></tr></tbody></table>`;
+    }
+    const isCurrent = kind === 'current';
+    const cycleDate = (_cycle && _cycle.cycle_meta && _cycle.cycle_meta.cycle_date) || '';
     const headers = isCurrent
       ? `<tr><th>Fund</th><th>Category</th><th class="num">AUM ₹ Cr</th><th>Since</th><th class="num">Tenure</th></tr>`
       : `<tr><th>Fund</th><th>Category</th><th>Period</th><th class="num">Tenure</th></tr>`;
-    const rows = sorted.map(it => {
-      const f = it.fund || {};
-      const m = it.m;
-      const href = `fund-detail.html?scheme=${encodeURIComponent(it.code)}`;
-      const fundCell = `<a class="fund-link" href="${href}">${escapeHtml(f.fund_name || `Scheme ${it.code}`)}</a>`;
-      const catCell = escapeHtml(f.category || '—');
-      const tenureCell = _formatTenureYM(m.tenure_years);
+    const rows = items.map(it => {
+      const href = `fund-detail.html?scheme=${encodeURIComponent(it.amfi)}`
+        + (cycleDate ? `&cycle=${encodeURIComponent(cycleDate)}` : '');
+      const fundCell = `<a class="fund-link" href="${href}">${escapeHtml(it.scheme_name || `Scheme ${it.amfi}`)}</a>`;
+      const catCell = escapeHtml(it.category || '—');
+      const tenureCell = escapeHtml(_formatTenureYM(it.tenure_yrs));
       if (isCurrent) {
-        const aumCell = f.aum_cr != null ? `₹ ${DataLoader.fmtINR(f.aum_cr)}` : '—';
-        const sinceCell = _formatShortDate(m.start);
-        return `<tr><td>${fundCell}</td><td>${catCell}</td><td class="num">${aumCell}</td><td>${escapeHtml(sinceCell)}</td><td class="num">${escapeHtml(tenureCell)}</td></tr>`;
-      } else {
-        const periodCell = `${_formatShortDate(m.start)} – ${m.end ? _formatShortDate(m.end) : 'Present'}`;
-        return `<tr><td>${fundCell}</td><td>${catCell}</td><td>${escapeHtml(periodCell)}</td><td class="num">${escapeHtml(tenureCell)}</td></tr>`;
+        const aumCell = it.aum_cr != null ? `₹ ${DataLoader.fmtINR(it.aum_cr)}` : '—';
+        const sinceCell = escapeHtml(_formatShortDate(it.since));
+        return `<tr><td>${fundCell}</td><td>${catCell}</td><td class="num">${aumCell}</td><td>${sinceCell}</td><td class="num">${tenureCell}</td></tr>`;
       }
+      const periodCell = `${_formatShortDate(it.started)} – ${it.ended ? _formatShortDate(it.ended) : 'Present'}`;
+      return `<tr><td>${fundCell}</td><td>${catCell}</td><td>${escapeHtml(periodCell)}</td><td class="num">${tenureCell}</td></tr>`;
     }).join('');
-    return `
-      <table class="mp-funds">
-        <thead>${headers}</thead>
-        <tbody>${rows}</tbody>
-      </table>`;
+    return `<table class="mp-funds"><thead>${headers}</thead><tbody>${rows}</tbody></table>`;
+  }
+
+  /** D5 — off-universe overseas funds: name + AUM only (no link; they're not
+   *  in the screener universe). Used for ICICI's dedicated overseas FM. */
+  function _renderOffUniverse(items) {
+    const rows = items.map(it => {
+      const role = it.role === 'lead' ? '<span class="mp-off-role">lead</span>' : '';
+      const aumCell = it.aum_cr != null ? `₹ ${DataLoader.fmtINR(it.aum_cr)}` : '—';
+      return `<tr><td>${escapeHtml(it.scheme_name || '—')} ${role}</td><td class="num">${aumCell}</td></tr>`;
+    }).join('');
+    return `<table class="mp-funds"><thead><tr><th>Fund (overseas, outside this universe)</th><th class="num">AUM ₹ Cr</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
 
   /* -------------------------------------------------------- *
@@ -461,5 +801,40 @@
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
+  }
+
+  /* ============================================================
+   * Stage B B2 — Cycle picker (mirror of fund-detail/compare)
+   * ============================================================ */
+  function initCyclePicker(cycle) {
+    const sel = document.getElementById('mpCycleSel');
+    if (!sel) return;
+    const cur = (cycle && cycle.cycle_meta) ? cycle.cycle_meta.cycle_date : null;
+    Cycle.getCycles().then(cycles => {
+      sel.innerHTML = '';
+      cycles.slice().sort((a, b) => (a.date < b.date ? 1 : -1)).forEach(c => {
+        const o = document.createElement('option');
+        o.value = c.date;
+        o.textContent = DataLoader.fmtCycleLabelDate(c.date);
+        if (c.date === cur) o.selected = true;
+        sel.appendChild(o);
+      });
+    });
+    sel.addEventListener('change', onCycleChange);
+  }
+
+  async function onCycleChange(e) {
+    const newDate = e.target.value;
+    try {
+      await Cycle.setActiveCycle(newDate);
+    } catch (err) {
+      console.warn('[manager-profiles] cycle change failed', err);
+      return;
+    }
+    // Drop ?cycle= so localStorage drives the reloaded page; preserve every
+    // other param (?manager= in particular must survive).
+    const url = new URL(window.location);
+    url.searchParams.delete('cycle');
+    window.location.replace(url.toString());
   }
 })();

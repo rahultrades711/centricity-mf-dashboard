@@ -95,6 +95,58 @@ def _safe_str(v: Any) -> str | None:
     return s if s else None
 
 
+def normalize_manager_name(s: Any) -> str | None:
+    """
+    Stage B A1 (2026-05-28) — canonical manager-name normalisation, applied to
+    every Monitor "Fund Manager" / "[Fund Manager 1]" cell before it lands in
+    `manager_name`.
+
+    Rules (catalogue §7.2 / §7.8 + Rahul lock 2026-05-28):
+      1. Strip leading/trailing whitespace + trailing punctuation (`. , ; :`).
+      2. Title-case each whitespace-separated token: capitalise first letter
+         after a token start OR an internal punctuation boundary
+         (apostrophe / hyphen / dot); lower-case every other letter.
+         So `"D'Silva"` stays `"D'Silva"`, `"V.K. Sharma"` stays `"V.K. Sharma"`,
+         `"harish krishnan"` becomes `"Harish Krishnan"`.
+      3. Preserve all-caps acronyms of length ≤ 4 verbatim (`"TVS"`, `"V.K."`,
+         `"PSU"`).
+      4. **Do NOT reorder tokens.** `"Sharma Vivek"` stays `"Sharma Vivek"`.
+    """
+    if s is None:
+        return None
+    s = str(s).strip().rstrip(".,;:").strip()
+    if not s:
+        return None
+    out_tokens: list[str] = []
+    for tok in s.split():
+        # Preserve short all-caps tokens verbatim (acronyms / initials).
+        # `str.isupper()` returns True if every cased char is uppercase and
+        # there is at least one cased char — so `"V.K."` (cased letters V,K)
+        # qualifies.
+        if len(tok) <= 4 and tok.isupper():
+            out_tokens.append(tok)
+            continue
+        chars: list[str] = []
+        capitalize_next = True
+        # Cowork patch 2026-05-28 — add `()/&` to the cap_next-true set; the
+        # original spec only covered `'-.` which left `(Tata)` → `(tata)` on 3
+        # Tata-AMC funds (149068, 146007, 148050). Brackets, slashes, and
+        # ampersands open a fresh title-case word the same way an apostrophe
+        # or hyphen does (`A & B Cap`, `R/S Sharma`).
+        for ch in tok:
+            if ch in "'-.()/&":
+                chars.append(ch)
+                capitalize_next = True
+            elif ch.isalpha():
+                chars.append(ch.upper() if capitalize_next else ch.lower())
+                capitalize_next = False
+            else:
+                chars.append(ch)
+                capitalize_next = False
+        out_tokens.append("".join(chars))
+    return " ".join(out_tokens)
+
+
 def _round(v: float | None, places: int = 4) -> float | None:
     if v is None:
         return None
@@ -2067,6 +2119,69 @@ def _resample_navs_to_monthly(
     ]
 
 
+def emit_benchmark_nav_file(
+    bm_by_name: dict[str, list[tuple[_dt.date, float]]],
+    cycle_date: _dt.date,
+    out_path: Path,
+) -> None:
+    """
+    Stage B A3 (2026-05-28) — emit a separate `benchmark-nav-YYYY-MM-DD.json`
+    consumed by `fund-detail.js`'s Growth-of-₹1L chart for the benchmark line.
+
+    Per-fund `nav-series-YYYY-MM-DD.json` carries each fund's benchmark series
+    inline (monthly-resampled), which is what the chart originally used. But
+    that file is monthly-only and per-fund-duplicated; the chart needs DAILY
+    values and a single keyed-by-label lookup so multiple funds tracking the
+    same benchmark resolve to one canonical series. This emits that file.
+
+    Source: `bm_by_name` from `load_benchmark_nav(wb)` (workbook 📈 Benchmark
+    NAV sheet — 96 labels) + the 4 INR-converted USD pseudo-series from
+    `_load_inr_converted_series()`. Same alias-fold map as Phase 2.2 Part 2;
+    canonical labels match what the cycle JSON's `fund.benchmark` field uses.
+
+    Schema:
+      { "cycle_date": "YYYY-MM-DD",
+        "source": "📈 Benchmark NAV (workbook) + INR-converted pseudo-series",
+        "series": { "<benchmark label>": [["YYYY-MM-DD", nav], ...], ... } }
+    """
+    series_out: dict[str, list] = {}
+    aliases: dict[str, str] = {}
+    for name, navs in bm_by_name.items():
+        if not navs:
+            continue
+        series_out[name] = [
+            [d.isoformat(), round(v, 4)] for d, v in navs if v is not None
+        ]
+    # Stage B A3 — alias map covers the screener JSON's actual `fund.benchmark`
+    # variants: TRI/PRI suffix drift + uppercase-NIFTY case drift. The workbook
+    # 📈 Benchmark NAV row stores bare titles ("Nifty 50"); the cycle JSON's
+    # `benchmark` field often carries the canonical TRI label ("NIFTY 50 - TRI").
+    # Both `series_out[canonical]` and `series_out[alias]` resolve to the same
+    # daily series so the UI's lookup is a one-liner: `series[fund.benchmark]`.
+    # Phase 2.2 §8 canonical form: `lowercase(strip(" - TRI", " - PRI")).replace(" ","")`.
+    for name in list(series_out.keys()):
+        bare = re.sub(r"\s*-\s*(TRI|PRI)\s*$", "", name, flags=re.IGNORECASE).strip()
+        variants = {
+            bare,
+            bare.upper(),
+            bare + " - TRI",
+            bare.upper() + " - TRI",
+            bare + " - PRI",
+        }
+        for v in variants:
+            if v and v != name and v not in series_out:
+                series_out[v] = series_out[name]
+                aliases[v] = name
+    payload = OrderedDict([
+        ("cycle_date", cycle_date.isoformat()),
+        ("source", "📈 Benchmark NAV (workbook) + INR-converted pseudo-series"),
+        ("aliases", aliases),
+        ("series", series_out),
+    ])
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, separators=(",", ":"))
+
+
 def emit_nav_series_file(
     funds: list[dict],
     nav_by_amfi: dict[int, list[tuple[_dt.date, float]]],
@@ -2202,7 +2317,19 @@ def extract_monitor_data(monitor_path: Path) -> dict:
         # column is the canonical source for `manager_name` (catalogue §7.2 /
         # §7.8). Col index varies per sheet (e.g. col 26 on Aggressive Hybrid;
         # different on others), so resolve by exact header label.
-        c_fm   = H.get("Fund Manager")
+        # Stage B A1 (2026-05-28) — Monitor's EQUITY sheets use the bracketed
+        # variant `[Fund Manager 1]`; HYBRID / arbitrage / solution sheets use
+        # the bracketless `Fund Manager`. Cowork's universe-wide diff found
+        # 600+ equity funds silently falling back to Morningstar because the
+        # original H.get("Fund Manager") only matched the hybrid form. Resolve
+        # by normalising every header label (strip brackets + whitespace,
+        # lower-case) and accepting either variant.
+        c_fm = None
+        for _hdr, _col in H.items():
+            _norm = re.sub(r"[\[\]\s]", "", str(_hdr)).lower()
+            if _norm in ("fundmanager", "fundmanager1"):
+                c_fm = _col
+                break
 
         in_benchmark_section = False
         for r in range(13, ws.max_row + 1):
@@ -2595,10 +2722,11 @@ def build_funds(
         # doesn't carry (typically passives / debt corner cases).
         monitor_row = (monitor_data or {}).get(d["fund_name"]) if d["fund_name"] else None
         monitor_fm_raw = monitor_row.get("fund_manager") if monitor_row else None
-        if isinstance(monitor_fm_raw, str):
-            monitor_fm = monitor_fm_raw.strip() or None
-        else:
-            monitor_fm = None
+        # Stage B A1 (2026-05-28) — apply `normalize_manager_name` so casing /
+        # trailing punctuation drift across Monitor sheets resolves to one
+        # canonical spelling. `"harish krishnan"` → `"Harish Krishnan"`,
+        # `"Deepak Gupta."` → `"Deepak Gupta"`, `"D'Silva"` preserved verbatim.
+        monitor_fm = normalize_manager_name(monitor_fm_raw)
 
         if monitor_fm:
             record["manager_name"] = monitor_fm
@@ -2635,8 +2763,31 @@ def build_funds(
         # in the Morningstar active list (sparse Morningstar coverage),
         # prepend it anyway so the lead always surfaces first. UI's co-strip
         # reads index 1: (lead is rendered separately in the Manager card).
+        # Cowork patch 2026-05-28 — co-manager de-dup by first+last name fold,
+        # not by exact-string equality. Monitor and Morningstar disagree on
+        # middle initials / spellings ("Amit Ganatra" vs "Amit B. Ganatra";
+        # "V. Srivatsa" vs "V Srivatsa") so the original `m != monitor_fm`
+        # check kept both spellings of the same person in the list, which
+        # then leaked into `data/manager-profiles.json` as a key mismatch:
+        # 77 non-passive funds had `manager_name` (Monitor canon) that
+        # didn't resolve in the profile file because the profile was keyed
+        # under the Morningstar long-form alias also present in this list.
+        def _fl(name: str) -> str:
+            # First+last name fold — strip dots/commas (so "V." == "V") so
+            # "V. Srivatsa" matches "V Srivatsa". Middle initials between
+            # first and last are ignored ("Amit Ganatra" matches "Amit B. Ganatra").
+            parts = (name or "").strip().split()
+            if not parts:
+                return ""
+            def _strip(p):
+                return p.lower().replace(".", "").replace(",", "").strip()
+            if len(parts) == 1:
+                return _strip(parts[0])
+            return f"{_strip(parts[0])} {_strip(parts[-1])}"
+
         if monitor_fm:
-            rest = [m for m in (mh_co_managers or []) if m != monitor_fm]
+            mon_fl = _fl(monitor_fm)
+            rest = [m for m in (mh_co_managers or []) if _fl(m) != mon_fl]
             record["manager_co_managers"] = [monitor_fm] + rest
         elif mh_co_managers:
             record["manager_co_managers"] = mh_co_managers
@@ -2694,10 +2845,11 @@ def build_funds(
         record["active_share_pct"] = _round(cm["active_share_pct"], 4)
         record["mcap_goodness"]    = _round(cm["mcap_goodness"], 6)
         record["pe_goodness"]      = _round(cm["pe_goodness"], 6)
-        # v1 stored centricity_rank_overall from CM col B; v2 removes that
-        # column so we set null here and compute the overall rank post-build
-        # by sorting all Ranked funds by centricity_score desc.
-        record["centricity_rank_overall"] = None
+        # Stage B A6 (2026-05-28) — `centricity_rank_overall` removed per §7.3:
+        # the Centricity score is a per-category percentile, so any cross-
+        # category leaderboard is meaningless. Only `centricity_rank_in_category`
+        # is emitted from here on. v1 archive (15-Apr cycle) keeps the field
+        # for backward render compatibility per CLAUDE.md §9 rule 4.
         record["centricity_rank_in_category"] = None  # filled post-pass
         record["centricity_score"] = _round(score_dec, 6) if score_dec is not None else None
         record["centricity_score_status"] = status
@@ -2710,6 +2862,15 @@ def build_funds(
             ("cy_ytd_pct", _round(cm["cy_ytd_pct"], 4)),
             ("cy_ytd_year", cycle_date.year),
         ])
+        # F11 (2026-05-30): this is the CM "Rolling 3Y Avg" cell — null/"—" for a
+        # few funds whose daily NAV spans < 3 years, so no rolling-3Y window
+        # exists. In 2026-05 that's 7 re-coded LIC MF schemes (152009/152001/
+        # 152003/152016/152025/152019/151950): mfapi only carries their NAV from
+        # 2023-07-31 (~2.8 yrs) under the new AMFI codes, even though the funds
+        # are 7–15 yrs old. The point-to-point 3Y (monitor_returns.return_3y_pct)
+        # is fine; only the rolling-3Y average is unavailable. Correctly left
+        # null — NEVER derive from 1Y/5Y or stitch the pre-recode series. See
+        # mf-issues-solutions/SKILL.md §7.13.
         record["rolling_3y_avg_pct"] = _round(cm["rolling_3y_avg_pct"], 4)
         record["consistency_pct"] = _round(cm["consistency_pct"], 4)
         # Latest NAV pulled from the last row of 📈 Fund NAV — used by Fund
@@ -2908,12 +3069,7 @@ def build_funds(
         for i, f in enumerate(ranked, start=1):
             f["centricity_rank_in_category"] = i
 
-    # v2 — compute centricity_rank_overall by sorting all Ranked funds by
-    # score desc. v1 sourced this from CM col B, which is removed in v2.
-    overall_ranked = [f for f in funds if f["centricity_score"] is not None]
-    overall_ranked.sort(key=lambda x: x["centricity_score"], reverse=True)
-    for i, f in enumerate(overall_ranked, start=1):
-        f["centricity_rank_overall"] = i
+    # Stage B A6 (2026-05-28) — cross-category overall rank removed (§7.3).
 
     # Surface benchmark-match summary counts on cycle_meta so the QA report has
     # a single anchor to validate against the Part-1 evidence CSV. Excludes the
@@ -3236,16 +3392,10 @@ def convert(
         for f in lst:
             if f["centricity_score"] is None:
                 f["centricity_rank_in_category"] = None
-    overall_ranked = [f for f in funds if f["centricity_score"] is not None]
-    overall_ranked.sort(key=lambda x: x["centricity_score"], reverse=True)
-    for i, f in enumerate(overall_ranked, start=1):
-        f["centricity_rank_overall"] = i
-    for f in funds:
-        if f["centricity_score"] is None:
-            f["centricity_rank_overall"] = None
+    # Stage B A6 (2026-05-28) — no cross-category overall ranking (§7.3).
     print(
-        f"[converter] §1A re-ranked: overall 1..{len(overall_ranked)}; "
-        f"in-category ranks recomputed for {sum(1 for f in funds if f['centricity_rank_in_category'] is not None)} funds.",
+        f"[converter] §1A re-ranked: in-category ranks recomputed for "
+        f"{sum(1 for f in funds if f['centricity_rank_in_category'] is not None)} funds.",
         file=sys.stderr,
     )
 
@@ -3276,6 +3426,29 @@ def convert(
     for f in funds:
         f.pop("_raw_metrics", None)
 
+    # Stage B A2 / A3 (2026-05-28) — auto-detect `source_dates.analytics` by
+    # globbing `data/analytics-*.json`. Picks the most recent date ≤ cycle.
+    # Survives subsequent converter re-runs (otherwise analytics_date keeps
+    # getting reset to None whenever the screener is regenerated).
+    _cycle_date_for_meta = _dt.date.fromisoformat(cycle_meta["cycle_date"])
+    _analytics_files = sorted(DATA_DIR.glob("analytics-*.json"))
+    _analytics_dates: list[str] = []
+    for _af in _analytics_files:
+        _m = re.match(r"analytics-(\d{4}-\d{2}-\d{2})\.json", _af.name)
+        if _m:
+            try:
+                if _dt.date.fromisoformat(_m.group(1)) <= _cycle_date_for_meta:
+                    _analytics_dates.append(_m.group(1))
+            except ValueError:
+                pass
+    if _analytics_dates:
+        cycle_meta["source_dates"]["analytics"] = max(_analytics_dates)
+        print(
+            f"[converter] source_dates.analytics auto-detected: "
+            f"{cycle_meta['source_dates']['analytics']}",
+            file=sys.stderr,
+        )
+
     output = OrderedDict([
         ("contract_version", contract["contract_version"]),
         ("cycle_meta", cycle_meta),
@@ -3300,6 +3473,16 @@ def convert(
     emit_nav_series_file(funds, nav_by_amfi, bm_by_name, cycle_date_obj, nav_series_path)
     print(
         f"[converter]   wrote {nav_series_path} ({nav_series_path.stat().st_size:,} bytes)",
+        file=sys.stderr,
+    )
+
+    # Stage B A3 — emit the benchmark-nav file keyed by canonical benchmark label.
+    benchmark_nav_path = DATA_DIR / f"benchmark-nav-{cycle_meta['cycle_date']}.json"
+    print(f"[converter] emitting benchmark nav file: {benchmark_nav_path.name}", file=sys.stderr)
+    emit_benchmark_nav_file(bm_by_name, cycle_date_obj, benchmark_nav_path)
+    print(
+        f"[converter]   wrote {benchmark_nav_path} ({benchmark_nav_path.stat().st_size:,} bytes; "
+        f"{len(bm_by_name)} benchmark labels)",
         file=sys.stderr,
     )
 

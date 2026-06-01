@@ -82,6 +82,19 @@
           renderDebtDetail(dFund, debtCycle);
           return;
         }
+      } catch (_) { /* fall through to Other, then not-found */ }
+      // Stage B E1 — Other universe (Commodity / FoF / Solution — Not Scored).
+      // These scheme codes are absent from both scored cycles; try the Other
+      // JSON before declaring the scheme unknown. Independent failure mode.
+      try {
+        const otherCycle = await DataLoader.loadOther();
+        const oFund = (otherCycle.funds || []).find(f => f.scheme_code === schemeCode);
+        if (oFund) {
+          _cycle = otherCycle;
+          _fund  = oFund;
+          renderOtherDetail(oFund, otherCycle);
+          return;
+        }
       } catch (_) { /* fall through to not-found */ }
       renderNotFound(schemeCode);
       return;
@@ -104,10 +117,27 @@
     wireActionButtons(fund);
     wireToc();
     wireRawJsonLink();
+    // E6 — cycle-over-cycle "vs last cycle" block (async; best-effort).
+    renderCycleMovement(fund, cycle);
 
     // Lazy-load extras in parallel
-    loadNavSeries(fund.scheme_code).then(entry => {
+    loadNavSeries(fund.scheme_code).then(async entry => {
       _navSeries = entry;
+      // Stage B B1 — nav-series.bench is empty for many funds because the
+      // workbook 📈 Benchmark NAV row uses bare titles while fund.benchmark
+      // carries TRI/case variants. The separate benchmark-nav file (A3) has
+      // a full alias map that resolves every variant. Pull the daily series
+      // from there and resample to monthly to match the chart's shape.
+      if (!_navSeries.bench || _navSeries.bench.length === 0) {
+        try {
+          const daily = await loadBenchmarkDailySeries(fund.benchmark);
+          if (daily && daily.length > 0) {
+            _navSeries.bench = _dailyToMonthlyShape(daily);
+          }
+        } catch (e) {
+          console.warn('[fund-detail] benchmark-nav unavailable', e);
+        }
+      }
       renderNavChart();
       renderDrawdownChart();
       // Now that bench monthly series is in memory, fill in YTD / 1M / 10Y
@@ -123,7 +153,14 @@
     });
     // Analytics JSON for the Portfolio section (Fix-List 5 §C9 + Fix-List 6 §3)
     loadAnalyticsForFund(fund.scheme_code).then(entry => {
-      renderAnalyticsHoldings(entry);
+      if (entry) {
+        renderAnalyticsHoldings(entry);
+      } else {
+        // File loaded but this fund isn't in it (matched-universe gap):
+        // stamp still shows the cycle's analytics date + an "unavailable"
+        // footnote, rather than the generic "pipeline pending" placeholder.
+        renderAnalyticsUnavailable();
+      }
       // Fix-List 8 Feature 3 — once we know our top-20 holdings, compute
       // top-5 most-similar funds across the analytics file and render the
       // "Similar Funds by Holdings" widget at the bottom of Portfolio.
@@ -216,21 +253,21 @@
         : `—`;
     }
 
-    /* Phase 2.2 §1B — rank is IN-CATEGORY only. Use the converter-computed
-       centricity_rank_in_category directly (canonical, matches screener);
-       N = count of Ranked funds in the category so "rank #1 of 20" doesn't
-       mislead readers into thinking the Warning + New-Fund funds count
-       toward the denominator. */
-    const peerSubCat = (_cycle.funds || []).filter(f => f.category === fund.category);
-    const peerRanked = peerSubCat.filter(f => f.centricity_rank_in_category != null);
-    let rankLine = '';
-    if (fund.centricity_rank_in_category != null && peerRanked.length) {
-      const x = fund.centricity_rank_in_category;
-      const n = peerRanked.length;
-      rankLine = `Ranked <b>#${x}</b> of ${n} in ${escapeHtml(fund.category)} category`;
-    }
+    // F6/F9 — two-row change line (rank is IN-CATEGORY, canonical
+    // centricity_rank_in_category, matches screener Phase 2.2 §1B). Row 1:
+    // "Rank #N in <Category>" (+ ▲/▼ chip when the rank moved vs the prior
+    // cycle, added by renderCycleMovement). Row 2: "vs <prior> · <Mon> Score
+    // <priorScore> · Δ <delta>%" — the verbose "Ranked #N of M in <cat>
+    // category" tail was dropped (Rahul 2026-05-30); the category now lives in
+    // Row 1. Debt/Other don't call renderCycleMovement → the neutral Row 2 stays.
+    const curRankSC = fund.centricity_rank_in_category;
+    const catSC = fund.category ? escapeHtml(fund.category) : '';
+    const rankBase = (curRankSC != null)
+      ? `Rank <b>#${curRankSC}</b>${catSC ? ` in ${catSC}` : ''}`
+      : '';
     document.getElementById('scoreDelta').innerHTML =
-      `Cycle change · — (no prior cycle in archive). ${rankLine}`;
+      `<div id="scoreRankLine" class="score-rank-line">${rankBase}</div>` +
+      `<div class="score-cycle-line"><span id="scoreCycleChange">—</span></div>`;
 
     // Mini grid (4 cells per Fund Detail Fix-List spec)
     const grid = document.getElementById('scoreMiniGrid');
@@ -738,7 +775,16 @@
    * ============================================================ */
   function renderManager(fund) {
     const name = fund.manager_name || '—';
-    document.getElementById('mgrName').textContent = name;
+    // Stage B B1 — lead manager name links to the Manager Profiles page
+    // (same href shape the co-strip already uses below). Falls back to a
+    // plain em-dash if manager_name is missing.
+    const mgrNameEl = document.getElementById('mgrName');
+    if (name && name !== '—') {
+      const href = `manager-profiles.html?manager=${encodeURIComponent(name)}`;
+      mgrNameEl.innerHTML = `<a class="manager-link" href="${href}">${escapeHtml(name)}</a>`;
+    } else {
+      mgrNameEl.textContent = name;
+    }
     document.getElementById('mgrTitle').textContent =
       `${fund.amc || '—'} · Lead Manager · Tenure ${fund.manager_tenure_yrs != null ? DataLoader.fmtNum(fund.manager_tenure_yrs, 1) + ' yrs' : '—'}`;
     document.getElementById('mgrAvatar').textContent = managerInitials(name);
@@ -1297,18 +1343,17 @@
 
     // ---- Strengths ----
     if (fund.centricity_score != null && fund.centricity_score >= 0.80) {
-      const ofN = (cycle.cycle_meta.total_funds || '—').toLocaleString('en-IN');
-      const inCat = fund.centricity_rank_in_category != null ? `#${fund.centricity_rank_in_category} in ${escape(fund.category)}` : null;
-      const overall = fund.centricity_rank_overall != null ? `#${fund.centricity_rank_overall} overall (of ${ofN})` : null;
-      const rankPart = [inCat, overall].filter(Boolean).join(' / ');
-      strengths.push(nrm(`Centricity Score <b>${(fund.centricity_score * 10).toFixed(2)}/10</b>${rankPart ? ' · ' + rankPart : ''}.`));
+      // Stage B A6 — cross-category overall rank removed (§7.3); category rank only.
+      const rankPart = fund.centricity_rank_in_category != null
+        ? `, ranked <b>#${fund.centricity_rank_in_category}</b> in ${escape(fund.category)}` : '';
+      strengths.push(nrm(`Strong Centricity score of <b>${(fund.centricity_score * 10).toFixed(2)}/10</b>${rankPart}.`));
     }
     const rs = fund.rolling_3y_stats;
     if (rs && rs.pct_beat_benchmark != null && rs.pct_beat_benchmark >= 90) {
-      strengths.push(nrm(`Beats benchmark <b>${pct1(rs.pct_beat_benchmark)}</b> of all 3-year rolling windows vs <b>${benchmark}</b>.`));
+      strengths.push(nrm(`Beats its benchmark (<b>${benchmark}</b>) in <b>${pct1(rs.pct_beat_benchmark)}</b> of 3-year rolling windows.`));
     }
     if (rs && rs.pct_above_12 != null && rs.pct_above_12 >= 80) {
-      strengths.push(nrm(`<b>${pct1(rs.pct_above_12)}</b> of rolling 3Y windows delivered &gt; 12% CAGR.`));
+      strengths.push(nrm(`<b>${pct1(rs.pct_above_12)}</b> of those rolling 3Y windows delivered more than 12% CAGR.`));
     }
     const maxDd = fund.risk_metrics ? fund.risk_metrics.max_drawdown_3y_pct : null;
     if (maxDd != null && maxDd > -15) {
@@ -1318,9 +1363,9 @@
       const catDdAvg = catDdVals.length >= 3
         ? catDdVals.reduce((s, v) => s + v, 0) / catDdVals.length : null;
       if (catDdAvg != null && maxDd > catDdAvg) {
-        strengths.push(nrm(`Max 3Y drawdown limited to <b>${pct1(maxDd)}</b> — shallower than category average <b>${pct1(catDdAvg)}</b>.`));
+        strengths.push(nrm(`Max 3Y drawdown limited to <b class="neg">${pct1(maxDd)}</b>, shallower than the category average of <b class="neg">${pct1(catDdAvg)}</b>.`));
       } else {
-        strengths.push(nrm(`Max 3Y drawdown limited to <b>${pct1(maxDd)}</b>.`));
+        strengths.push(nrm(`Max 3Y drawdown limited to <b class="neg">${pct1(maxDd)}</b>.`));
       }
     }
     const a3 = fund.alpha ? fund.alpha.alpha_3y_pct : null;
@@ -1400,6 +1445,9 @@
    * peer lookups for the Category Avg line all read from the same cache.
    * ============================================================ */
   let _navSeriesCache = null;          // full document {cycle_date, series}
+  // Stage B B1 — separate benchmark-nav file keyed by canonical benchmark
+  // label (with TRI/PRI/case alias variants). Lazy-fetched on first use.
+  let _benchmarkNavCache = null;
 
   /**
    * Resolve the full nav-series document (fetched once per page load),
@@ -1416,6 +1464,44 @@
     const entry = _navSeriesCache.series && _navSeriesCache.series[String(schemeCode)];
     if (!entry) throw new Error('scheme not in nav-series');
     return entry;
+  }
+
+  /**
+   * Stage B B1 — fetch the active cycle's `benchmark-nav-<date>.json` (once
+   * per page) and return the daily series for `benchmarkName`, or null when
+   * the benchmark isn't in the file (proxy / absent / unmatched label).
+   * The chart degrades to a fund-only line when this returns null.
+   */
+  async function loadBenchmarkDailySeries(benchmarkName) {
+    if (!benchmarkName) return null;
+    if (!_benchmarkNavCache) {
+      const cycleDate = _cycle.cycle_meta.cycle_date;
+      const url = `data/benchmark-nav-${cycleDate}.json`;
+      const res = await fetch(url, { cache: 'default' });
+      if (!res.ok) throw new Error('benchmark-nav HTTP ' + res.status);
+      _benchmarkNavCache = await res.json();
+    }
+    const series = _benchmarkNavCache.series || {};
+    return series[benchmarkName] || null;
+  }
+
+  /**
+   * Stage B B1 — daily-to-monthly resample (last NAV per calendar month),
+   * matching the shape `_navSeries.bench` expects: `[{d: "YYYY-MM", v: nav}]`.
+   */
+  function _dailyToMonthlyShape(daily) {
+    if (!Array.isArray(daily)) return [];
+    const byMonth = {};
+    for (const item of daily) {
+      if (!item || item.length < 2) continue;
+      const d = String(item[0] || "");
+      const v = item[1];
+      if (!d || v == null) continue;
+      const ym = d.slice(0, 7);
+      const prev = byMonth[ym];
+      if (!prev || prev.dateStr < d) byMonth[ym] = { dateStr: d, val: Number(v) };
+    }
+    return Object.keys(byMonth).sort().map(ym => ({ d: ym, v: byMonth[ym].val }));
   }
 
   function ensureChartJs() {
@@ -1523,6 +1609,10 @@
     // Category Avg — peers' nav-series, normalised to anchor month, mean per date
     const catData = _computeCategoryAvgSeries(labels, anchorYM);
 
+    // F7 — caption / legend / tooltip use the fund's real benchmark name, not
+    // the literal word "Benchmark". Fall back to "Benchmark" when absent.
+    const benchName = (_fund && _fund.benchmark) || 'Benchmark';
+
     const cap = document.getElementById('navChartCaption');
     if (cap) {
       const finalFund  = fundData[fundData.length - 1];
@@ -1532,9 +1622,13 @@
         `₹ 1,00,000 invested on <b>${escapeHtml(anchorLabel)}</b> → ` +
         `Fund: <b>₹ ${DataLoader.fmtINR(finalFund)}</b>` +
         (finalBench != null
-          ? ` · Benchmark: <b>₹ ${DataLoader.fmtINR(finalBench)}</b>`
+          ? ` · ${escapeHtml(benchName)}: <b>₹ ${DataLoader.fmtINR(finalBench)}</b>`
           : '');
     }
+    // F10 — name the legend swatch too (caption + tooltip already named in F7).
+    // Long index names wrap (the legend row already wraps); fallback "Benchmark".
+    const benchLeg = document.getElementById('navLegendBench');
+    if (benchLeg) benchLeg.textContent = benchName;
 
     const ctx = document.getElementById('navChart').getContext('2d');
     if (_navChartInstance) { _navChartInstance.destroy(); _navChartInstance = null; }
@@ -1550,7 +1644,7 @@
         spanGaps: true,
       },
       {
-        label: 'Benchmark', data: benchData,
+        label: benchName, data: benchData,
         borderColor: '#5B8DB8', backgroundColor: 'transparent',
         fill: false, tension: .25, pointRadius: 0, borderWidth: 1.5,
         spanGaps: true,
@@ -1914,22 +2008,27 @@
   let _holdingsFullSource = 'top20';   // 'full' once the full file lands
 
   async function loadAnalyticsForFund(schemeCode) {
-    // Discover the latest analytics file in data/. Right now there's
-    // exactly one (analytics-2026-03-31.json); when v1.x ships monthly,
-    // pick the latest by filename sort.
+    // Route the analytics + holdings-full file paths through the cycle's
+    // declared analytics source-date (cycle_meta.source_dates.analytics) so
+    // the date the dashboard reads is data-driven, never hardcoded. The
+    // loaded file's own `analytics_date` field then drives the "as on …"
+    // stamp. Archived cycles that omit source_dates fall back to the legacy
+    // 2026-03-31 file.
     // Fix-List 9 Feature A — load both the analytics top-20 file (sector
     // donut + concentration metrics) and the full-equity-holdings file
     // (Similar Funds widget). Both fetches run in parallel; the full
     // file is best-effort — if it 404s, _holdingsFullCache stays null
     // and the widget falls back to top-20.
+    const aDate = (_cycle && _cycle.cycle_meta && _cycle.cycle_meta.source_dates
+                   && _cycle.cycle_meta.source_dates.analytics) || '2026-03-31';
     if (!_analyticsCache || _holdingsFullCache === null) {
       const aPromise = _analyticsCache
         ? Promise.resolve(_analyticsCache)
-        : fetch('data/analytics-2026-03-31.json', { cache: 'default' })
+        : fetch(`data/analytics-${aDate}.json`, { cache: 'default' })
             .then(r => (r.ok ? r.json() : Promise.reject(new Error('analytics HTTP ' + r.status))));
       const fPromise = (_holdingsFullCache && typeof _holdingsFullCache === 'object')
         ? Promise.resolve(_holdingsFullCache)
-        : fetch('data/holdings-full-2026-03-31.json', { cache: 'default' })
+        : fetch(`data/holdings-full-${aDate}.json`, { cache: 'default' })
             .then(r => (r.ok ? r.json() : Promise.reject(new Error('holdings-full HTTP ' + r.status))))
             .catch(e => {
               console.warn('[fund-detail] holdings-full unavailable; falling back to top-20', e);
@@ -1937,13 +2036,16 @@
             });
       const [aDoc, fDoc] = await Promise.all([aPromise, fPromise]);
       _analyticsCache = aDoc;
-      _analyticsDate = aDoc.analytics_date || null;
+      _analyticsDate = aDoc.analytics_date || aDate || null;
       _holdingsFullCache = fDoc;
       _holdingsFullSource = fDoc ? 'full' : 'top20';
     }
+    // File loaded but this fund has no analytics row (the ~30 matched-universe
+    // gap funds): resolve to null so the caller can still stamp the cycle's
+    // analytics date and show the "unavailable" footnote. A genuine
+    // file-level fetch failure rejects above and lands in .catch().
     const entry = _analyticsCache.funds && _analyticsCache.funds[String(schemeCode)];
-    if (!entry) throw new Error('scheme not in analytics');
-    return entry;
+    return entry || null;
   }
 
   /** Pull the per-fund holdings list, preferring the full file when it has
@@ -2076,6 +2178,25 @@
     if (empty) empty.hidden = false;
     const list = document.getElementById('sectorList');
     if (list) list.innerHTML = '';
+  }
+
+  /** File loaded but this fund has no analytics row (the ~30 matched-universe
+   *  gap funds, mostly active SBI/UTI/Kotak schemes the analytics name-match
+   *  missed). The "as on …" stamp still reflects the cycle's analytics date;
+   *  the sector + holdings panels render an em-dash with an explanatory
+   *  footnote rather than the generic "pipeline v1.1 pending" placeholder. */
+  function renderAnalyticsUnavailable() {
+    const dateStr = _analyticsDate ? DataLoader.fmtDate(_analyticsDate) : '—';
+    const sectorTitle = document.getElementById('sectorDonutTitle');
+    if (sectorTitle) sectorTitle.textContent = `Sector Allocation · as on ${dateStr}`;
+    const holdingsTitle = document.getElementById('holdingsTitle');
+    if (holdingsTitle) holdingsTitle.textContent = `Top Holdings · as on ${dateStr}`;
+    const empty = document.getElementById('sectorDonutEmpty');
+    if (empty) { empty.hidden = false; empty.textContent = 'Holdings data unavailable for this fund.'; }
+    const list = document.getElementById('sectorList');
+    if (list) list.innerHTML = '';
+    const mount = document.getElementById('holdingsTableMount');
+    if (mount) mount.innerHTML = '<p class="holdings-pending">Holdings data unavailable for this fund.</p>';
   }
 
   /* ============================================================
@@ -2487,9 +2608,13 @@
     link.href = `data/screener-${_cycle.cycle_meta.cycle_date}.json`;
   }
   function renderFooter(cycle) {
-    document.getElementById('footUpdated').textContent =
-      `Last updated · ${cycle.cycle_meta.as_on_display}`;
-    document.getElementById('verdictSubtitle').textContent =
+    // Stage B B4 — null-DOM guard: both elements only exist on the fund-view
+    // path. Picker view + notFound shell don't render them, so the previous
+    // unguarded access threw a TypeError. Guarding keeps the page clean.
+    const footEl = document.getElementById('footUpdated');
+    if (footEl) footEl.textContent = `Last updated · ${cycle.cycle_meta.as_on_display}`;
+    const verdictEl = document.getElementById('verdictSubtitle');
+    if (verdictEl) verdictEl.textContent =
       `Updated ${cycle.cycle_meta.as_on_display} · Authored by the Centricity Investment Committee`;
   }
 
@@ -2503,6 +2628,241 @@
         <h3>Could not load cycle data</h3>
         <p>Serve via <code>python -m http.server</code> rather than opening the file directly.<br><span style="color:var(--red)">${escapeHtml((err && err.message) || String(err))}</span></p>
         <p><a class="btn primary" href="screener.html">Back to Screener</a></p>
+      </div>`;
+  }
+
+  /* ============================================================
+   * E6 — Cycle-over-cycle "vs last cycle" block (#changed)
+   * ============================================================
+   * Populates the #changedGrid for the Equity/Hybrid one-pager: AUM / rank /
+   * #holdings / risk deltas vs the prior cycle, plus the top-20 holdings
+   * weight-% movers (increases, decreases, entered, exited). Holdings deltas
+   * are WEIGHT-% changes (share counts aren't in the data). Best/worst stock
+   * performer is omitted + flagged (no stock-level returns this cycle).
+   * Best-effort: every sub-block degrades to "—" / omits if data is missing.
+   */
+  async function renderCycleMovement(fund, cycle) {
+    const grid = document.getElementById('changedGrid');
+    const sub  = document.querySelector('#changed .h-sub');
+    if (!grid) return;
+
+    let manifest;
+    try { manifest = await Cycle.getManifest(); } catch (e) { return; }
+    const cycles = (manifest.cycles || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1));
+    const idx = cycles.findIndex(c => c.date === cycle.cycle_meta.cycle_date);
+    const priorEntry = idx >= 0 && idx < cycles.length - 1 ? cycles[idx + 1] : null;
+    if (!priorEntry) {
+      // STATE C — genuinely no prior cycle (this IS the earliest archived cycle).
+      // Row 1 ("Rank #N") base + the "Ranked #N of M" tail stay from renderScoreCard.
+      _setScoreCycleChange('earliest cycle in archive');
+      return;   // keep the static "no prior cycle" placeholder in #changed
+    }
+
+    const cf = fund.cycle_flags || {};
+    if (sub) sub.textContent = `Versus the ${DataLoader.fmtCycleLabelDate(priorEntry.date)} cycle.`;
+
+    if (cf.is_new_in_cycle) {
+      // STATE B — new this cycle: no vs-prior, no score delta.
+      _setScoreCycleChange('New this cycle');
+      grid.innerHTML = `
+        <div class="empty-state" style="grid-column:1/-1">
+          <div class="ring-motif" aria-hidden="true"></div>
+          <h3>New this cycle</h3>
+          <p>This fund first appears in the ${escapeHtml(DataLoader.fmtCycleLabelDate(cycle.cycle_meta))} cycle — there is no prior-cycle record to compare against.</p>
+        </div>`;
+      return;
+    }
+
+    // Prior cycle (fund record for rank/risk + its analytics source-date).
+    let priorFund = null, priorMeta = null;
+    try {
+      const pc = await DataLoader.loadCycle(priorEntry.date);
+      priorMeta = pc.cycle_meta;
+      priorFund = (pc.funds || []).find(f => f.scheme_code === fund.scheme_code) || null;
+    } catch (e) { /* degrade */ }
+
+    // Analytics holdings — current + prior (weight-% diff + holdings count).
+    const curADate = (cycle.cycle_meta.source_dates && cycle.cycle_meta.source_dates.analytics) || _analyticsDate;
+    const priADate = priorMeta && priorMeta.source_dates ? priorMeta.source_dates.analytics : null;
+    const [curA, priA] = await Promise.all([
+      _fetchAnalyticsFund(curADate, fund.scheme_code),
+      _fetchAnalyticsFund(priADate, fund.scheme_code),
+    ]);
+
+    /* ---- metric deltas ---- */
+    const cards = [];
+    // E7 — Centricity Score movement (current vs prior; higher is better).
+    const curScore = fund.centricity_score;
+    const priScore = priorFund ? priorFund.centricity_score : null;
+    const scoreDelta = (typeof curScore === 'number' && typeof priScore === 'number')
+      ? +((curScore - priScore) * 100).toFixed(1) : null;
+    cards.push(_movementCard('Centricity Score',
+      curScore != null ? DataLoader.fmtScorePct(curScore) : '—',
+      priScore != null ? DataLoader.fmtScorePct(priScore) : '—',
+      scoreDelta, 'pp', /*higherIsGood*/ true));
+    // AUM (from cycle_flags, E2)
+    cards.push(_movementCard('AUM (₹ Cr)',
+      cf.aum_cr_current != null ? '₹ ' + DataLoader.fmtINR(cf.aum_cr_current) : (fund.aum_cr != null ? '₹ ' + DataLoader.fmtINR(fund.aum_cr) : '—'),
+      cf.aum_cr_prior != null ? '₹ ' + DataLoader.fmtINR(cf.aum_cr_prior) : '—',
+      cf.aum_change_pct != null ? cf.aum_change_pct : null, 'pct', /*higherIsGood*/ true));
+    // Rank in category (lower is better)
+    const curRank = fund.centricity_rank_in_category;
+    const priRank = priorFund ? priorFund.centricity_rank_in_category : null;
+    const rankDelta = (typeof curRank === 'number' && typeof priRank === 'number') ? (curRank - priRank) : null;
+    cards.push(_movementCard('Rank in category',
+      curRank != null ? '#' + curRank : '—',
+      priRank != null ? '#' + priRank : '—',
+      rankDelta, 'rank', /*higherIsGood*/ false));
+    // # Holdings (from analytics total_holdings_count)
+    const curN = curA ? curA.total_holdings_count : (fund.no_of_stocks != null ? fund.no_of_stocks : null);
+    const priN = priA ? priA.total_holdings_count : (priorFund ? priorFund.no_of_stocks : null);
+    const nDelta = (typeof curN === 'number' && typeof priN === 'number') ? (curN - priN) : null;
+    cards.push(_movementCard('No. of holdings',
+      curN != null ? String(curN) : '—', priN != null ? String(priN) : '—', nDelta, 'int', null));
+    // Std Dev 3Y (lower is better)
+    const curSd = fund.risk_metrics ? fund.risk_metrics.std_dev_3y_pct : null;
+    const priSd = priorFund && priorFund.risk_metrics ? priorFund.risk_metrics.std_dev_3y_pct : null;
+    const sdDelta = (typeof curSd === 'number' && typeof priSd === 'number') ? +(curSd - priSd).toFixed(2) : null;
+    cards.push(_movementCard('Std Dev 3Y',
+      curSd != null ? DataLoader.fmtNum(curSd, 2) + '%' : '—',
+      priSd != null ? DataLoader.fmtNum(priSd, 2) + '%' : '—', sdDelta, 'pp', false));
+
+    /* ---- F6 STATE A: two-row score-card change line (same prior-cycle data).
+       Row 1 = rank + ▲/▼ chip (override the base to add the chip when moved);
+       Row 2 = vs <prior> · prior score · score delta%. ---- */
+    _setScoreRankLine(_scoreRankRow(curRank, priRank, rankDelta, fund.category));
+    _setScoreCycleChange(_scoreCycleRow(priorEntry.date, priScore, scoreDelta));
+
+    /* ---- top-20 holdings weight-% diff ---- */
+    const holdingsHtml = _holdingsDiffHtml(curA, priA);
+
+    /* ---- best/worst performer — omitted + flagged (no stock returns) ---- */
+    const perfNote = `<div class="cm-note"><b>Best / worst holding by return:</b> not shown — stock-level period returns aren't in this cycle's holdings data.</div>`;
+
+    grid.innerHTML = `
+      <div class="cm-cards" style="grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;">
+        ${cards.join('')}
+      </div>
+      ${holdingsHtml}
+      ${perfNote}`;
+  }
+
+  /* F3 — the hero score-card "Cycle change" line, routed through the same
+   * prior-cycle data renderCycleMovement uses (fixes the false "no prior cycle
+   * in archive"). Shows rank + score movement with brand arrows. */
+  function _setScoreRankLine(html) {
+    const el = document.getElementById('scoreRankLine');
+    if (el) el.innerHTML = html;
+  }
+  function _setScoreCycleChange(html) {
+    const el = document.getElementById('scoreCycleChange');
+    if (el) el.innerHTML = html;
+  }
+  /* F6/F9 Row 1 — "Rank #N in <Category>" + a ▲/▼ chip when the in-category rank
+   * MOVED vs the prior cycle (green ▲ improved / red ▼ dropped). White-on-brand-
+   * colour chips read on the black score card (≈10:1); plain brand red/green
+   * text would be ~2:1. Unchanged → just "Rank #N in <Category>", no chip. */
+  function _scoreRankRow(curRank, priRank, rankDelta, category) {
+    if (curRank == null) return '';
+    const cat = category ? ` in ${escapeHtml(category)}` : '';
+    let html = `Rank <b>#${curRank}</b>${cat}`;
+    if (typeof priRank === 'number' && typeof rankDelta === 'number' && rankDelta !== 0) {
+      const chip = rankDelta < 0
+        ? `<span class="sc-chip up">▲${Math.abs(rankDelta)}</span>`
+        : `<span class="sc-chip down">▼${rankDelta}</span>`;
+      html += ` ${chip} (was #${priRank})`;
+    }
+    return html;
+  }
+  /* F9 Row 2 lead — "vs <prior> · <Mon> Score <priorScore> · Δ <delta>%". The
+   * two tokens are now self-describing (was "Score … · Score …"): prior-cycle
+   * absolute prefixed with its short month, delta as "Δ". Chip + "%" (per
+   * Rahul) kept; green/red by sign; 0 → "Δ flat". Score parts omitted when the
+   * fund carries no score (index/passive). */
+  function _scoreCycleRow(priorDate, priScore, scoreDelta) {
+    const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const label = DataLoader.fmtCycleLabelDate(priorDate);
+    const moIdx = parseInt(String(priorDate).split('-')[1], 10) - 1;
+    const mo = (moIdx >= 0 && moIdx < 12) ? MON[moIdx] : '';
+    const parts = [`vs ${escapeHtml(label)}`];
+    if (typeof priScore === 'number') parts.push(`${mo ? mo + ' ' : ''}Score ${DataLoader.fmtScorePct(priScore)}`);
+    if (typeof scoreDelta === 'number' && scoreDelta !== 0) {
+      const up = scoreDelta > 0;
+      parts.push(`Δ <span class="sc-chip ${up ? 'up' : 'down'}">${up ? '+' : '−'}${Math.abs(scoreDelta).toFixed(1)}%</span>`);
+    } else if (scoreDelta === 0) {
+      parts.push('Δ flat');
+    }
+    return parts.join(' · ');
+  }
+
+  async function _fetchAnalyticsFund(aDate, schemeCode) {
+    if (!aDate) return null;
+    try {
+      const res = await fetch(`data/analytics-${aDate}.json`, { cache: 'default' });
+      if (!res.ok) return null;
+      const doc = await res.json();
+      return (doc.funds && doc.funds[String(schemeCode)]) || null;
+    } catch (e) { return null; }
+  }
+
+  /** One metric card: current value (big), prior (small), signed delta chip
+   *  coloured by whether the move was good/bad (higherIsGood toggles sign). */
+  function _movementCard(label, curStr, priStr, delta, kind, higherIsGood) {
+    let chip = '<span class="cm-delta cm-flat">—</span>';
+    if (delta != null && !isNaN(delta) && delta !== 0) {
+      const up = delta > 0;
+      // good = (up && higherIsGood) || (down && !higherIsGood); rank/risk: lower better.
+      const good = higherIsGood == null ? null : (up === !!higherIsGood);
+      const cls = good == null ? 'cm-flat' : (good ? 'cm-good' : 'cm-bad');
+      let txt;
+      if (kind === 'pct')      txt = (up ? '+' : '−') + Math.abs(delta).toFixed(1) + '%';
+      else if (kind === 'pp')  txt = (up ? '+' : '−') + Math.abs(delta).toFixed(2) + ' pp';
+      else if (kind === 'rank') txt = (delta < 0 ? '▲' : '▼') + Math.abs(delta); // rank improved = up-arrow
+      else                      txt = (up ? '+' : '−') + Math.abs(delta);
+      chip = `<span class="cm-delta ${cls}">${txt}</span>`;
+    }
+    return `
+      <div class="cm-card" style="border:1px solid var(--rule);border-radius:8px;padding:12px 14px;background:#fff;">
+        <div class="cm-card-lbl" style="font-size:11px;color:var(--text-mid);text-transform:uppercase;letter-spacing:.04em;">${escapeHtml(label)}</div>
+        <div class="cm-card-val" style="font-size:20px;font-weight:700;margin:4px 0 2px;">${curStr}</div>
+        <div style="font-size:11.5px;color:var(--text-mid);">was ${priStr} ${chip}</div>
+      </div>`;
+  }
+
+  /** Top-20 holdings weight-% movement: top-3 up, top-3 down, entered, exited. */
+  function _holdingsDiffHtml(curA, priA) {
+    const curH = (curA && curA.top_20_holdings) || [];
+    const priH = (priA && priA.top_20_holdings) || [];
+    if (!curH.length || !priH.length) {
+      return `<div class="cm-note" style="grid-column:1/-1">Top-holdings weight comparison unavailable for one of the two cycles.</div>`;
+    }
+    const curMap = new Map(curH.map(h => [h.company, h.holding_pct]));
+    const priMap = new Map(priH.map(h => [h.company, h.holding_pct]));
+    const common = [];
+    curMap.forEach((cv, name) => {
+      if (priMap.has(name)) common.push({ name, delta: +(cv - priMap.get(name)).toFixed(2), cur: cv, prior: priMap.get(name) });
+    });
+    const ups = common.filter(x => x.delta > 0).sort((a, b) => b.delta - a.delta).slice(0, 3);
+    const downs = common.filter(x => x.delta < 0).sort((a, b) => a.delta - b.delta).slice(0, 3);
+    const entered = curH.filter(h => !priMap.has(h.company)).slice(0, 5);
+    const exited  = priH.filter(h => !curMap.has(h.company)).slice(0, 5);
+
+    const wRow = (name, val, cls, sign) =>
+      `<div class="cm-h-row"><span class="cm-h-name">${escapeHtml(name)}</span><span class="cm-h-val ${cls}">${sign}${Math.abs(val).toFixed(2)} pp</span></div>`;
+    const nameRow = (h) => `<div class="cm-h-row"><span class="cm-h-name">${escapeHtml(h.company)}</span><span class="cm-h-val">${DataLoader.fmtNum(h.holding_pct, 2)}%</span></div>`;
+
+    const col = (title, inner) =>
+      `<div class="cm-h-col"><div class="cm-h-title">${title}</div>${inner || '<div class="cm-h-row"><span class="cm-h-name">—</span></div>'}</div>`;
+
+    return `
+      <div class="cm-holdings" style="grid-column:1/-1;">
+        <div class="cm-h-head">Top-20 holdings · weight-% change <span class="cm-h-sub">(change in portfolio weight, not share count)</span></div>
+        <div class="cm-h-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:8px;">
+          ${col('Weight ▲', ups.map(x => wRow(x.name, x.delta, 'cm-good', '+')).join(''))}
+          ${col('Weight ▼', downs.map(x => wRow(x.name, x.delta, 'cm-bad', '−')).join(''))}
+          ${col('Entered top-20', entered.map(nameRow).join(''))}
+          ${col('Exited top-20', exited.map(nameRow).join(''))}
+        </div>
       </div>`;
   }
 
@@ -2528,6 +2888,94 @@
     document.getElementById('notFoundHeading').textContent = 'Fund not available in this cycle';
     document.getElementById('notFoundBody').textContent =
       `This fund (scheme code ${scheme}) did not exist in the ${DataLoader.fmtCycleLabelDate(_cycle.cycle_meta)} cycle. Switch to a later cycle using the dropdown above to view its report.`;
+  }
+
+  /* ============================================================
+   * OTHER-FUND DETAIL (Stage B E1 — Commodity / FoF / Solution, Not Scored)
+   * ============================================================
+   * Minimal report card: hero facts + trailing returns + a "Not Scored"
+   * notice. No score card, no holdings/risk/competition analytics, and no
+   * NAV chart (the Other JSON ships no NAV series — the chart is omitted
+   * rather than drawn empty).
+   */
+  function renderOtherDetail(fund, cycle) {
+    const m = cycle.cycle_meta || {};
+    const asOn = m.as_on_display || '15 May 2026';
+    const klass = fund.sub_category_class || 'Other';
+
+    const eyebrow = document.getElementById('heroEyebrow');
+    if (eyebrow) eyebrow.innerHTML =
+      `Fund Report · ${escapeHtml(klass)} · Not Scored · NAV as on ${escapeHtml(asOn)}`;
+
+    const name = fund.fund_name || 'Fund';
+    const parts = name.trim().split(/\s+/);
+    let titleHtml;
+    if (parts.length > 1) {
+      const last = parts.pop();
+      titleHtml = `${escapeHtml(parts.join(' '))} <em>${escapeHtml(last)}</em>`;
+    } else {
+      titleHtml = escapeHtml(name);
+    }
+    const titleEl = document.getElementById('fundTitle');
+    if (titleEl) titleEl.innerHTML = titleHtml;
+    const crumbEl = document.getElementById('crumbName');
+    if (crumbEl) crumbEl.textContent = name;
+
+    const aumStr = fund.aum_cr != null ? `₹ ${DataLoader.fmtINR(fund.aum_cr)} Cr` : '—';
+    const terStr = fund.ter_pct != null ? `${DataLoader.fmtNum(fund.ter_pct, 2)}%` : '—';
+    const navStr = fund.nav_latest_value != null ? `₹ ${DataLoader.fmtNum(fund.nav_latest_value, 4)}` : '—';
+    const cells = [
+      ['',            fund.amc || '—'],
+      ['Category',    fund.category || '—'],
+      ['Asset class', klass],
+      ['Scheme',      fund.scheme_code || '—'],
+      ['AUM',         aumStr],
+      ['TER',         terStr],
+      ['NAV',         navStr],
+      ['Inception',   fund.inception_date ? escapeHtml(String(fund.inception_date)) : '—'],
+      ['Manager',     fund.manager_name || '—'],
+    ];
+    const meta = document.getElementById('heroMeta');
+    if (meta) meta.innerHTML = cells
+      .map(([k, v]) => k
+        ? `<span>${escapeHtml(k)} · <b>${escapeHtml(String(v))}</b></span>`
+        : `<span><b>${escapeHtml(String(v))}</b></span>`)
+      .join('');
+
+    // No score / actions / TOC for a Not-Scored fund.
+    const scoreCard = document.getElementById('scoreCard');
+    if (scoreCard) scoreCard.style.display = 'none';
+    const actions = document.querySelector('.hero-actions');
+    if (actions) actions.style.display = 'none';
+    const toc = document.querySelector('aside.toc');
+    if (toc) toc.style.display = 'none';
+
+    const tr = fund.trailing_returns || {};
+    const rcell = v => `<td class="${pctCls(v)}">${DataLoader.fmtPct(v)}</td>`;
+    const isinBit = fund.isin ? `ISIN ${escapeHtml(fund.isin)} · ` : '';
+    const content = document.querySelector('.report-content');
+    if (content) content.innerHTML = `
+      <section class="block">
+        <div style="border:1px solid rgba(189,149,104,.35);background:rgba(219,200,178,.18);border-radius:12px;padding:16px 18px;margin-bottom:24px;">
+          <b>Not Scored this cycle.</b> ${escapeHtml(klass)} funds in the commodity / fund-of-funds / solution universe are carried for <em>screening only</em> — they receive no Centricity Score or category rank. Facts &amp; returns below are as on ${escapeHtml(asOn)}; missing values show “—”.
+        </div>
+        <h2>Trailing <em>Returns</em></h2>
+        <div class="perf-table-wrap">
+          <table class="perf">
+            <thead><tr><th>1Y</th><th>3Y</th><th>5Y</th><th>Since Inception</th></tr></thead>
+            <tbody><tr>
+              ${rcell(tr.return_1y_pct)}${rcell(tr.return_3y_pct)}${rcell(tr.return_5y_pct)}${rcell(tr.return_si_pct)}
+            </tr></tbody>
+          </table>
+        </div>
+        <p class="h-sub" style="margin-top:14px;">Annualised trailing returns (≥ 1Y) from the validated whitelisting workbook. ${isinBit}AMFI&nbsp;#${fund.scheme_code}.</p>
+      </section>`;
+
+    const link = document.getElementById('rawJsonLink');
+    if (link) link.href = `data/other-${m.cycle_date || '2026-05-15'}.json`;
+
+    wireBreadcrumb(fund);
+    renderFooter(cycle);
   }
 
   /* ============================================================
@@ -2588,11 +3036,11 @@
             <tbody>
               ${(cycle.funds || [])
                 .filter(f => f.centricity_score_status === 'Ranked')
-                .sort((a, b) => (a.centricity_rank_overall || 9999) - (b.centricity_rank_overall || 9999))
+                .sort((a, b) => (b.centricity_score || 0) - (a.centricity_score || 0))
                 .slice(0, 25)
-                .map(f => `
+                .map((f, i) => `
                   <tr style="cursor:pointer" onclick="window.location.href='fund-detail.html?scheme=${f.scheme_code}'">
-                    <td>${f.centricity_rank_overall ?? '—'}</td>
+                    <td>${i + 1}</td>
                     <td class="row-fund-cell"><b>${escapeHtml(f.fund_name)}</b><div style="font-size:11px;color:var(--text-mid);">${escapeHtml(f.amc || '')} · #${f.scheme_code}</div></td>
                     <td>${escapeHtml(f.category)}</td>
                     <td class="${pctCls(f.trailing_returns?.return_1y_pct)}">${DataLoader.fmtPct(f.trailing_returns?.return_1y_pct)}</td>

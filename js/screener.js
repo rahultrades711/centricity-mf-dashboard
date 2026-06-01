@@ -46,7 +46,9 @@
   let _cycle = null;             // current cycle JSON for whichever family is active
   let _eqhCycle = null;          // cached MF_Equity_Hybrid cycle
   let _debtCycle = null;         // cached MF_Debt cycle (lazy-loaded on first switch)
-  let _family = 'eqh';           // 'eqh' or 'debt'
+  let _commodityCycle = null;    // synthesized Commodity family (from MF_Other, lazy)
+  let _otherCycle = null;        // cached MF_Other JSON (Commodity/FoF/Solution — Not Scored)
+  let _family = 'eqh';           // 'eqh' | 'debt' | 'commodity'
 
   let _allFunds = [];
   let _filteredFunds = [];
@@ -164,6 +166,21 @@
     },
   ];
 
+  // ----- Commodity family (MF_Other → Commodity, Not Scored) -----
+  // Commodity funds carry only AUM / TER / trailing returns / NAV — no risk
+  // ratios, no centricity score, no sectors. Minimal screen-only config.
+  const RANGE_CONFIG_COMMODITY = [
+    AUM_RANGE,
+    { id: 'rngR1', key: 'return_1y_pct', label: '1Y', accessor: f => f.trailing_returns ? f.trailing_returns.return_1y_pct : null, kind: 'pct', step: 0.5 },
+    { id: 'rngR3', key: 'return_3y_pct', label: '3Y', accessor: f => f.trailing_returns ? f.trailing_returns.return_3y_pct : null, kind: 'pct', step: 0.5 },
+    { id: 'rngR5', key: 'return_5y_pct', label: '5Y', accessor: f => f.trailing_returns ? f.trailing_returns.return_5y_pct : null, kind: 'pct', step: 0.5 },
+    { id: 'rngTer', key: 'ter_pct', label: 'TER', accessor: f => f.ter_pct, kind: 'pct-pos', step: 0.05 },
+  ];
+  const SECTIONS_COMMODITY = [
+    { key: 'returns', title: 'Returns Filters', slider_keys: ['return_1y_pct', 'return_3y_pct', 'return_5y_pct'] },
+    { key: 'cost', title: 'Cost', slider_keys: ['ter_pct'] },
+  ];
+
   function debtHighGradePct(f) {
     if (!f || !f.credit_quality) return null;
     const sov = f.credit_quality.sov;
@@ -193,11 +210,11 @@
       sortable: false,
       sortValue: () => null,
       text: f => `<input type="checkbox" class="row-check" data-scheme="${f.scheme_code}"${_selected.has(f.scheme_code) ? ' checked' : ''} aria-label="Select for compare">` },
-    { key: 'rank',     label: 'Cat Rank',       align: 'center', cls: 'col-rank',
+    { key: 'rank',     label: 'Rank',           align: 'center', cls: 'col-rank',
       sortable: true,
       sortValue: f => f._displayRank,
       text: f => `<span class="num">${f._displayRank != null ? f._displayRank : '—'}</span>`,
-      titleHelp: 'Rank within SEBI category under current weights. Cross-category ranks are not comparable (the Centricity score is a per-category percentile).' },
+      titleHelp: 'Rank by Centricity score across the current selection.' },
     { key: 'name',     label: 'Fund Name',      align: 'left',   cls: 'col-name',
       sortable: true,
       sortValue: f => (f.fund_name || '').toLowerCase(),
@@ -363,26 +380,68 @@
     { value: 'manager_tenure_yrs',     label: 'Manager Tenure', group: 'Identification', kind: 'num', suffix: ' yrs' },
   ];
 
+  /* ---------- table column config — Commodity (Not Scored) ---------- */
+  const DEFAULT_COLUMNS_COMMODITY = [
+    { key: '_check',   label: '',          align: 'center', cls: 'col-check', sortable: false,
+      sortValue: () => null,
+      text: f => `<input type="checkbox" class="row-check" data-scheme="${f.scheme_code}"${_selected.has(f.scheme_code) ? ' checked' : ''} aria-label="Select for compare">` },
+    { key: 'name',     label: 'Fund Name', align: 'left', cls: 'col-name', sortable: true,
+      sortValue: f => (f.fund_name || '').toLowerCase(),
+      text: f => `<a class="fund-name-link" href="fund-detail.html?scheme=${f.scheme_code}">${escapeHtml(f.fund_name)}</a>` },
+    { key: 'category', label: 'Category',   align: 'center', sortable: true,
+      sortValue: f => (f.category || '').toLowerCase(),
+      text: f => escapeHtml(f.category || '—') },
+    { key: 'aum',      label: 'AUM ₹ Cr',   align: 'center', sortable: true,
+      sortValue: f => f.aum_cr,
+      text: f => `₹ ${DataLoader.fmtINR(f.aum_cr)}` },
+    { key: 'ter',      label: 'TER',        align: 'center', sortable: true,
+      sortValue: f => f.ter_pct,
+      text: f => f.ter_pct != null ? `${DataLoader.fmtNum(f.ter_pct, 2)}%` : '—' },
+    { key: 'r1',       label: '1Y',         align: 'center', neg: true, sortable: true,
+      sortValue: f => f.trailing_returns ? f.trailing_returns.return_1y_pct : null,
+      pickRaw:   f => f.trailing_returns ? f.trailing_returns.return_1y_pct : null,
+      text: f => fmtPctCell(f.trailing_returns ? f.trailing_returns.return_1y_pct : null) },
+    { key: 'r3',       label: '3Y',         align: 'center', neg: true, sortable: true,
+      sortValue: f => f.trailing_returns ? f.trailing_returns.return_3y_pct : null,
+      pickRaw:   f => f.trailing_returns ? f.trailing_returns.return_3y_pct : null,
+      text: f => fmtPctCell(f.trailing_returns ? f.trailing_returns.return_3y_pct : null) },
+    { key: 'r5',       label: '5Y',         align: 'center', neg: true, sortable: true,
+      sortValue: f => f.trailing_returns ? f.trailing_returns.return_5y_pct : null,
+      pickRaw:   f => f.trailing_returns ? f.trailing_returns.return_5y_pct : null,
+      text: f => fmtPctCell(f.trailing_returns ? f.trailing_returns.return_5y_pct : null) },
+    { key: 'si',       label: 'SI',         align: 'center', neg: true, sortable: true,
+      sortValue: f => f.trailing_returns ? f.trailing_returns.return_si_pct : null,
+      pickRaw:   f => f.trailing_returns ? f.trailing_returns.return_si_pct : null,
+      text: f => fmtPctCell(f.trailing_returns ? f.trailing_returns.return_si_pct : null) },
+  ];
+  const EXTRA_COLS_COMMODITY = [
+    { value: 'underlying_metal',    label: 'Underlying Metal', group: 'Commodity',      kind: 'string' },
+    { value: 'nav_latest_value',    label: 'NAV',              group: 'Commodity',      kind: 'num' },
+    { value: 'trailing_returns.return_si_pct', label: 'SI %',  group: 'Returns',        kind: 'pct', neg: true },
+    { value: 'amc',                 label: 'AMC',              group: 'Identification', kind: 'string' },
+    { value: 'manager_name',        label: 'Manager Name',     group: 'Identification', kind: 'string' },
+    { value: 'inception_date',      label: 'Inception Date',   group: 'Identification', kind: 'date-str' },
+  ];
+
   /* ---------- family-aware config accessors ---------- */
-  function rangeConfig()  { return _family === 'debt' ? RANGE_CONFIG_DEBT : RANGE_CONFIG_EQH; }
-  function sections()     { return _family === 'debt' ? SECTIONS_DEBT    : SECTIONS_EQH; }
-  function defaultCols()  { return _family === 'debt' ? DEFAULT_COLUMNS_DEBT : DEFAULT_COLUMNS_EQH; }
-  function extraColsLib() { return _family === 'debt' ? EXTRA_COLS_DEBT  : EXTRA_COLS_EQH; }
+  function rangeConfig()  { return _family === 'debt' ? RANGE_CONFIG_DEBT : _family === 'commodity' ? RANGE_CONFIG_COMMODITY : RANGE_CONFIG_EQH; }
+  function sections()     { return _family === 'debt' ? SECTIONS_DEBT    : _family === 'commodity' ? SECTIONS_COMMODITY    : SECTIONS_EQH; }
+  function defaultCols()  { return _family === 'debt' ? DEFAULT_COLUMNS_DEBT : _family === 'commodity' ? DEFAULT_COLUMNS_COMMODITY : DEFAULT_COLUMNS_EQH; }
+  function extraColsLib() { return _family === 'debt' ? EXTRA_COLS_DEBT  : _family === 'commodity' ? EXTRA_COLS_COMMODITY  : EXTRA_COLS_EQH; }
 
   /* ---------- bootstrap ---------- */
   document.addEventListener('DOMContentLoaded', main);
 
   async function main() {
-    // Asset-class tile selection drives the family. URL ?ac=debt opens debt
-    // directly; otherwise we start in the original eqh universe.
-    const initialFamily = readAssetClassFromUrl() === 'debt' ? 'debt' : 'eqh';
+    // Asset-class tile selection drives the family. URL ?ac=debt opens debt,
+    // ?ac=commodity opens the Commodity family; otherwise the eqh universe.
+    const urlAc = readAssetClassFromUrl();
+    const initialFamily = (urlAc === 'debt' || urlAc === 'commodity') ? urlAc : 'eqh';
 
     try {
-      if (initialFamily === 'eqh') {
-        await ensureEqhCycle();
-      } else {
-        await ensureDebtCycle();
-      }
+      if (initialFamily === 'eqh')            await ensureEqhCycle();
+      else if (initialFamily === 'debt')      await ensureDebtCycle();
+      else if (initialFamily === 'commodity') await ensureCommodityCycle();
     } catch (err) {
       renderLoadError(err);
       return;
@@ -406,6 +465,7 @@
     if (!p.has('ac')) return null;
     const vals = p.get('ac').split(',').map(s => s.trim().toLowerCase());
     if (vals.includes('debt')) return 'debt';
+    if (vals.includes('commodity')) return 'commodity';
     return null;
   }
 
@@ -413,13 +473,79 @@
     if (_eqhCycle) return _eqhCycle;
     const initialDate = await Cycle.getActiveCycle();
     _eqhCycle = await DataLoader.loadCycle(initialDate);
+    await ensureOther();   // so eq/hybrid Other funds merge + tile counts populate
     return _eqhCycle;
   }
 
   async function ensureDebtCycle() {
     if (_debtCycle) return _debtCycle;
     _debtCycle = await DataLoader.loadDebtCycle();   // picks latest
+    await ensureOther();
     return _debtCycle;
+  }
+
+  async function ensureCommodityCycle() {
+    if (_commodityCycle) return _commodityCycle;
+    await ensureOther();
+    const funds = otherByClass('Commodity');
+    const meta = (_otherCycle && _otherCycle.cycle_meta) || {};
+    _commodityCycle = {
+      cycle_meta: {
+        product_family: 'MF_Other',
+        cycle_date: meta.cycle_date || '2026-05-15',
+        total_funds: funds.length,
+        category_count: new Set(funds.map(f => f.category).filter(Boolean)).size,
+        as_on_display: meta.as_on_display || '15 May 2026',
+      },
+      funds,
+    };
+    return _commodityCycle;
+  }
+
+  /**
+   * Load + cache the MF_Other universe (Commodity / FoF / Solution / Other
+   * Misc — Not Scored). Merged into the asset-class families by
+   * `sub_category_class`. Best-effort: a load failure leaves the scored
+   * universes intact (Other funds simply don't appear).
+   */
+  async function ensureOther() {
+    if (_otherCycle) return _otherCycle;
+    try {
+      _otherCycle = await DataLoader.loadOther();
+    } catch (e) {
+      console.warn('[screener] Other funds unavailable — scored universe only', e);
+      _otherCycle = { cycle_meta: {}, funds: [] };
+      return _otherCycle;
+    }
+    // The Debt grid reads f.returns.y{1,3,5}_pct + si_pct; Other funds carry
+    // trailing_returns.return_{1y,3y,5y,si}_pct. Mirror them so a merged
+    // Other-Debt fund still shows its trailing returns in the debt columns.
+    (_otherCycle.funds || []).forEach(f => {
+      if (!f.returns) {
+        const tr = f.trailing_returns || {};
+        f.returns = {
+          y1_pct: tr.return_1y_pct != null ? tr.return_1y_pct : null,
+          y3_pct: tr.return_3y_pct != null ? tr.return_3y_pct : null,
+          y5_pct: tr.return_5y_pct != null ? tr.return_5y_pct : null,
+          si_pct: tr.return_si_pct != null ? tr.return_si_pct : null,
+        };
+      }
+    });
+    return _otherCycle;
+  }
+
+  function otherByClass(cls) {
+    return ((_otherCycle && _otherCycle.funds) || []).filter(f => f.sub_category_class === cls);
+  }
+
+  /**
+   * The active universe for a family = its scored cycle funds + any merged
+   * Not-Scored Other funds of that asset class. Commodity is wholly Other.
+   */
+  function familyFunds(family) {
+    if (family === 'debt') return (_debtCycle.funds || []).concat(otherByClass('Debt'));
+    if (family === 'commodity') return (_commodityCycle.funds || []).slice();
+    return (_eqhCycle.funds || []).concat(otherByClass('Equity'), otherByClass('Hybrid'));
   }
 
   /**
@@ -429,8 +555,10 @@
    */
   function setActiveFamily(family, isInitial) {
     _family = family;
-    _cycle = (family === 'debt') ? _debtCycle : _eqhCycle;
-    _allFunds = (_cycle.funds || []).slice();
+    _cycle = (family === 'debt') ? _debtCycle
+           : (family === 'commodity') ? _commodityCycle
+           : _eqhCycle;
+    _allFunds = familyFunds(family);
     _scoringWeights = (family === 'eqh')
       ? (_cycle.cycle_meta.scoring_weights || []).slice()
       : [];
@@ -444,7 +572,7 @@
       _activeExtras = [];
     }
 
-    _sortKey = (family === 'debt') ? 'aum' : 'score';
+    _sortKey = (family === 'eqh') ? 'score' : 'aum';
     _sortDir = 'desc';
     _selected.clear();
     _activeSectors = [];
@@ -473,24 +601,40 @@
     const totalEl = document.getElementById('totalCount');
     const footEl  = document.getElementById('footUpdated');
 
+    // Counts reflect the merged universe actually shown (scored cycle funds +
+    // any Not-Scored Other funds of this asset class).
+    const shownN = _allFunds.length;
+    const shownCats = new Set(_allFunds.map(f => f.category).filter(Boolean)).size;
+    const otherN = _allFunds.filter(f => f.centricity_score_status === 'Not Scored').length;
+    const notScoredNote = otherN > 0
+      ? ` Incl. ${otherN.toLocaleString('en-IN')} not-scored (commodity / FoF / solution).`
+      : '';
+
     if (_family === 'debt') {
-      const cycleLabel = '15th May 2026';
       titleEl.innerHTML =
-        `Interactive <em>Screener</em> · Debt · ${escapeHtml(cycleLabel)}`;
+        `Interactive <em>Screener</em> · Debt · 15th May 2026`;
       subEl.textContent =
-        `${m.total_funds.toLocaleString('en-IN')} debt funds across ${m.category_count} SEBI categories. ` +
+        `${shownN.toLocaleString('en-IN')} debt funds across ${shownCats} categories. ` +
         `Screening tool only — no Centricity Score; sort by any column. ` +
-        `NAV as on 15 May 2026 · Holdings as on 30 Apr 2026.`;
-      totalEl.textContent = m.total_funds.toLocaleString('en-IN');
+        `NAV as on 15 May 2026 · Holdings as on 30 Apr 2026.` + notScoredNote;
+      totalEl.textContent = shownN.toLocaleString('en-IN');
+      footEl.textContent = 'Last updated · 15 May 2026';
+    } else if (_family === 'commodity') {
+      titleEl.innerHTML =
+        `Interactive <em>Screener</em> · Commodity · 15th May 2026`;
+      subEl.textContent =
+        `${shownN.toLocaleString('en-IN')} commodity funds (gold / silver / multi-metal) across ${shownCats} groups. ` +
+        `Screening tool only — Not Scored; sort by any column. NAV as on 15 May 2026.`;
+      totalEl.textContent = shownN.toLocaleString('en-IN');
       footEl.textContent = 'Last updated · 15 May 2026';
     } else {
       const cycleLabel = DataLoader.fmtCycleLabelDate(m);
       titleEl.innerHTML =
         `Interactive <em>Screener</em> · ${escapeHtml(cycleLabel)}`;
       subEl.textContent =
-        `${m.total_funds.toLocaleString('en-IN')} funds across ${m.category_count} categories. ` +
-        `Filter, sort, edit weights — your changes update the Score column live.`;
-      totalEl.textContent = m.total_funds.toLocaleString('en-IN');
+        `${shownN.toLocaleString('en-IN')} funds across ${shownCats} categories. ` +
+        `Filter, sort, edit weights — your changes update the Score column live.` + notScoredNote;
+      totalEl.textContent = shownN.toLocaleString('en-IN');
       footEl.textContent = 'Last updated · ' + m.as_on_display;
     }
   }
@@ -542,22 +686,25 @@
    * Sectors picker) in debt mode. Restore in eqh.
    */
   function applyDebtModeChrome() {
-    const isDebt = _family === 'debt';
+    // Edit Weights / score legend / sectors are Equity-Hybrid-only. Both Debt
+    // and Commodity are screening-only (no Centricity Score), so hide that
+    // chrome and use the no-Rank-column sticky layout for both.
+    const isEqh = _family === 'eqh';
 
     const weightsBtn = document.getElementById('weightsBtn');
-    if (weightsBtn) weightsBtn.style.display = isDebt ? 'none' : '';
+    if (weightsBtn) weightsBtn.style.display = isEqh ? '' : 'none';
 
     const legend = document.getElementById('screenerLegend');
-    if (legend) legend.style.display = isDebt ? 'none' : '';
+    if (legend) legend.style.display = isEqh ? '' : 'none';
 
-    // Sectors picker is Analytics-driven (Equity/Hybrid); hide in debt
+    // Sectors picker is Analytics-driven (Equity/Hybrid); hide otherwise
     const sectorsWrap = document.getElementById('sectorsWrap');
-    if (sectorsWrap) sectorsWrap.style.display = isDebt ? 'none' : '';
+    if (sectorsWrap) sectorsWrap.style.display = isEqh ? '' : 'none';
 
-    // Table-wrap gets a debt-mode class so CSS can shift the sticky offsets
-    // (no Rank column when family is debt).
+    // Table-wrap gets the no-rank-column ("debt-mode") sticky offsets for any
+    // non-eqh family (debt + commodity tables omit the Rank column).
     const tableWrap = document.getElementById('tableWrap');
-    if (tableWrap) tableWrap.classList.toggle('debt-mode', isDebt);
+    if (tableWrap) tableWrap.classList.toggle('debt-mode', !isEqh);
   }
 
   async function _loadMgrHistoryOverlay() {
@@ -682,12 +829,23 @@
   /* ============================================================
    * FILTERS — Asset Class tiles + Category dropdown + AMC dropdown
    * ============================================================ */
+  // The tile(s) that represent a family in its default state.
+  function defaultTilesFor(family) {
+    if (family === 'debt') return ['debt'];
+    if (family === 'commodity') return ['commodity'];
+    return ['equity', 'hybrid'];
+  }
+  // Which family a single tile value belongs to.
+  function tileFamily(v) {
+    return v === 'debt' ? 'debt' : v === 'commodity' ? 'commodity' : 'eqh';
+  }
+
   function initFilters() {
     const acItems = buildAssetClassItems();
-    const acInitial = (_family === 'debt') ? ['debt'] : ['equity', 'hybrid'];
+    const acInitial = defaultTilesFor(_family);
 
     // Asset-class tiles: standard multi-select for equity/hybrid combos,
-    // but a `debt` selection is exclusive (family-mode switch).
+    // but `debt` and `commodity` are exclusive (family-mode switches).
     _acTiles = MultiSelect.createTiles(document.getElementById('acTiles'), {
       items: acItems,
       selected: acInitial,
@@ -720,8 +878,7 @@
     });
 
     document.getElementById('resetBtn').addEventListener('click', () => {
-      const defaultAc = _family === 'debt' ? ['debt'] : ['equity', 'hybrid'];
-      _acTiles.setSelected(defaultAc);
+      _acTiles.setSelected(defaultTilesFor(_family));
       rebuildCategoryItems();
       _catMS.setSelected(buildCategoryItems().map(i => i.value));
       _amcMS.setSelected(buildAmcItems().map(i => i.value));
@@ -731,7 +888,7 @@
         _filterRanges[cfg.key] = { min: d.min, max: d.max };
         syncRangeUI(cfg);
       });
-      _sortKey = _family === 'debt' ? 'aum' : 'score';
+      _sortKey = _family === 'eqh' ? 'score' : 'aum';
       _sortDir = 'desc';
       document.getElementById('searchInput').value = '';
       applyAndRender();
@@ -740,42 +897,35 @@
   }
 
   /**
-   * AC tile handler — enforces the cross-family mutual exclusion. The
-   * MultiSelect tile component lets the user toggle freely; we project
-   * the raw selection onto the {eqh, debt} families and reset to a valid
-   * shape if the user mixed them.
+   * AC tile handler — enforces cross-family mutual exclusion across the three
+   * families: eqh (equity and/or hybrid, multi-select), debt (exclusive) and
+   * commodity (exclusive). The MultiSelect tile component lets the user toggle
+   * freely; we project the raw selection onto a single family and reset to a
+   * valid shape if they mixed families.
    *
    * Rules:
-   *   • If the new selection contains 'debt' and at least one of
-   *     equity/hybrid → most-recent-click wins (debt if user just added
-   *     it, eq/hy if user just added them). We approximate this by
-   *     comparing against the previous family.
+   *   • Mixed families → the family the user JUST added wins (i.e. the one
+   *     that isn't the current family). debt/commodity collapse to that one
+   *     tile; eqh keeps whatever equity/hybrid tiles were chosen.
    *   • Empty selection is impossible (keepAtLeastOne).
    */
   function handleAssetClassChange(selected) {
-    const hasDebt = selected.includes('debt');
-    const hasEqh  = selected.includes('equity') || selected.includes('hybrid');
+    const fams = new Set(selected.map(tileFamily));
 
-    if (hasDebt && hasEqh) {
-      // Mixed selection — the user just clicked a different family. If
-      // we were in eqh, they just toggled debt on, so honour debt-only.
-      // If we were in debt, they just toggled equity/hybrid on, so honour
-      // eqh-only.
-      if (_family === 'eqh') {
-        _acTiles.setSelected(['debt']);
-        return;
+    if (fams.size > 1) {
+      // User mixed families — honour the one they just added (≠ current).
+      const added = selected.map(tileFamily).find(fam => fam !== _family) || _family;
+      if (added === 'eqh') {
+        _acTiles.setSelected(selected.filter(v => tileFamily(v) === 'eqh'));
       } else {
-        _acTiles.setSelected(selected.filter(v => v !== 'debt'));
-        return;
+        _acTiles.setSelected([added]);   // 'debt' or 'commodity' — exclusive
       }
+      return;   // setSelected re-fires onChange with a clean single-family shape
     }
 
-    if (hasDebt && _family !== 'debt') {
-      switchFamily('debt');
-      return;
-    }
-    if (hasEqh && _family !== 'eqh') {
-      switchFamily('eqh');
+    const target = [...fams][0] || 'eqh';
+    if (target !== _family) {
+      switchFamily(target);
       return;
     }
     // Same-family toggle (e.g. eqh user enabling/disabling hybrid)
@@ -786,12 +936,12 @@
 
   async function switchFamily(family) {
     try {
-      if (family === 'debt') await ensureDebtCycle();
-      else                   await ensureEqhCycle();
+      if (family === 'debt')           await ensureDebtCycle();
+      else if (family === 'commodity') await ensureCommodityCycle();
+      else                             await ensureEqhCycle();
     } catch (err) {
-      showToast('Could not load ' + (family === 'debt' ? 'debt' : 'screener') + ' cycle.');
-      // Revert tile selection to current family
-      _acTiles.setSelected(_family === 'debt' ? ['debt'] : ['equity', 'hybrid']);
+      showToast('Could not load ' + family + ' funds.');
+      _acTiles.setSelected(defaultTilesFor(_family));   // revert
       console.warn('[screener] family switch failed', err);
       return;
     }
@@ -799,27 +949,40 @@
   }
 
   function buildAssetClassItems() {
-    // For the eqh universe the count text comes from the loaded cycle's
-    // funds (so we can show "488 funds" etc); for debt, we look at
-    // _debtCycle if already loaded, otherwise we say "484 funds" from the
-    // ship-cycle metadata once it lands.
+    // Tile counts fold the Not-Scored Other funds into each asset class so the
+    // tile total matches what the table actually shows. eqh counts come from
+    // the loaded cycle; debt shows "click to load" until the family lands;
+    // commodity is wholly Other (available as soon as the Other JSON loads).
     const eqhCount = _eqhCycle
-      ? _eqhCycle.funds.filter(f => f.sub_category_class === 'Equity').length
+      ? _eqhCycle.funds.filter(f => f.sub_category_class === 'Equity').length + otherByClass('Equity').length
       : null;
     const hybCount = _eqhCycle
-      ? _eqhCycle.funds.filter(f => f.sub_category_class === 'Hybrid').length
+      ? _eqhCycle.funds.filter(f => f.sub_category_class === 'Hybrid').length + otherByClass('Hybrid').length
       : null;
     const debtCount = _debtCycle
-      ? _debtCycle.funds.length
+      ? _debtCycle.funds.length + otherByClass('Debt').length
       : null;
+    const commodityCount = _otherCycle ? otherByClass('Commodity').length : null;
+    const fmt = n => n != null ? n.toLocaleString('en-IN') + ' funds' : '';
     return [
-      { value: 'equity', label: 'Equity', sub: eqhCount  != null ? eqhCount.toLocaleString('en-IN')  + ' funds' : '' },
-      { value: 'debt',   label: 'Debt',   sub: debtCount != null ? debtCount.toLocaleString('en-IN') + ' funds' : 'click to load' },
-      { value: 'hybrid', label: 'Hybrid', sub: hybCount  != null ? hybCount.toLocaleString('en-IN')  + ' funds' : '' },
+      { value: 'equity',    label: 'Equity',    sub: fmt(eqhCount) },
+      { value: 'debt',      label: 'Debt',      sub: debtCount != null ? fmt(debtCount) : 'click to load' },
+      { value: 'hybrid',    label: 'Hybrid',    sub: fmt(hybCount) },
+      { value: 'commodity', label: 'Commodity', sub: commodityCount != null ? fmt(commodityCount) : 'click to load' },
     ];
   }
 
   function buildCategoryItems() {
+    if (_family === 'commodity') {
+      const seen = new Set(); const items = [];
+      _allFunds.forEach(f => {
+        if (f.category && !seen.has(f.category)) {
+          seen.add(f.category);
+          items.push({ value: f.category, label: f.category, group: 'Commodity' });
+        }
+      });
+      return items;
+    }
     if (_family === 'debt') {
       // Ladder order: Overnight → Liquid → … → Index Funds → ETFs (passive last)
       const LADDER = [
@@ -829,23 +992,39 @@
         'Dynamic Bond', 'Long Duration', 'Gilt', 'Index Funds', 'ETFs',
       ];
       const available = new Set(_allFunds.map(f => f.category).filter(Boolean));
-      return LADDER.filter(c => available.has(c)).map(c => ({
+      const items = LADDER.filter(c => available.has(c)).map(c => ({
         value: c, label: c, group: 'Debt',
       }));
+      // Other-fund debt sub-categories (Debt FoF, FoF, …) aren't on the ladder.
+      const seen = new Set(items.map(i => i.value));
+      Array.from(available).sort().forEach(c => {
+        if (!seen.has(c)) { seen.add(c); items.push({ value: c, label: c, group: 'Debt' }); }
+      });
+      return items;
     }
     const acSel = _acTiles ? _acTiles.getSelected() : ['equity', 'hybrid'];
     const cats = (_cycle.cycle_meta.categories || []);
+    const want = [];
+    if (acSel.includes('equity')) want.push('Equity');
+    if (acSel.includes('hybrid')) want.push('Hybrid');
     const items = [];
-    if (acSel.includes('equity')) {
-      cats.filter(c => c.sub_class === 'Equity').forEach(c => {
-        items.push({ value: c.name, label: c.name, group: 'Equity' });
-      });
-    }
-    if (acSel.includes('hybrid')) {
-      cats.filter(c => c.sub_class === 'Hybrid').forEach(c => {
-        items.push({ value: c.name, label: c.name, group: 'Hybrid' });
-      });
-    }
+    const seen = new Set();
+    cats.forEach(c => {
+      if (want.includes(c.sub_class) && !seen.has(c.name)) {
+        seen.add(c.name);
+        items.push({ value: c.name, label: c.name, group: c.sub_class });
+      }
+    });
+    // Append NEW sub-categories carried only by merged Other funds (Global,
+    // Equity FoF, Hybrid FoF, Solution - Retirement, …) so they're filterable
+    // and default-selected — otherwise the "all categories" default would
+    // silently exclude every merged Other fund.
+    _allFunds.forEach(f => {
+      if (want.includes(f.sub_category_class) && f.category && !seen.has(f.category)) {
+        seen.add(f.category);
+        items.push({ value: f.category, label: f.category, group: f.sub_category_class });
+      }
+    });
     return items;
   }
   function rebuildCategoryItems() {
@@ -1128,30 +1307,8 @@
         cloned._displayScore = (f.centricity_score_status === 'Ranked')
           ? DataLoader.recomputeScore(f, activeWeights)
           : null;
+        cloned._displayRank = null;   // F5 — assigned after ALL filters (below)
         return cloned;
-      });
-      // Phase 2.2 §1B — rank is IN-CATEGORY only. We previously sorted
-      // every Ranked fund globally and assigned a universal rank 1..N,
-      // which made cross-category comparison meaningless (a Large Cap
-      // 12th-place fund and an Aggressive Hybrid 3rd-place fund look
-      // adjacent at universal ranks 50 / 51). Group by category, sort
-      // by _displayScore desc within each, and assign rank 1..N inside
-      // the category. The Rank column on the screener now answers
-      // "how does this fund rank among its peers" — the only meaningful
-      // read for a percentile score.
-      const ranksByCat = new Map();
-      funds.forEach(f => {
-        if (f.centricity_score_status === 'Ranked' && f._displayScore != null) {
-          if (!ranksByCat.has(f.category)) ranksByCat.set(f.category, []);
-          ranksByCat.get(f.category).push(f);
-        }
-      });
-      ranksByCat.forEach(catFunds => {
-        catFunds.sort((a, b) => (b._displayScore || 0) - (a._displayScore || 0));
-        catFunds.forEach((f, idx) => { f._displayRank = idx + 1; });
-      });
-      funds.forEach(f => {
-        if (f.centricity_score_status !== 'Ranked' || f._displayScore == null) f._displayRank = null;
       });
     }
 
@@ -1170,6 +1327,18 @@
         funds = funds.filter(f => rangePass(f, cfg));
       }
     });
+
+    // F5 — Rank by Centricity score ACROSS THE CURRENT SELECTION (not per
+    // category). Over the final post-filter set, every Ranked fund with a live
+    // score gets a single 1..N rank by _displayScore desc; Non-Ranked (Warning /
+    // New / Index — Not Scored) stay null → "—". This re-runs on every weight or
+    // filter change (it's inside applyAndRender), so a weight edit re-ranks.
+    if (_family === 'eqh') {
+      funds
+        .filter(f => f.centricity_score_status === 'Ranked' && f._displayScore != null)
+        .sort((a, b) => (b._displayScore || 0) - (a._displayScore || 0))
+        .forEach((f, idx) => { f._displayRank = idx + 1; });
+    }
 
     funds.sort(rowComparator(_sortKey, _sortDir));
 
@@ -1413,7 +1582,9 @@
     // chip rather than the New-Fund-Monitoring badge or a misleading "0.00".
     // These funds still sort by AUM / returns / TER / mcap-split etc.; only
     // the Score cell is suppressed.
-    if (status === 'Index — Not Scored') {
+    // Passive index funds AND the merged Other universe (Commodity / FoF /
+    // Solution — centricity_score_status === "Not Scored") carry no score.
+    if (status === 'Index — Not Scored' || status === 'Not Scored') {
       return `<span class="badge not-scored">Not scored</span>`;
     }
     return `<span class="badge new-fund">New Fund — Monitoring</span>`;
@@ -1544,6 +1715,8 @@
     const ac = _acTiles ? _acTiles.getSelected() : [];
     if (_family === 'debt') {
       p.set('ac', 'debt');
+    } else if (_family === 'commodity') {
+      p.set('ac', 'commodity');
     } else if (ac.length < 2 || ac.join(',') !== 'equity,hybrid') {
       p.set('ac', ac.join(','));
     }
@@ -1552,7 +1725,7 @@
     if (cat.length !== fullCats.length) p.set('cat', cat.join(','));
     const amc = _amcMS ? _amcMS.getSelected() : [];
     if (amc.length !== buildAmcItems().length) p.set('amc', amc.join(','));
-    const defaultSortKey = _family === 'debt' ? 'aum' : 'score';
+    const defaultSortKey = _family === 'eqh' ? 'score' : 'aum';
     if (_sortKey !== defaultSortKey || _sortDir !== 'desc') p.set('sort', _sortKey + '_' + _sortDir);
     rangeConfig().forEach(cfg => {
       if (isRangeFullDomain(cfg.key)) return;
@@ -1574,7 +1747,10 @@
   function parseUrlState() {
     const p = new URLSearchParams(window.location.search);
     if (p.has('ac') && _family === 'eqh') {
-      const v = p.get('ac').split(',').filter(Boolean).filter(x => x !== 'debt');
+      // Only equity/hybrid sub-selections matter here; debt/commodity are
+      // handled at bootstrap (main) by switching family before this runs.
+      const v = p.get('ac').split(',').filter(Boolean)
+        .filter(x => x !== 'debt' && x !== 'commodity');
       if (v.length) {
         _acTiles.setSelected(v);
         rebuildCategoryItems();

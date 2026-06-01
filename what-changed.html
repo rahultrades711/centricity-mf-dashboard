@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Centricity MF Screener — What Changed</title>
+<meta name="viewport" content="width=1680">
+<link rel="icon" href="assets/logo.png">
+<link rel="stylesheet" href="css/centricity.css">
+<link rel="stylesheet" href="css/transitions.css">
+<link rel="stylesheet" href="css/home.css">
+<style>
+  .wc-band { background:#fff; border-bottom:1px solid var(--rule); padding:28px 56px 22px; }
+  .wc-band .inner { max-width:1740px; margin:0 auto; }
+  .wc-band h1 { margin:0; font-size:32px; font-weight:700; letter-spacing:-.01em; }
+  .wc-band h1 em { font-style:italic; font-weight:400; color:var(--gold-deep); }
+  .wc-band .sub { font-size:13.5px; color:var(--text-mid); margin:8px 0 0; max-width:90ch; }
+  .wc-tabs { margin-top:14px; display:flex; gap:10px; }
+  .wc-tabs a { font-size:13px; padding:6px 14px; border:1px solid var(--rule); border-radius:999px; text-decoration:none; color:var(--text-mid); background:#fff; }
+  .wc-tabs a.active { background:var(--gold); color:#fff; border-color:var(--gold); font-weight:600; }
+  .wc-body { max-width:1740px; margin:32px auto 80px; padding:0 56px; }
+  .wc-count { font-size:13px; color:var(--text-mid); margin:0 0 14px; }
+  .wc-count b { color:var(--gold-deep); }
+  table.wc-tbl { width:100%; border-collapse:collapse; background:#fff; box-shadow:var(--shadow-sm); border-radius:4px; overflow:hidden; }
+  table.wc-tbl th, table.wc-tbl td { text-align:left; padding:10px 14px; border-bottom:1px solid var(--rule); font-size:13px; }
+  table.wc-tbl th { background:var(--tan-soft); font-weight:700; font-size:12px; }
+  table.wc-tbl td.num, table.wc-tbl th.num { text-align:right; font-variant-numeric:tabular-nums; }
+  table.wc-tbl tr:hover td { background:#faf7f2; }
+  table.wc-tbl .fund-link { font-weight:600; }
+  .wc-empty { background:#fff; border:1px solid var(--rule); border-radius:4px; padding:80px 32px; text-align:center; box-shadow:var(--shadow-sm); }
+  .wc-empty h2 { font-size:22px; font-weight:700; margin:0 0 10px; }
+  .wc-empty p { font-size:14px; color:var(--text-mid); margin:0; }
+</style>
+<script defer src="js/data-loader.js"></script>
+<script defer src="js/cycle.js"></script>
+<script defer src="js/search.js"></script>
+<script defer src="js/transitions.js"></script>
+<script defer src="js/what-changed.js"></script>
+</head>
+<body>
+
+<header class="appbar" role="banner">
+  <div class="left"><div class="logo-cell"><img src="assets/logo.png" alt="Centricity WealthTech"></div></div>
+  <nav aria-label="primary">
+    <a href="index.html">Home</a>
+    <a href="screener.html">Screener</a>
+    <a href="fund-detail.html">Fund One Pagers</a>
+    <a href="portfolio-builder.html">Portfolio Builder</a>
+    <a href="compare.html">Compare</a>
+    <a href="overlap.html">Overlap</a>
+    <div class="nav-dropdown">
+      <a href="#" class="dropdown-trigger">Others &#9662;</a>
+      <div class="nav-dropdown-menu">
+        <a href="manager-profiles.html">Manager Profiles</a>
+        <a href="archive.html">Archive</a>
+        <a href="watchlist.html">Watchlist</a>
+        <a href="alerts.html">Alerts</a>
+      </div>
+    </div>
+  </nav>
+  <div class="right">
+    <label class="search"><span style="opacity:.6">⌕</span>
+      <input type="text" placeholder="Search…" aria-label="Search"></label>
+  </div>
+</header>
+
+<div class="crumb">
+  <a href="index.html">Home</a><span class="sep">›</span><span>What Changed</span>
+</div>
+
+<main>
+<section class="wc-band">
+  <div class="inner">
+    <h1 id="wcTitle">What <em>Changed</em></h1>
+    <p class="sub" id="wcSub"></p>
+    <div class="wc-tabs">
+      <a href="what-changed.html?type=new" data-type="new">New entrants</a>
+      <a href="what-changed.html?type=dropped" data-type="dropped">Funds dropped</a>
+      <a href="what-changed.html?type=reclassified" data-type="reclassified">Category reclassified</a>
+      <a href="what-changed.html?type=gainers" data-type="gainers">Ranking gainers</a>
+      <a href="what-changed.html?type=losers" data-type="losers">Ranking losers</a>
+    </div>
+  </div>
+</section>
+
+<section class="wc-body">
+  <p class="wc-count" id="wcCount"></p>
+  <div id="wcMount"></div>
+</section>
+</main>
+
+<footer class="appfoot" role="contentinfo">
+  <div class="left">
+    <span class="gold">CENTRICITY WEALTHTECH</span><span>·</span><span>Products Team</span><span>·</span><span>Confidential</span>
+  </div>
+  <div class="right" id="footUpdated">Last updated · —</div>
+</footer>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
